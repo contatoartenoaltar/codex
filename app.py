@@ -1,0 +1,274 @@
+"""Aplicação local da Arte no Altar. Python 3.12+, biblioteca padrão."""
+import json
+import os
+import re
+import sqlite3
+import auth
+import urllib.error
+import urllib.request
+from datetime import date
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlsplit
+
+ROOT = Path(__file__).parent
+DB = Path(os.environ.get('ARTENOALTAR_DB', ROOT / '.local/arte-no-altar.db'))
+PRICES = {100: 9900, 200: 14900, 500: 22900, 1000: 39900}
+PRODUCTS = [
+    {'id': 'envelopes', 'name': 'Envelopes personalizados', 'description': 'Dízimos, ofertas, primícias, missões e campanhas. C6 (16,2 × 11,4 cm), com logotipo e QR Code Pix. Pedido mínimo: 100 unidades.', 'prices': PRICES},
+    {'id': 'projetos', 'name': 'Projetos de Vida', 'description': 'Kits com cartilha, calendário, marca-página e envelope. Versões Premium e Básica.'},
+    {'id': 'marcadores', 'name': 'Marca-páginas', 'description': 'Simples, plastificados, magnéticos e com tassel.'},
+    {'id': 'calendarios', 'name': 'Calendários personalizados', 'description': 'Calendários anuais para igrejas, ministérios e organizações.'},
+    {'id': 'certificados', 'name': 'Certificados', 'description': 'Batismo, apresentação de crianças, cursos, consagrações e diaconato.'},
+    {'id': 'crachas', 'name': 'Crachás personalizados', 'description': 'Equipes, ministérios, liderança, voluntários e eventos.'},
+    {'id': 'diversos', 'name': 'Materiais gráficos diversos', 'description': 'Cartões, adesivos, panfletos, flyers, convites e lembrancinhas.'},
+    {'id': 'artes', 'name': 'Criação e personalização de artes', 'description': 'Adaptação de modelos, logotipos, informações, QR Codes e artes para impressão.'},
+]
+STAGES = ['Novo', 'Aguardando arte', 'Em produção', 'Enviado', 'Concluído', 'Cancelado']
+
+
+def connect():
+    DB.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def initialize():
+    with connect() as c:
+        auth.initialize(c)
+        c.executescript('''
+        CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, description TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, date TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, quantity REAL NOT NULL, minimum REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, product TEXT NOT NULL, quantity INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
+        ''')
+
+
+def required(data, key, limit=200):
+    value = data.get(key)
+    if not isinstance(value, str) or not value.strip() or len(value) > limit:
+        raise ValueError(f'Preencha {key} (até {limit} caracteres).')
+    return value.strip()
+
+
+def number(data, key, integer=False, positive=False):
+    value = data.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f'Valor inválido: {key}.')
+    import math
+    if not math.isfinite(value) or value < 0 or value > 1e12 or (integer and value != int(value)) or (positive and value == 0):
+        raise ValueError(f'Valor inválido: {key}.')
+    return int(value) if integer else value
+
+
+def catalog_product(data):
+    key = required(data, 'product')
+    product = next((p for p in PRODUCTS if p['id'] == key), None)
+    if not product:
+        raise ValueError('Selecione um produto do catálogo.')
+    return product
+
+
+def brl(cents):
+    return f'R$ {cents / 100:.2f}'.replace('.', ',')
+
+
+def commercial_reply(message):
+    text = message.casefold()
+    if 'envelope' in text and any(w in text for w in ['preço', 'preco', 'valor', 'custa', 'orçamento', 'orcamento', 'quanto']):
+        quantities = [int(x.replace('.', '')) for x in re.findall(r'\b\d{1,3}(?:\.\d{3})\b|\b\d+\b', text)]
+        if quantities and any(q not in PRICES for q in quantities):
+            return 'Olá! O pedido mínimo de envelopes é de 100 unidades. Para essa quantidade ou condição específica, vou encaminhar seu orçamento para confirmação com o responsável. Não tenho um preço cadastrado para informar.'
+        prices = '; '.join(f'{q:,} unidades: {brl(v)}'.replace(',', '.', 1) if q == 1000 else f'{q} unidades: {brl(v)}' for q, v in PRICES.items())
+        return f'Olá! Nossos envelopes C6 (16,2 × 11,4 cm) podem incluir o logotipo da igreja e QR Code Pix. Valores cadastrados: {prices}. Qual quantidade você precisa? Envie também o nome da igreja, logotipo e dados para personalização. Frete e prazo precisam de confirmação com o responsável.'
+    if any(w in text for w in ['prazo', 'frete', 'desconto', 'estoque', 'disponível', 'disponivel', 'entrega']):
+        return 'Enviamos para todo o Brasil por Correios e transportadoras. Para confirmar prazo, disponibilidade, frete ou uma condição especial, preciso encaminhar ao responsável. Pode informar o produto, a quantidade e o CEP?'
+    if any(w in text for w in ['pagamento', 'pix', 'cartão', 'cartao', 'parcel']):
+        return 'Aceitamos Pix ou cartão de crédito em até 12 vezes com juros pelo site www.artenoaltar.com.br. As condições finais devem ser conferidas no site. Qual produto e quantidade você procura?'
+    return 'Olá! Seja bem-vindo à Arte no Altar – Ideias que Edificam, de Poços de Caldas/MG. Criamos envelopes, Projetos de Vida, marca-páginas, calendários, certificados, crachás e outros materiais personalizados. Qual produto e quantidade você procura? Para preços não cadastrados e condições específicas, vou encaminhar ao responsável.'
+
+
+def caption(product, use_ai):
+    draft = f'{product["name"]} para transformar suas ideias em materiais cheios de propósito. ✨\n\n{product["description"]}\n\nNa Arte no Altar, personalizamos materiais para igrejas, ministérios e eventos. Enviamos para todo o Brasil por Correios e transportadoras.\n\nConheça em www.artenoaltar.com.br ou fale com a gente pelo WhatsApp disponível no site.\n\n#ArteNoAltar #GráficaCristã #Personalizados #Igrejas'
+    if not use_ai:
+        return draft, 'Modelo local'
+    key = os.environ.get('ARTENOALTAR_AI_KEY')
+    if not key:
+        raise ValueError('A IA ainda não está configurada. Use o modelo local ou configure a chave com segurança no servidor.')
+    body = {'model': os.environ.get('ARTENOALTAR_AI_MODEL', 'gpt-4.1-mini'), 'instructions': 'Escreva uma legenda cordial, profissional e natural em português brasileiro para Instagram/Facebook da Arte no Altar – Ideias que Edificam, Poços de Caldas/MG, @arte.no.altar. Use somente os fatos fornecidos. Nunca invente preços, prazos, disponibilidade, descontos ou condições. Não prometa resultados. Termine convidando para orçamento no site www.artenoaltar.com.br. Não inclua preços. Retorne somente a legenda, com até 1500 caracteres. Todo resultado será revisado por uma pessoa.', 'input': draft, 'max_output_tokens': 600, 'store': False}
+    request = urllib.request.Request('https://api.openai.com/v1/responses', data=json.dumps(body).encode(), headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(request, timeout=40) as response:
+            result = json.load(response)
+        output = '\n'.join(part['text'] for item in result.get('output', []) for part in item.get('content', []) if part.get('type') == 'output_text').strip()
+        if not output:
+            raise ValueError('A IA não retornou uma legenda. Tente novamente.')
+        return output, 'IA · revisão necessária'
+    except (urllib.error.URLError, TimeoutError):
+        raise ValueError('Não foi possível acessar a IA. Verifique a chave, o saldo e a permissão de rede do servidor.') from None
+
+
+class Handler(BaseHTTPRequestHandler):
+    def security_headers(self):
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'same-origin')
+        self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        if os.environ.get('ARTENOALTAR_ORIGIN', '').startswith('https://'):
+            self.send_header('Strict-Transport-Security', 'max-age=31536000')
+
+    def end_headers(self):
+        self.security_headers()
+        super().end_headers()
+
+    def signed_in(self):
+        with connect() as c:
+            return auth.authenticated(c, self.headers.get('Cookie'))
+
+    def valid_origin(self):
+        expected = os.environ.get('ARTENOALTAR_ORIGIN', '')
+        host = self.headers.get('Host', '')
+        if expected:
+            if host != urlsplit(expected).netloc:
+                return False
+        else:
+            if host.split(':')[0] not in ['localhost', '127.0.0.1']:
+                return False
+            expected = f'http://{host}'
+        return self.headers.get('Origin') == expected
+
+    def session_cookie(self, token='', clear=False):
+        secure = '; Secure' if os.environ.get('ARTENOALTAR_ORIGIN', '').startswith('https://') else ''
+        return f'arte_session={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={0 if clear else auth.SESSION_SECONDS}{secure}'
+
+    def log_message(self, fmt, *args):
+        # Não registrar conteúdos comerciais ou chaves.
+        pass
+
+    def send_json(self, value, status=200, cookie=None):
+        payload = json.dumps(value, ensure_ascii=False).encode()
+        self.send_response(status)
+        if cookie:
+            self.send_header('Set-Cookie', cookie)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):
+        if self.path == '/healthz':
+            with connect() as c:
+                c.execute('SELECT 1').fetchone()
+            return self.send_json({'ok': True})
+        if self.path == '/api/auth':
+            with connect() as c:
+                return self.send_json({'authenticated': auth.authenticated(c, self.headers.get('Cookie')), 'configured': auth.configured(c)})
+        if self.path.startswith('/api/') and not self.signed_in():
+            return self.send_json({'error': 'Entre para acessar o sistema.'}, 401)
+        if self.path == '/api/state':
+            with connect() as c:
+                result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
+            result.update(products=PRODUCTS, stages=STAGES, ai_configured=bool(os.environ.get('ARTENOALTAR_AI_KEY')))
+            return self.send_json(result)
+        files = {'/': ('index.html' if self.signed_in() else 'login.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'), '/login.js': ('login.js', 'text/javascript')}
+        if self.path not in files:
+            return self.send_json({'error': 'Página não encontrada.'}, 404)
+        name, mime = files[self.path]
+        payload = (ROOT / 'static' / name).read_bytes()
+        self.send_response(200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_POST(self):
+        # Origem explícita obrigatória também para login (proteção CSRF).
+        if not self.valid_origin():
+            return self.send_json({'error': 'Origem não permitida.'}, 403)
+        if self.path != '/api/login' and not self.signed_in():
+            return self.send_json({'error': 'Entre para acessar o sistema.'}, 401)
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length <= 0 or length > 20000:
+                raise ValueError('Tamanho de requisição inválido.')
+            d = json.loads(self.rfile.read(length))
+            if not isinstance(d, dict):
+                raise ValueError('Dados inválidos.')
+            if self.path == '/api/login':
+                with connect() as c:
+                    token, error, status = auth.login(c, d.get('password'))
+                if error:
+                    return self.send_json({'error': error}, status)
+                return self.send_json({'ok': True}, cookie=self.session_cookie(token))
+            if self.path == '/api/logout':
+                with connect() as c:
+                    c.execute('DELETE FROM sessions WHERE token_hash=?', (auth.token_hash(self.headers.get('Cookie')),))
+                return self.send_json({'ok': True}, cookie=self.session_cookie(clear=True))
+            with connect() as c:
+                if self.path == '/api/transactions':
+                    kind = required(d, 'kind')
+                    if kind not in ['income', 'expense']:
+                        raise ValueError('Tipo de lançamento inválido.')
+                    day = date.fromisoformat(required(d, 'date')).isoformat()
+                    c.execute('INSERT INTO transactions(description,kind,amount,date) VALUES(?,?,?,?)', (required(d, 'description'), kind, number(d, 'amount', True, True), day))
+                elif self.path == '/api/inventory':
+                    c.execute('INSERT INTO inventory(name,unit,quantity,minimum) VALUES(?,?,?,?)', (required(d, 'name'), required(d, 'unit', 30), number(d, 'quantity'), number(d, 'minimum')))
+                elif self.path == '/api/inventory/quantity':
+                    cursor = c.execute('UPDATE inventory SET quantity=? WHERE id=?', (number(d, 'quantity'), number(d, 'id', True, True)))
+                    if cursor.rowcount != 1:
+                        raise ValueError('Material não encontrado.')
+                elif self.path == '/api/orders':
+                    p = catalog_product(d)
+                    notes = d.get('notes', '')
+                    if not isinstance(notes, str) or len(notes) > 3000:
+                        raise ValueError('Observações inválidas.')
+                    c.execute('INSERT INTO orders(customer,product,quantity,total,status,notes) VALUES(?,?,?,?,?,?)', (required(d, 'customer'), p['name'], number(d, 'quantity', True, True), number(d, 'total', True), 'Novo', notes))
+                elif self.path == '/api/orders/status':
+                    status = required(d, 'status')
+                    if status not in STAGES:
+                        raise ValueError('Etapa inválida.')
+                    cursor = c.execute('UPDATE orders SET status=? WHERE id=?', (status, number(d, 'id', True, True)))
+                    if cursor.rowcount != 1:
+                        raise ValueError('Pedido não encontrado.')
+                elif self.path == '/api/posts':
+                    p = catalog_product(d)
+                    channel = required(d, 'channel')
+                    if channel not in ['Instagram', 'Facebook']:
+                        raise ValueError('Canal inválido.')
+                    body, source = caption(p, d.get('use_ai') is True)
+                    c.execute('INSERT INTO posts(product,channel,caption,source) VALUES(?,?,?,?)', (p['name'], channel, body, source))
+                elif self.path == '/api/reply':
+                    return self.send_json({'reply': commercial_reply(required(d, 'message', 3000)), 'source': 'Resposta por regras · revisão necessária'})
+                elif self.path == '/api/delete':
+                    table = required(d, 'table')
+                    if table not in ['transactions', 'inventory', 'orders', 'posts']:
+                        raise ValueError('Registro inválido.')
+                    c.execute(f'DELETE FROM {table} WHERE id=?', (number(d, 'id', True, True),))
+                else:
+                    return self.send_json({'error': 'Operação não encontrada.'}, 404)
+            self.send_json({'ok': True}, 201)
+        except (ValueError, TypeError, KeyError):
+            import sys
+            error = sys.exception()
+            self.send_json({'error': str(error) if isinstance(error, ValueError) else 'Dados inválidos.'}, 400)
+        except sqlite3.Error:
+            self.send_json({'error': 'Não foi possível salvar os dados.'}, 500)
+
+
+if __name__ == '__main__':
+    import sys
+    initialize()
+    if len(sys.argv) > 1 and sys.argv[1] == 'set-password':
+        import getpass
+        password = getpass.getpass('Nova senha (mínimo 12 caracteres): ')
+        if password != getpass.getpass('Confirme a senha: '):
+            raise SystemExit('As senhas não conferem.')
+        with connect() as c:
+            auth.set_password(c, password)
+        raise SystemExit('Senha cadastrada. Sessões anteriores encerradas.')
+    port = int(os.environ.get('PORT', '8000'))
+    print(f'Arte no Altar: servidor local na porta {port}', flush=True)
+    ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()
