@@ -1,4 +1,4 @@
-# Primeira proposta de layouts — aguardando aprovação
+# Layouts em preto e dourado — linha visual aprovada
 
 O proprietário enviou o pacote de três amostras obtido pelo conector do Drive.
 As três imagens foram abertas e conferidas: PNG RGB, 1448 × 1086 px, com os
@@ -22,13 +22,18 @@ imagem final e os códigos antes de liberar uma rotina de publicação.
 
 ## Situação da aprovação
 
-As artes ainda são propostas. A logo oficial não foi enviada; o nome da empresa
-aparece em identificação tipográfica provisória. Não apresentar isso como aplicação
-da logo oficial nem ativar a rotina diária a partir dessas prévias.
+Em 30/10/2026, o proprietário aprovou expressamente a linha visual: “Aprovo em
+preto e dourado”, e enviou a logo como imagem na conversa. A imagem foi visualizada,
+mas seu arquivo original não ficou disponível no ambiente de execução. Falta
+receber o PNG como arquivo para aplicar a marca fielmente e conferir sua
+legibilidade nos cinco quadros. Não recriar a logo com IA nem redesenhá-la.
 
-O manifesto tem `approved=false`. A aprovação visual pelo proprietário, a inclusão
-da logo oficial e a definição do calendário/autorizações da rotina permanecem
-pendentes. As fotos e as propostas ficam em `.local`, sem entrar no repositório.
+As prévias já renderizadas ainda usam identificação tipográfica provisória e seu
+manifesto mantém `approved=false`: a aprovação da linha visual não transforma os
+arquivos antigos em artes finais com logo nem autoriza publicações. A inclusão
+da logo e a definição do calendário/autorizações da rotina permanecem pendentes.
+Não solicitar novamente aprovação do preto e dourado. As fotos e as propostas
+ficam em `.local`, sem entrar no repositório.
 
 O manifesto registra os IDs e hashes dos três modelos usados nas montagens. Ao
 implementar o ciclo sem repetição, considerar também essas referências já usadas
