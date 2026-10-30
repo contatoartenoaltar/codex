@@ -83,3 +83,16 @@ Inclui autenticação negada/desativada, origem recusada, protocolo, dados socia
 com seleção de campos, conta não concedida, confirmação obrigatória, formatos
 inválidos, idempotência, recibo e garantia de não publicar/não agendar. Testes de
 imagem usam fixture sintética de cabeçalho; não substituem aceite com foto real.
+
+## Diagnóstico da conexão do aplicativo
+
+Após atualizar o código e recarregar o WSGI, o servidor mantém no máximo 30 eventos técnicos de conexão: horário, status HTTP, categoria do resultado, versão de protocolo com formato de data e presença do cabeçalho Origin. Não registra valores de autenticação, chave, hash, cabeçalhos completos, IP, legendas, imagens ou argumentos das ferramentas. O diagnóstico não muda as permissões nem libera autenticação.
+
+No aplicativo, atualize o servidor MCP e tente somente a consulta de contas. Depois, no Bash da hospedagem:
+
+```bash
+cd ~/arte-no-altar
+python3.12 social_mcp.py diagnose
+```
+
+O comando mostra os últimos 15 eventos em horário de São Paulo. Se nenhum evento novo aparecer no momento da tentativa, o cliente não chegou ao endpoint nesta janela de observação; não conclua que a chave esteja errada. Se houver recusa, a categoria distingue integração desativada, Bearer ausente/formato inválido, chave divergente, origem, método HTTP, versão, Accept, tipo ou tamanho de conteúdo e JSON inválido. `initialize_recebido` e `tools_list_recebido` indicam recebimento, não provam que o cliente disponibilizou as ferramentas ao modelo. Não exponha esse diagnóstico como rota pública e não compartilhe outros arquivos privados para investigar o problema.

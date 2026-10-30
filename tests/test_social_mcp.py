@@ -121,6 +121,27 @@ class SocialMCPTests(unittest.TestCase):
         self.assertEqual(agenda['items'], [])
         self.assertFalse(agenda['scheduler']['active'])
 
+    def test_connection_diagnostics_never_record_secrets_or_arguments(self):
+        message={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'private_value':'do-not-record'}}
+        self.http(message,key='invalid-secret-with-more-than-32-characters')
+        self.http(message,HTTP_ACCEPT='application/json')
+        self.http(message)
+        with app.connect() as c:
+            rows=[dict(r) for r in c.execute('SELECT * FROM social_mcp_connections ORDER BY id')]
+        text=json.dumps(rows)
+        self.assertEqual([r['reason'] for r in rows],['chave_nao_corresponde','accept_incompativel','initialize_recebido'])
+        for private in [self.key,'invalid-secret','do-not-record','Authorization']:
+            self.assertNotIn(private,text)
+
+    def test_diagnostics_are_bounded_and_malformed_rpc_is_handled(self):
+        for _ in range(35):
+            self.http({'jsonrpc':'2.0','id':1,'method':'ping'})
+        result=self.http({'jsonrpc':'2.0','id':1,'method':{'not':'a-method'}})
+        self.assertEqual(result['status'],200)
+        self.assertIn('error',json.loads(result['body']))
+        with app.connect() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM social_mcp_connections').fetchone()[0],30)
+
 
 if __name__ == '__main__':
     unittest.main()

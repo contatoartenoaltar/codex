@@ -27,6 +27,24 @@ def initialize(c):
       id TEXT PRIMARY KEY, idempotency_key TEXT UNIQUE NOT NULL,
       content_hash TEXT NOT NULL, post_id INTEGER NOT NULL,
       desired_at TEXT, created_at INTEGER NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS social_mcp_connections (
+      id INTEGER PRIMARY KEY, created_at INTEGER NOT NULL,
+      http_status INTEGER NOT NULL, reason TEXT NOT NULL,
+      protocol TEXT NOT NULL, origin_present INTEGER NOT NULL)''')
+
+
+def connection_event(connect, request, status, reason):
+    """Diagnóstico limitado: nunca copiar cabeçalhos, argumentos ou credenciais."""
+    version=request.headers.get('MCP-Protocol-Version','')
+    version=version if re.fullmatch(r'20\d\d-\d\d-\d\d',version) else 'ausente/outra'
+    try:
+        with connect() as c:
+            c.execute('INSERT INTO social_mcp_connections(created_at,http_status,reason,protocol,origin_present) VALUES(?,?,?,?,?)',
+                (int(time.time()),status,reason,version,int(request.headers.get('Origin') is not None)))
+            c.execute('DELETE FROM social_mcp_connections WHERE id NOT IN (SELECT id FROM social_mcp_connections ORDER BY id DESC LIMIT 30)')
+    except sqlite3.Error:
+        # O diagnóstico não deve bloquear o MCP se o disco estiver ocupado.
+        pass
 
 
 def schema(properties=None, required=()):
@@ -222,37 +240,61 @@ def handle(request, method, connect, directory):
     expected = os.environ.get('ARTENOALTAR_MCP_KEY_SHA256', '')
     header = request.headers.get('Authorization', '')
     token = header[7:] if header.startswith('Bearer ') else ''
+    def reject(text,status,reason):
+        connection_event(connect,request,status,reason)
+        return request.send_json({'error':text},status)
     if not re.fullmatch(r'[a-f0-9]{64}', expected) or len(token) < 32 or not hmac.compare_digest(
             hashlib.sha256(token.encode()).hexdigest(), expected):
-        return request.send_json({'error': 'Credencial da integração inválida ou integração desativada.'}, 401)
+        reason='integracao_desativada' if not re.fullmatch(r'[a-f0-9]{64}',expected) else 'bearer_ausente_ou_formato_invalido' if len(token)<32 else 'chave_nao_corresponde'
+        return reject('Credencial da integração inválida ou integração desativada.',401,reason)
     origin = request.headers.get('Origin')
     allowed = os.environ.get('ARTENOALTAR_MCP_ALLOWED_ORIGINS', '').split(',')
     if origin is not None and origin not in [s.strip() for s in allowed if s.strip()]:
-        return request.send_json({'error': 'Origem não permitida.'}, 403)
+        return reject('Origem não permitida.',403,'origin_recusada')
     if method != 'POST':
-        return request.send_json({'error': 'Use POST; este servidor não oferece SSE.'}, 405)
+        return reject('Use POST; este servidor não oferece SSE.',405,'metodo_http_nao_suportado')
     version = request.headers.get('MCP-Protocol-Version', VERSION)
     if version != VERSION:
-        return request.send_json({'error': 'Versão MCP não suportada.'}, 400)
+        return reject('Versão MCP não suportada.',400,'versao_nao_suportada')
     accept = request.headers.get('Accept', '')
     if 'application/json' not in accept or 'text/event-stream' not in accept:
-        return request.send_json({'error': 'Accept precisa incluir application/json e text/event-stream.'}, 406)
+        return reject('Accept precisa incluir application/json e text/event-stream.',406,'accept_incompativel')
     try:
         size = int(request.headers.get('Content-Length', '0'))
         if not 0 < size <= MAX_BODY:
-            return request.send_json({'error': 'Corpo vazio ou maior que 8 MiB.'}, 413)
+            return reject('Corpo vazio ou maior que 8 MiB.',413,'tamanho_invalido')
         if request.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
-            return request.send_json({'error': 'Use application/json.'}, 415)
+            return reject('Use application/json.',415,'tipo_de_conteudo_invalido')
         raw = request.rfile.read(size)
         if len(raw) != size:
             raise ValueError()
         message = json.loads(raw)
     except (ValueError, UnicodeError):
-        return request.send_json({'error': 'JSON inválido.'}, 400)
+        return reject('JSON inválido.',400,'json_invalido')
     result = rpc(message, connect, directory)
     if result is None:
+        connection_event(connect,request,202,'notificacao_recebida')
         request.send_response(202)
         request.send_header('Content-Length', '0')
         request.end_headers()
         return
+    phase=message.get('method') if isinstance(message,dict) else None
+    phase=phase if isinstance(phase,str) else None
+    reason={'initialize':'initialize_recebido','tools/list':'tools_list_recebido','tools/call':'tools_call_recebido','ping':'ping_recebido'}.get(phase,'rpc_recebido')
+    connection_event(connect,request,200,reason)
     return request.send_json(result)
+
+
+if __name__=='__main__':
+    import sys
+    import app
+    if sys.argv[1:]!=['diagnose']:
+        raise SystemExit('Uso: python3.12 social_mcp.py diagnose')
+    app.initialize()
+    with app.connect() as c:
+        rows=c.execute('SELECT * FROM social_mcp_connections ORDER BY id DESC LIMIT 15').fetchall()
+    if not rows:
+        print('Nenhuma chamada ao MCP registrada após instalar o diagnóstico.')
+    for row in reversed(rows):
+        when=datetime.fromtimestamp(row['created_at'],ZONE).isoformat(timespec='seconds')
+        print(f"{when} | HTTP {row['http_status']} | {row['reason']} | protocolo={row['protocol']} | Origin={'presente' if row['origin_present'] else 'ausente'}")
