@@ -5,6 +5,7 @@ import re
 import sqlite3
 import auth
 import meta
+import publishing
 import html
 import urllib.error
 import urllib.request
@@ -47,6 +48,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, product TEXT NOT NULL, quantity INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
         ''')
+        publishing.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -162,6 +164,18 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if self.path.startswith('/media/'):
+            try:
+                payload=publishing.image_file(DB.parent,self.path.removeprefix('/media/')).read_bytes()
+            except (ValueError,OSError):
+                return self.send_json({'error':'Imagem não encontrada.'},404)
+            self.send_response(200)
+            self.send_header('Content-Type','image/jpeg')
+            self.send_header('Content-Length',str(len(payload)))
+            self.send_header('Cache-Control','public, max-age=86400')
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if urlsplit(self.path).path == meta.CALLBACK:
             return self.meta_callback()
         if self.path == '/healthz':
@@ -202,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'error': 'Entre para acessar o sistema.'}, 401)
         try:
             length = int(self.headers.get('Content-Length', 0))
-            if length <= 0 or length > 20000:
+            if length <= 0 or length > (8*1024*1024 if self.path=='/api/media' else 20000):
                 raise ValueError('Tamanho de requisição inválido.')
             d = json.loads(self.rfile.read(length))
             if not isinstance(d, dict):
@@ -228,6 +242,19 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/meta/verify':
                 meta.verify_accounts(DB.parent)
                 return self.send_json({'ok': True})
+            if self.path == '/api/media':
+                return self.send_json(publishing.upload(DB.parent,d.get('data')),201)
+            if self.path == '/api/posts/update':
+                with connect() as c:
+                    result=publishing.update(c,DB.parent,d)
+                return self.send_json(result)
+            if self.path in ['/api/posts/publish','/api/posts/finish']:
+                result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
+                return self.send_json(result,202 if result['status']=='processing' else 200)
+            if self.path == '/api/posts/reset':
+                with connect() as c:
+                    publishing.reset(c,d)
+                return self.send_json({'ok':True})
             with connect() as c:
                 if self.path == '/api/transactions':
                     kind = required(d, 'kind')
@@ -267,6 +294,10 @@ class Handler(BaseHTTPRequestHandler):
                     table = required(d, 'table')
                     if table not in ['transactions', 'inventory', 'orders', 'posts']:
                         raise ValueError('Registro inválido.')
+                    if table=='posts':
+                        row=c.execute('SELECT publish_status FROM posts WHERE id=?',(d.get('id'),)).fetchone()
+                        if row and row[0] in ['sending','processing','review']:
+                            raise ValueError('Confira o resultado do envio antes de excluir este registro.')
                     c.execute(f'DELETE FROM {table} WHERE id=?', (number(d, 'id', True, True),))
                 else:
                     return self.send_json({'error': 'Operação não encontrada.'}, 404)
@@ -277,6 +308,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({'error': str(error) if isinstance(error, ValueError) else 'Dados inválidos.'}, 400)
         except sqlite3.Error:
             self.send_json({'error': 'Não foi possível salvar os dados.'}, 500)
+        except OSError:
+            self.send_json({'error':'Não foi possível acessar o arquivo no servidor. Confira o espaço disponível.'},500)
 
     def meta_callback(self):
         query = parse_qs(urlsplit(self.path).query)

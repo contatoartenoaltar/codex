@@ -1,6 +1,6 @@
 # Conexão Meta — autorização inicial
 
-Implementação própria, sem Metricool ou intermediários. A API da Meta continua sendo necessária para acessar Instagram/Facebook. Esta etapa implementa o login, o retorno da autorização e uma consulta de leitura para identificar contas e permissões. Não implementa publicação, agendamento, webhooks ou atendimento automático. Não há publicação ou mensagem enviada por este fluxo.
+Implementação própria, sem Metricool ou intermediários. A API da Meta continua sendo necessária para acessar Instagram/Facebook. Esta etapa implementa o login, o retorno da autorização e uma consulta de leitura para identificar contas e permissões. O envio manual está documentado em PUBLISHING.md. Agendamento, webhooks e atendimento automático ainda não estão implementados. Não há publicação ou mensagem enviada por este fluxo.
 
 ## Atualização no PythonAnywhere
 
@@ -63,7 +63,7 @@ O token é guardado em `.local/meta-connection.json`, com permissão 600. Ele n�
 
 Depois de receber a autorização, clique em **Verificar contas e permissões** no Estúdio de conteúdo. O servidor consulta a validade e os escopos do token em `/debug_token`; usa os ativos concedidos de `instagram_basic` para identificar contas Instagram e, quando houver `pages_show_list`, consulta `/me/accounts` para identificar páginas Facebook. A ausência de uma conta não prova que ela não existe: pode indicar que o ativo ou a permissão não foi concedido. Se a Meta não retornar os ativos nesse tipo de token, será necessário revisar a configuração e as permissões no painel; o sistema não inventa uma associação.
 
-Os escopos `instagram_content_publish` e `pages_manage_posts` são apresentados como permissões declaradas, sem prometer que uma publicação funcionará. O sistema ainda não publica nem envia mensagens. Uma concessão no token pode ser insuficiente para um ativo específico; a confirmação final depende de uma operação real autorizada posteriormente.
+Os escopos `instagram_content_publish` e `pages_manage_posts` são apresentados como permissões declaradas, sem prometer que uma publicação funcionará. Esta consulta não publica nem envia mensagens; o envio manual exige confirmação separada, conforme PUBLISHING.md. Uma concessão no token pode ser insuficiente para um ativo específico; a confirmação final depende de uma operação real autorizada posteriormente.
 
 A última consulta é salva em `.local/meta-verification.json` com permissão 600, com nomes, IDs de contas, escopos, horário e uma impressão digital do token, sem incluir o token. O status é histórico, não uma checagem contínua de revogação. Uma nova verificação remove o resultado anterior antes da consulta para não apresentar resultados antigos como atuais em caso de erro. A remoção da autorização local também remove a verificação. Nenhuma URL de paginação fornecida pela API é seguida; a consulta fica restrita ao destino Graph configurado e aos primeiros 50 resultados de páginas e 20 contas Instagram.
 

@@ -16,7 +16,7 @@ def main():
     from wsgi import application
     app.initialize()
     serve(application, host='0.0.0.0', port=int(os.environ.get('PORT', '8000')), threads=4,
-          max_request_body_size=20000, clear_untrusted_proxy_headers=True,
+          max_request_body_size=8*1024*1024, clear_untrusted_proxy_headers=True,
           channel_timeout=60, expose_tracebacks=False)
 
 
