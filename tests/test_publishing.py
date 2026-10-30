@@ -178,6 +178,51 @@ class PublishingTests(unittest.TestCase):
                 publishing.publish(app.connect,app.DB.parent,{'id':1,'revision':0,'confirmed':True},prepare_only=True)
             send.assert_not_called()
 
+    def test_meta_file_preparation_only_uses_unpublished_linked_page_photo(self):
+        self.account['channel']='Instagram'
+        name=publishing.upload(app.DB.parent,base64.b64encode(jpeg()).decode())['name']
+        with app.connect() as c:
+            c.execute("UPDATE posts SET channel='Instagram',publish_status='review',image_name=?",(name,))
+        reads=[{'data':[{'id':'777','access_token':'page-token','instagram_business_account':{'id':'999'}}]},
+            {'images':[{'source':'https://scontent.example.fbcdn.net/art.jpg'}]}]
+        with patch('meta.graph_read',side_effect=reads),patch('publishing.graph_post',side_effect=[{'id':'555'},{'id':'888'}]) as send:
+            result=publishing.publish(app.connect,app.DB.parent,{'id':1,'revision':0,'confirmed':True,'confirmed_absent':True},prepare_only=True,via_meta=True)
+            self.assertEqual(result['status'],'processing')
+            self.assertEqual([c.args[1] for c in send.call_args_list],['777/photos','999/media'])
+            self.assertEqual(send.call_args_list[0].args[3],{'published':'false'})
+            self.assertEqual(send.call_args_list[0].kwargs['file_bytes'],jpeg())
+            self.assertEqual(send.call_args_list[1].args[3]['image_url'],'https://scontent.example.fbcdn.net/art.jpg')
+            self.assertEqual(self.row()['remote_id'],'')
+        with app.connect() as c:
+            self.assertEqual(c.execute('SELECT photo_id FROM publication_staged_media').fetchone()[0],'555')
+
+    def test_meta_file_preparation_refuses_unrelated_page(self):
+        row={'id':1,'account_id':'999','image_name':'irrelevant'}
+        with patch('meta.graph_read',return_value={'data':[{'id':'777','instagram_business_account':{'id':'different'}}]}),patch('publishing.graph_post') as send:
+            with self.assertRaises(ValueError):
+                publishing.stage_on_meta(app.connect,app.DB.parent,meta.config(app.DB.parent),'test-token',row)
+            send.assert_not_called()
+
+    def test_existing_unpublished_photo_is_reused_without_reupload(self):
+        with app.connect() as c:
+            c.execute("INSERT INTO publication_staged_media VALUES(1,'image.jpg','555')")
+        reads=[{'data':[{'id':'777','access_token':'page-token','instagram_business_account':{'id':'999'}}]},
+            {'images':[{'source':'https://scontent.example.fbcdn.net/fresh.jpg'}]}]
+        with patch('meta.graph_read',side_effect=reads),patch('publishing.graph_post') as send:
+            url=publishing.stage_on_meta(app.connect,app.DB.parent,meta.config(app.DB.parent),'test-token',{'id':1,'account_id':'999','image_name':'image.jpg'})
+            self.assertEqual(url,'https://scontent.example.fbcdn.net/fresh.jpg')
+            send.assert_not_called()
+
+    def test_multipart_upload_keeps_photo_unpublished(self):
+        with patch('urllib.request.build_opener') as factory:
+            factory.return_value.open.return_value=io.BytesIO(b'{"id":"555"}')
+            publishing.graph_post(meta.config(app.DB.parent),'777/photos','page-token',{'published':'false'},file_bytes=jpeg())
+            request=factory.return_value.open.call_args.args[0]
+            self.assertTrue(request.get_header('Content-type').startswith('multipart/form-data; boundary='))
+            self.assertIn(b'name="published"\r\n\r\nfalse',request.data)
+            self.assertIn(b'name="source"; filename="arte.jpg"',request.data)
+            self.assertIn(jpeg(),request.data)
+
     def test_meta_user_message_is_preserved_with_credentials_removed(self):
         import urllib.error
         response={'error':{'code':9004,'error_subcode':2207052,

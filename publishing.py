@@ -30,6 +30,9 @@ def initialize(conn):
         id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL, created_at INTEGER NOT NULL,
         status TEXT NOT NULL, account_id TEXT NOT NULL, caption TEXT NOT NULL,
         image_name TEXT NOT NULL, remote_id TEXT NOT NULL DEFAULT '')''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS publication_staged_media (
+        post_id INTEGER NOT NULL, image_name TEXT NOT NULL, photo_id TEXT NOT NULL,
+        PRIMARY KEY(post_id,image_name))''')
 
 
 def jpeg_size(data):
@@ -116,13 +119,28 @@ class Uncertain(ValueError):
     pass
 
 
-def graph_post(settings, path, token, data):
+def graph_post(settings, path, token, data, file_bytes=None):
     if not re.fullmatch(r'\d+/(feed|photos|media|media_publish)', path):
         raise ValueError('Destino de publicação inválido.')
     proof = hmac.new(settings['app_secret'].encode(), token.encode(), hashlib.sha256).hexdigest()
-    body = urllib.parse.urlencode({**data, 'appsecret_proof': proof}).encode()
+    content_type='application/x-www-form-urlencoded'
+    if file_bytes is None:
+        body = urllib.parse.urlencode({**data, 'appsecret_proof': proof}).encode()
+    else:
+        if not path.endswith('/photos') or len(file_bytes)>MAX_IMAGE:
+            raise ValueError('Upload de imagem inválido.')
+        boundary='ArteNoAltar'+secrets.token_hex(16)
+        parts=[]
+        for name,value in {**data,'appsecret_proof':proof}.items():
+            if not re.fullmatch(r'[a-z_]+',name):
+                raise ValueError('Campo de upload inválido.')
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="source"; filename="arte.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'.encode()+file_bytes+b'\r\n')
+        parts.append(f'--{boundary}--\r\n'.encode())
+        body=b''.join(parts)
+        content_type='multipart/form-data; boundary='+boundary
     request = urllib.request.Request(f'https://graph.facebook.com/{settings["version"]}/{path}', data=body,
-        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/x-www-form-urlencoded'})
+        headers={'Authorization': f'Bearer {token}', 'Content-Type':content_type})
     try:
         with urllib.request.build_opener(meta.NoRedirect).open(request, timeout=25) as response:
             result = json.loads(response.read(65536))
@@ -144,7 +162,9 @@ def set_status(connect, post_id, status, error='', remote_id='', container_id=''
                      (status,remote_id,post_id))
 
 
-def publish(connect, directory, data, finish=False, prepare_only=False):
+def publish(connect, directory, data, finish=False, prepare_only=False, via_meta=False):
+    if via_meta and (not prepare_only or finish):
+        raise ValueError('O envio por arquivo está disponível somente no teste de preparação.')
     if data.get('confirmed') is not True:
         raise ValueError('Confirme a publicação depois de revisar o conteúdo e a conta.')
     post_id, revision = data.get('id'), data.get('revision')
@@ -207,6 +227,8 @@ def publish(connect, directory, data, finish=False, prepare_only=False):
             return {'status':'published'}
         container=row['container_id']
         if not finish:
+            if via_meta:
+                image_url=stage_on_meta(connect,directory,settings,token,row)
             result=graph_post(settings,row['account_id']+'/media',token,{'image_url':image_url,'caption':row['caption']})
             container=str(result['id'])
             set_status(connect,post_id,'processing',container_id=container)
@@ -227,6 +249,46 @@ def publish(connect, directory, data, finish=False, prepare_only=False):
         message=str(error) if isinstance(error,ValueError) else 'Não foi possível registrar o resultado. Confira a rede social antes de tentar novamente.'
         set_status(connect,post_id,'review',message,container_id=row['container_id'])
         raise ValueError(message) from None
+
+
+def stage_on_meta(connect,directory,settings,token,row):
+    """Hospeda a arte na própria Meta sem criar post no feed do Facebook."""
+    proof=hmac.new(settings['app_secret'].encode(),token.encode(),hashlib.sha256).hexdigest()
+    result=meta.graph_read(settings,'me/accounts',token,{'fields':'id,instagram_business_account{id},access_token','limit':50,'appsecret_proof':proof})
+    pages=result.get('data',[])
+    if not isinstance(pages,list):
+        raise ValueError('A Meta não retornou as páginas vinculadas para receber o arquivo.')
+    page=next((p for p in pages if isinstance(p,dict) and isinstance(p.get('instagram_business_account'),dict)
+        and str(p['instagram_business_account'].get('id'))==row['account_id'] and str(p.get('id','')).isdecimal()),None)
+    if not page:
+        raise ValueError('Não foi encontrada uma página Facebook vinculada a esse Instagram entre os ativos concedidos.')
+    page_token=page.get('access_token')
+    if not isinstance(page_token,str) or not page_token:
+        page_token=meta.graph_read(settings,str(page['id']),token,{'fields':'access_token','appsecret_proof':proof}).get('access_token')
+    if not isinstance(page_token,str) or not page_token:
+        raise ValueError('Não foi possível obter a autorização de envio de arquivo para a página vinculada.')
+    with connect() as conn:
+        previous=conn.execute('SELECT photo_id FROM publication_staged_media WHERE post_id=? AND image_name=?',(row['id'],row['image_name'])).fetchone()
+    if previous:
+        photo_id=previous[0]
+    else:
+        image=image_file(directory,row['image_name']).read_bytes()
+        result=graph_post(settings,str(page['id'])+'/photos',page_token,{'published':'false'},file_bytes=image)
+        photo_id=str(result['id'])
+        with connect() as conn:
+            conn.execute('INSERT INTO publication_staged_media VALUES(?,?,?)',(row['id'],row['image_name'],photo_id))
+    page_proof=hmac.new(settings['app_secret'].encode(),page_token.encode(),hashlib.sha256).hexdigest()
+    photo=meta.graph_read(settings,photo_id,page_token,{'fields':'images','appsecret_proof':page_proof})
+    images=photo.get('images',[])
+    for image in images if isinstance(images,list) else []:
+        source=image.get('source') if isinstance(image,dict) else None
+        if not isinstance(source,str):
+            continue
+        parsed=urllib.parse.urlsplit(source)
+        host=(parsed.hostname or '').lower()
+        if parsed.scheme=='https' and not parsed.username and not parsed.password and (host.endswith('.fbcdn.net') or host.endswith('.fbsbx.com') or host.endswith('.facebook.com')):
+            return source
+    raise ValueError('A foto não publicada foi recebida, mas a Meta não retornou um endereço de imagem compatível.')
 
 
 def reset(conn, data):

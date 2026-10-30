@@ -252,8 +252,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path in ['/api/posts/publish','/api/posts/finish']:
                 result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
                 return self.send_json(result,202 if result['status']=='processing' else 200)
-            if self.path == '/api/posts/test-image':
-                result=publishing.publish(connect,DB.parent,d,prepare_only=True)
+            if self.path in ['/api/posts/test-image','/api/posts/test-meta-image']:
+                result=publishing.publish(connect,DB.parent,d,prepare_only=True,via_meta=self.path.endswith('/test-meta-image'))
                 return self.send_json(result,202)
             if self.path == '/api/posts/reset':
                 with connect() as c:
