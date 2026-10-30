@@ -1,5 +1,14 @@
 # Revisão da ambientação dos envelopes
 
+**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
+recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
+por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
+usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira
+execução na hospedagem será um lote de teste em rascunho, antes de retomar envios.
+A aprovação da amostra não comprova recortes corretos dos 84 arquivos.
+**Instruções atuais de atualização e teste:** [FEED_BATCHES.md](FEED_BATCHES.md).
+
+
 O proprietário rejeitou a montagem realmente produzida na hospedagem: havia uma
 foto retangular sobre o cenário e um título esticado. Esclareceu que os envelopes
 devem parecer inseridos no ambiente. A aprovação anterior da imagem de referência

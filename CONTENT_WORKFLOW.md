@@ -1,5 +1,14 @@
 # Rotina de conteúdo — Arte no Altar
 
+**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
+recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
+por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
+usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira
+execução na hospedagem será um lote de teste em rascunho, antes de retomar envios.
+A aprovação da amostra não comprova recortes corretos dos 84 arquivos.
+**Instruções atuais de atualização e teste:** [FEED_BATCHES.md](FEED_BATCHES.md).
+
+
 **Atualização vigente:** o proprietário aprovou quinze frases curtas genéricas.
 A criação diária agora independe de tema e não usa OCR/Tesseract. A rotação de
 imagens, a conferência de possíveis duplicações e os agendamentos existentes

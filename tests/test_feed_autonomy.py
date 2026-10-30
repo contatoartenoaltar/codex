@@ -26,6 +26,7 @@ class Client:
             image.save(output, format='PNG')
             self.data[f'original_model_{index:04d}'] = output.getvalue()
         self.downloads = 0
+        self.requested_ids = set()
 
     def catalog(self, folder):
         return {'folder_id': folder, 'checked_at': '2026-11-05', 'complete': True,
@@ -35,6 +36,7 @@ class Client:
 
     def download_image(self, item):
         self.downloads += 1
+        self.requested_ids.add(item['id'])
         return self.data[item['id']]
 
 
@@ -52,6 +54,9 @@ class FeedAutonomyTests(unittest.TestCase):
                           'publishing_scope_granted': True}]
         self.account_patch = patch('meta.status', return_value={'accounts': self.accounts})
         self.account_patch.start()
+        # Fixtures de fluxo usam ruído sem papel. A geometria é testada separadamente.
+        self.cutout_patch = patch('product_scene.detect_quad', return_value=[[10, 10], [309, 10], [309, 229], [10, 229]])
+        self.cutout_patch.start()
         self.client = Client()
         drive.write_private(self.directory/drive.CONFIG_FILE, {'folder_id': 'original_folder_123'})
         self.rules = {'enabled': True, 'id': 'a'*32, 'username': auto.ACCOUNT, 'account_id': '123456',
@@ -61,6 +66,7 @@ class FeedAutonomyTests(unittest.TestCase):
         self.heartbeat()
 
     def tearDown(self):
+        self.cutout_patch.stop()
         self.account_patch.stop()
         self.clock.stop()
         app.DB = self.old_db
@@ -234,6 +240,66 @@ class FeedAutonomyTests(unittest.TestCase):
         self.client.download_image = during_download
         self.assertEqual(self.tick(), 'indexing')
         self.assertEqual(self.client.downloads, 1)
+
+    def test_batches_prepare_only_three_candidates_and_wait_until_last_day(self):
+        self.client = Client(10)
+        self.rules |= {'cadence': 'batch3', 'mode': 'publish'}
+        drive.write_private(self.directory/auto.SETTINGS, self.rules)
+        for _ in range(3):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        self.assertEqual(len(self.client.requested_ids), 3)
+        with app.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM feed_models WHERE state='pending'").fetchone()[0], 7)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_batches').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 3)
+        self.now += 86400
+        self.heartbeat()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'waiting')
+        self.assertEqual(len(self.client.requested_ids), 3)
+        self.now += 86400
+        self.heartbeat()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_batches').fetchone()[0], 2)
+            slots = conn.execute('SELECT * FROM feed_auto_slots ORDER BY rowid').fetchall()
+            self.assertEqual(len({r['model_key'] for r in slots}), 4)
+            last_date = datetime.fromtimestamp(slots[-1]['due_at'], scheduling.ZONE).date()
+            self.assertEqual(last_date.isoformat(), '2026-11-08')
+
+    def test_preview_batch_never_schedules_and_activation_queues_same_reviewed_images(self):
+        self.rules |= {'cadence': 'batch3', 'mode': 'preview'}
+        drive.write_private(self.directory/auto.SETTINGS, self.rules)
+        for _ in range(3):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'waiting')
+        with app.connect() as conn:
+            originals = [dict(r) for r in conn.execute('SELECT * FROM posts ORDER BY id')]
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 0)
+        self.rules['mode'] = 'publish'
+        drive.write_private(self.directory/auto.SETTINGS, self.rules)
+        for _ in range(3):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            queued = [dict(r) for r in conn.execute('SELECT * FROM posts ORDER BY id')]
+            self.assertEqual(len(queued), 3)
+            self.assertEqual([p['image_name'] for p in queued], [p['image_name'] for p in originals])
+            self.assertEqual([p['caption'] for p in queued], [p['caption'] for p in originals])
+            self.assertTrue(all(p['publish_status'] == 'scheduled' for p in queued))
+
+    def test_failed_cutout_tries_another_model_for_the_same_batch_day(self):
+        import product_scene
+        self.rules |= {'cadence': 'batch3', 'mode': 'preview'}
+        drive.write_private(self.directory/auto.SETTINGS, self.rules)
+        with patch('product_scene.detect_quad', side_effect=product_scene.CutoutError('incomplete paper')):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'cutout_review')
+        with app.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_auto_slots').fetchone()[0], 0)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 0)
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            row = conn.execute('SELECT * FROM feed_auto_slots').fetchone()
+            self.assertEqual(datetime.fromtimestamp(row['due_at'], scheduling.ZONE).date().isoformat(), '2026-11-05')
+            self.assertEqual(row['state'], 'draft')
 
     def test_generic_mode_migrates_old_reviews_without_ocr_and_keeps_scheduled_post(self):
         self.index_all()

@@ -19,6 +19,7 @@ import drive_source as drive
 import feed_composer as composer
 import meta
 import scheduling
+import product_scene
 
 SETTINGS = 'feed-automation.json'
 OCR_DATA = Path(__file__).parent / 'design_assets' / 'ocr'
@@ -27,6 +28,9 @@ ACCOUNT = 'arte.no.altar'
 
 def initialize(conn):
     conn.executescript('''
+      CREATE TABLE IF NOT EXISTS feed_batches (
+        id TEXT PRIMARY KEY, account_id TEXT NOT NULL, first_day TEXT NOT NULL,
+        last_day TEXT NOT NULL, policy TEXT NOT NULL, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS feed_models (
         file_id TEXT PRIMARY KEY, version TEXT NOT NULL, active INTEGER NOT NULL,
         state TEXT NOT NULL, theme TEXT NOT NULL DEFAULT '', sha256 TEXT NOT NULL DEFAULT '',
@@ -41,10 +45,13 @@ def initialize(conn):
         lease_until INTEGER NOT NULL DEFAULT 0, last_tick INTEGER NOT NULL DEFAULT 0,
         state TEXT NOT NULL DEFAULT 'disabled');
     ''')
+    if 'batch_id' not in {row[1] for row in conn.execute('PRAGMA table_info(feed_auto_slots)')}:
+        conn.execute("ALTER TABLE feed_auto_slots ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
 
 
 def rules_hash():
-    return hashlib.sha256(composer.TEMPLATE.read_bytes() +
+    headers = b''.join(path.read_bytes() for path in sorted((product_scene.ASSETS/'headers').glob('*.jpg')))
+    return hashlib.sha256(composer.TEMPLATE.read_bytes() + headers + product_scene.VERSION.encode() +
                           json.dumps(composer.PHRASES, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -145,19 +152,25 @@ def policy(directory):
     return result
 
 
-def enable(directory):
+def enable(directory, *, approve_layout=False, preview=False):
     old = drive.read_json(directory / SETTINGS) if (directory / SETTINGS).exists() else {}
-    if old.get('layout_review_required'):
+    if (old.get('layout_review_required') or old.get('batch_review_required')) and not approve_layout:
         raise ValueError('O layout automático foi rejeitado e precisa ser corrigido e aprovado antes da reativação.')
+    product_scene.backend()
+    if any(not (product_scene.ASSETS/'headers'/f'{i:02d}.jpg').is_file() for i in range(15)):
+        raise ValueError('O banco de cabeçalhos está incompleto.')
     verification = meta.verify_accounts(directory)
     accounts = [a for a in verification['accounts'] if a['channel'] == 'Instagram'
                 and a['name'].lstrip('@').casefold() == ACCOUNT and a.get('publishing_scope_granted')]
     if len(accounts) != 1:
         raise ValueError('A conta Instagram @arte.no.altar não foi confirmada com permissão de publicação.')
-    result = {'enabled': True, 'id': old.get('id') or secrets.token_hex(16),
+    identity = old.get('id') if old.get('rules_hash') == rules_hash() else None
+    result = {'enabled': True, 'id': identity or secrets.token_hex(16),
               'username': ACCOUNT, 'account_id': accounts[0]['id'], 'channel': 'Instagram',
               'timezone': 'America/Sao_Paulo', 'time': '12:00', 'days_ahead': 3,
               'rules_hash': rules_hash(), 'authorized_at': int(time.time()),
+              'cadence': 'batch3', 'mode': 'preview' if preview else 'publish',
+              'layout_review_required': False, 'batch_review_required': preview,
               'authorization': 'Rotina diária autorizada pelo proprietário para os layouts e textos aprovados.'}
     drive.write_private(directory / SETTINGS, result)
     return result
@@ -239,9 +252,9 @@ def sync_catalog(connect, directory, client):
     return files
 
 
-def index_one(connect, files, client, recognizer=None):
+def index_one(connect, files, client, recognizer=None, *, file_id=None):
     with connect() as conn:
-        row = conn.execute("SELECT * FROM feed_models WHERE active=1 AND state='pending' ORDER BY file_id LIMIT 1").fetchone()
+        row = conn.execute("SELECT * FROM feed_models WHERE active=1 AND state='pending' AND (? IS NULL OR file_id=?) ORDER BY file_id LIMIT 1", (file_id, file_id)).fetchone()
     if not row:
         return False
     item = next(f for f in files if f['id'] == row['file_id'])
@@ -316,9 +329,76 @@ def _reserve(connect, rules, now):
             unique = {r['model_key']: r for r in candidates}
             chosen = unique[secrets.choice(list(unique))]
             request_id = 'auto-feed-' + hashlib.sha256(slot.encode()).hexdigest()
-            conn.execute('INSERT INTO feed_auto_slots VALUES(?,?,?,?,?,?,?,?,?,?,NULL)',
+            conn.execute('''INSERT INTO feed_auto_slots
+                (slot,due_at,policy,account_id,file_id,model_key,cycle,theme,request_id,state,post_id)
+                VALUES(?,?,?,?,?,?,?,?,?,?,NULL)''',
                          (slot, due, rules['id'], rules['account_id'], chosen['file_id'], chosen['model_key'],
                           cycle, chosen['theme'], request_id, 'reserved'))
+            return dict(conn.execute('SELECT * FROM feed_auto_slots WHERE slot=?', (slot,)).fetchone())
+    return None
+
+
+def _batch_days(connect, rules, now):
+    local = datetime.fromtimestamp(now, scheduling.ZONE)
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        latest = conn.execute('SELECT * FROM feed_batches WHERE account_id=? AND policy=? ORDER BY rowid DESC LIMIT 1', (rules['account_id'], rules['id'])).fetchone()
+        if latest:
+            count = conn.execute('SELECT COUNT(*) FROM feed_auto_slots WHERE batch_id=?', (latest['id'],)).fetchone()[0]
+            if count < 3:
+                return dict(latest)
+            if rules.get('mode') == 'preview' or local.date().isoformat() < latest['last_day']:
+                return None
+            first = datetime.fromisoformat(latest['last_day']).date()+timedelta(days=1)
+        else:
+            first = local.date()
+        earliest = local.date() + timedelta(days=int(local.hour >= 12 or (local.hour == 11 and local.minute >= 58)))
+        first = max(first, earliest)
+        identity = secrets.token_hex(16)
+        conn.execute('INSERT INTO feed_batches VALUES(?,?,?,?,?,?)', (identity, rules['account_id'], first.isoformat(),
+                     (first+timedelta(days=2)).isoformat(), rules['id'], now))
+        return dict(conn.execute('SELECT * FROM feed_batches WHERE id=?', (identity,)).fetchone())
+
+
+def _reserve_batch(connect, rules, batch, now):
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        pending = conn.execute("SELECT * FROM feed_auto_slots WHERE batch_id=? AND state='reserved' LIMIT 1", (batch['id'],)).fetchone()
+        if pending:
+            return dict(pending)
+        for offset in range(3):
+            day = datetime.fromisoformat(batch['first_day']).date()+timedelta(days=offset)
+            slot = f"{rules['account_id']}:{day.isoformat()}:{batch['id']}"
+            if conn.execute('SELECT 1 FROM feed_auto_slots WHERE slot=?', (slot,)).fetchone():
+                continue
+            cycle = conn.execute('SELECT MAX(cycle) FROM feed_auto_slots').fetchone()[0] or 1
+            used = {r[0] for r in conn.execute('SELECT model_key FROM feed_auto_slots WHERE cycle=?', (cycle,))}
+            if cycle == 1:
+                used.update(r[0] for r in conn.execute('''SELECT m.model_key FROM feed_models m JOIN feed_compositions c
+                    ON c.file_id=m.file_id AND c.source_sha256=m.sha256 WHERE c.request_id NOT LIKE 'auto-feed-%' '''))
+            ready = [dict(r) for r in conn.execute("SELECT * FROM feed_models WHERE active=1 AND state='ready'")]
+            candidates = [r for r in ready if r['model_key'] not in used]
+            if not candidates and ready:
+                unresolved = conn.execute("SELECT COUNT(*) FROM feed_models WHERE active=1 AND state!='ready'").fetchone()[0]
+                if unresolved:
+                    return None
+                cycle += 1
+                candidates = ready
+                last = conn.execute('SELECT model_key FROM feed_auto_slots ORDER BY rowid DESC LIMIT 1').fetchone()
+                if last and len({r['model_key'] for r in candidates}) > 1:
+                    candidates = [r for r in candidates if r['model_key'] != last[0]]
+            if not candidates:
+                return None
+            hints = json.loads((product_scene.ASSETS/'cutout-hints.json').read_text())
+            known = [r for r in candidates if r['sha256'] in hints]
+            unique = {r['model_key']: r for r in known or candidates}
+            model = unique[secrets.choice(list(unique))]
+            due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(hour=12).timestamp())
+            request = 'auto-feed-'+hashlib.sha256(slot.encode()).hexdigest()
+            conn.execute('''INSERT INTO feed_auto_slots
+                (slot,due_at,policy,account_id,file_id,model_key,cycle,theme,request_id,state,post_id,batch_id)
+                VALUES(?,?,?,?,?,?,?,'generico',?,'reserved',NULL,?)''',
+                (slot, due, rules['id'], rules['account_id'], model['file_id'], model['model_key'], cycle, request, batch['id']))
             return dict(conn.execute('SELECT * FROM feed_auto_slots WHERE slot=?', (slot,)).fetchone())
     return None
 
@@ -347,6 +427,9 @@ def _produce(connect, directory, rules, slot, client):
         schedule = conn.execute('SELECT * FROM post_schedule WHERE post_id=?', (post['id'],)).fetchone()
         if schedule or post['publish_status'] != 'draft' or post['revision'] != 0:
             state = 'queued' if schedule and schedule['state'] == 'queued' else 'retained'
+        elif rules.get('mode') == 'preview':
+            conn.execute("UPDATE posts SET account_id=?,source='Prévia de lote · revisar' WHERE id=?", (rules['account_id'], post['id']))
+            state = 'draft'
         elif slot['due_at'] < time.time() + 120:
             state = 'expired'
         else:
@@ -393,9 +476,44 @@ def tick(connect, directory, client=None, recognizer=None):
         conn.execute("INSERT OR REPLACE INTO feed_auto_runtime VALUES(1,?,?,?,'working')", (lease, now+600, now))
     state = 'error'
     try:
+        if rules.get('cadence') == 'batch3' and rules.get('mode') != 'preview':
+            with connect() as conn:
+                draft = conn.execute("SELECT * FROM feed_auto_slots WHERE policy=? AND account_id=? AND state='draft' ORDER BY due_at LIMIT 1", (rules['id'], rules['account_id'])).fetchone()
+                if draft:
+                    conn.execute("UPDATE feed_auto_slots SET state='reserved' WHERE slot=?", (draft['slot'],))
+            if draft:
+                client = client or drive.DriveClient(drive.credentials(directory))
+                state = _produce(connect, directory, rules, dict(draft), client)
+                return state
+        batch = _batch_days(connect, rules, now) if rules.get('cadence') == 'batch3' else None
+        if rules.get('cadence') == 'batch3' and batch is None:
+            state = 'waiting'
+            return state
         client = client or drive.DriveClient(drive.credentials(directory))
         files = sync_catalog(connect, directory, client)
-        if index_one(connect, files, client, recognizer):
+        if batch is not None:
+            slot = _reserve_batch(connect, rules, batch, now)
+            if not slot:
+                with connect() as conn:
+                    choices = conn.execute("SELECT file_id FROM feed_models WHERE active=1 AND state='pending'").fetchall()
+                if choices:
+                    # Só conferir a próxima candidata, sem percorrer toda a pasta.
+                    selected = secrets.choice(choices)['file_id']
+                    index_one(connect, files, client, recognizer, file_id=selected)
+                    slot = _reserve_batch(connect, rules, batch, now)
+            if slot:
+                try:
+                    state = _produce(connect, directory, rules, slot, client)
+                except product_scene.CutoutError:
+                    with connect() as conn:
+                        conn.execute('BEGIN IMMEDIATE')
+                        if not conn.execute('SELECT 1 FROM feed_compositions WHERE request_id=?', (slot['request_id'],)).fetchone():
+                            conn.execute("UPDATE feed_models SET state='review' WHERE file_id=?", (slot['file_id'],))
+                            conn.execute("DELETE FROM feed_auto_slots WHERE slot=? AND state='reserved'", (slot['slot'],))
+                    state = 'cutout_review'
+            else:
+                state = 'indexing' if choices else 'waiting'
+        elif index_one(connect, files, client, recognizer):
             state = 'indexing'
         else:
             slot = _reserve(connect, rules, now)
@@ -408,14 +526,18 @@ def tick(connect, directory, client=None, recognizer=None):
 
 def status(conn, directory):
     enabled = False
+    settings = None
     try:
-        enabled = bool(policy(directory))
+        settings = policy(directory)
+        enabled = bool(settings)
     except (ValueError, OSError):
         pass
     counts = {r[0]: r[1] for r in conn.execute('SELECT state,COUNT(*) FROM feed_models WHERE active=1 GROUP BY state')}
     runtime = conn.execute('SELECT state,last_tick FROM feed_auto_runtime WHERE id=1').fetchone()
     return {'enabled': enabled, 'models': counts, 'state': runtime['state'] if runtime else 'disabled',
             'last_tick': runtime['last_tick'] if runtime else None,
+            'mode': settings.get('mode', 'publish') if settings else 'disabled',
+            'cadence': settings.get('cadence', 'daily') if settings else 'batch3',
             'account': '@'+ACCOUNT, 'time': '12:00', 'timezone': 'America/Sao_Paulo'}
 
 
@@ -500,16 +622,34 @@ def main():
     import argparse
     import app
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['enable', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
+    parser.add_argument('command', choices=['enable', 'prepare-batch', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
+    parser.add_argument('--approve-layout', action='store_true', help='Registrar aprovação explícita da nova ambientação')
     parser.add_argument('--file', help='JSON de classificação visual, sem credenciais')
     args = parser.parse_args()
     app.initialize()
     try:
         if args.command == 'enable':
             os.environ.setdefault('ARTENOALTAR_ORIGIN', 'https://artenoaltar.pythonanywhere.com')
-            enable(app.DB.parent)
-            print('Rotina ativada: Instagram @arte.no.altar, 1 feed/dia às 12h, São Paulo; até 3 dias à frente.')
-            print('O cron existente fará a análise inicial e a preparação gradualmente. Casos incertos ficam para revisão.')
+            enable(app.DB.parent, approve_layout=args.approve_layout)
+            print('Rotina ativada: Instagram @arte.no.altar, 1 feed/dia às 12h, São Paulo, em lotes de 3.')
+            print('No último dia do lote serão preparadas as próximas 3 artes. Não será processada a pasta inteira.')
+        elif args.command == 'prepare-batch':
+            os.environ.setdefault('ARTENOALTAR_ORIGIN', 'https://artenoaltar.pythonanywhere.com')
+            pause_for_layout_review(app.connect, app.DB.parent)
+            enable(app.DB.parent, approve_layout=True, preview=True)
+            print('Teste do lote: somente rascunhos, sem agendamento nem publicação.', flush=True)
+            count = 0
+            for _ in range(30):
+                outcome = tick(app.connect, app.DB.parent)
+                print(outcome, flush=True)
+                with app.connect() as conn:
+                    batch = conn.execute('SELECT id FROM feed_batches ORDER BY rowid DESC LIMIT 1').fetchone()
+                    count = conn.execute("SELECT COUNT(*) FROM feed_auto_slots WHERE batch_id=? AND state='draft'", (batch['id'],)).fetchone()[0] if batch else 0
+                if count >= 3 or outcome == 'waiting':
+                    break
+                if outcome == 'busy':
+                    time.sleep(1)
+            print('Rascunhos preparados:', count)
         elif args.command == 'disable':
             settings = drive.read_json(app.DB.parent / SETTINGS) if (app.DB.parent / SETTINGS).exists() else {}
             drive.write_private(app.DB.parent / SETTINGS, settings | {'enabled': False})

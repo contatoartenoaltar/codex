@@ -34,7 +34,7 @@ def save(conn,directory,data):
 def save_automatic(conn, directory, *, post_id, revision, due_at, policy_id):
     import feed_autonomy
     rules = feed_autonomy.policy(directory)
-    if not rules or rules['id'] != policy_id:
+    if not rules or rules['id'] != policy_id or rules.get('mode') == 'preview':
         raise ValueError('Rotina automática não autorizada.')
     authorized = conn.execute('''SELECT 1 FROM feed_auto_slots s
         JOIN feed_compositions c ON c.request_id=s.request_id

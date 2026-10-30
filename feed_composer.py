@@ -14,6 +14,7 @@ import drive_source
 import publishing
 from layout_preview import decode, font
 from feed_reference_preview import lettering
+import product_scene
 
 TEMPLATE = Path(__file__).parent / 'design_assets' / 'feed' / 'template.jpg'
 SIZE = (1080, 1350)
@@ -68,6 +69,8 @@ def initialize(conn):
 def render(original, theme, index):
     if theme not in PHRASES or type(index) is not int or not 0 <= index < len(PHRASES[theme]):
         raise ValueError('Selecione um dos temas e chamadas aprovados.')
+    if theme == 'generico':
+        return product_scene.render(original, index, expected_phrase=phrase(theme, index))
     source = decode(original)
     with Image.open(TEMPLATE) as template:
         canvas = template.convert('RGBA')
