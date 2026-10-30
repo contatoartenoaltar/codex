@@ -1,4 +1,4 @@
-# Layouts — primeira proposta rejeitada; reinício solicitado
+# Layouts — nova referência de feed; aguardando avaliação da prévia
 
 ## Decisão atual do proprietário
 
@@ -13,8 +13,36 @@ proposta antiga e não deve ser apresentado como solução visual atual.
 O reinício é da composição visual. A logo original já foi recebida, e as fotos
 dos produtos continuam disponíveis e devem permanecer preservadas. Não pedir
 esses arquivos novamente. O proprietário disse que enviará um exemplo para
-começar pelo feed e confirmou o tamanho 1080 × 1350 px (4:5). Ainda não forneceu
-a referência específica do feed; não presumir que o preto e dourado é obrigatório.
+começar pelo feed e confirmou o tamanho 1080 × 1350 px (4:5). Depois enviou uma
+referência comercial específica, descrita abaixo. Essa escolha de estilo é nova
+e não reaprova os quadros rejeitados de `black-gold-v1`.
+
+## Nova referência do feed: título de impacto e produto grande
+
+O proprietário enviou uma referência com a chamada “Sua igreja precisa de
+envelopes personalizados?”. Ela tem fundo preto, letras brancas grossas,
+“envelopes” grande em dourado com volume e brilho, fotografia de produto sobre
+madeira e botão dourado de WhatsApp no rodapé. O novo feed deve seguir essa
+direção comercial, em vez da composição serifada e emoldurada rejeitada.
+
+Uma nova prévia foi preparada por `feed_reference_preview.py`, em 1080 × 1350:
+
+- Chamada da referência, com tipografia sem serifa, volume, dourado e detalhes de luz.
+- Foto completa ocupando 1032 × 774 px, sem recorte, reconstrução da impressão,
+  efeitos ou texto por cima da foto. A área é conferida pixel a pixel antes do JPEG.
+- Botão de contato dourado, com a chamada “Peça seu orçamento pelo WhatsApp”.
+- Logo original discreta no rodapé, telefone comercial e perfil do Instagram.
+
+As saídas privadas ficam em `.local/design-review/feed-v2/feed.png`, `feed.jpg`
+e `proposta.json`. É um teste de layout com a amostra de Oferta já recebida;
+não é uma nova seleção do catálogo nem uma liberação da rotação sem repetição.
+O original continua sendo Oferta, sem alterar sua impressão para imitar o modelo
+de Dízimo da referência. O PNG original da logo e a foto não são sobrescritos.
+
+A prévia está aguardando avaliação do proprietário. O manifesto tem
+`approved=false` e `publishing_authorized=false`. O script somente exporta imagens;
+não cria rascunhos, não agenda, não publica e não ativa montagem diária.
+Stories e carrosséis não foram adaptados a essa prévia.
 
 ## Nova referência dos Stories: Palavra da Manhã
 

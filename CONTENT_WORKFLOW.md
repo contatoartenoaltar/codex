@@ -89,8 +89,10 @@ e carrossel com logo e pediu começar os layouts do zero. Essa decisão substitu
 a aprovação anterior do preto e dourado. O script `layout_preview.py` ainda gera
 essa proposta antiga; não usá-lo como template aprovado para a rotina.
 
-O feed foi definido em **1080 × 1350 px (4:5)**. O proprietário pretende enviar
-um exemplo próprio para sua composição. Para o Story diário “Palavra da Manhã”,
+O feed foi definido em **1080 × 1350 px (4:5)**. O proprietário enviou uma nova
+referência comercial com título branco/dourado volumoso, produto grande sobre
+madeira e botão dourado para WhatsApp. A nova prévia está em avaliação;
+a referência não reaprova a composição rejeitada. Para o Story diário “Palavra da Manhã”,
 enviou uma referência clara, com luz do amanhecer, Bíblia aberta, folhagem, cruz,
 logo integrada ao topo, versículo preto com palavra cursiva dourada e curvas nas
 cores da marca no rodapé. A produção do Story será em **1080 × 1920 px (9:16)**.

@@ -49,6 +49,8 @@ foi rejeitada pelo proprietário, que pediu reiniciar os layouts do zero após v
 as artes com a logo. A aprovação anterior do preto e dourado foi substituída;
 `black-gold-v1` fica somente como histórico. A logo original e as fotos já estão
 disponíveis em armazenamento privado para a nova composição.
+O proprietário forneceu uma nova referência comercial de feed em 1080 × 1350;
+a prévia com título branco/dourado, foto grande e botão de WhatsApp aguarda avaliação.
 Essa etapa não ativa geração diária, escrita no Drive ou novos formatos de publicação.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,

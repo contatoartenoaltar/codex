@@ -43,7 +43,10 @@ os cinco quadros com a logo, o proprietário rejeitou a proposta e pediu começa
 os layouts do zero; essa decisão substitui a aprovação inicial do preto e dourado.
 Não usar `black-gold-v1` na rotina. A logo recebida em `LOGOPNGAA.rar` e os originais
 continuam disponíveis; não pedir novo envio. Preparar um novo feed para definir
-a direção visual. O feed foi confirmado em 1080 × 1350. Uma referência distinta
+a direção visual. O feed foi confirmado em 1080 × 1350. A referência comercial
+foi recebida: título branco e dourado com volume, foto grande e botão dourado de
+WhatsApp. A nova prévia `feed-gold-commercial-v2` está preparada e aguarda avaliação;
+não está aprovada para publicação. Uma referência distinta
 de Story “Palavra da Manhã” foi enviada, com fundo claro, amanhecer e Bíblia aberta;
 o proprietário confirmou um versículo todos os dias. Preparar Stories em
 1080 × 1920, com texto/referência conferidos; a tradução bíblica ainda está
