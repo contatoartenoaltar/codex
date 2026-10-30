@@ -42,3 +42,9 @@ Antes de cada envio, o servidor consulta novamente os ativos e escopos. O destin
 O upload requer login e proteção de origem. Somente nomes JPEG aleatórios são servidos, com MIME `image/jpeg` e `nosniff`; não é possível acessar caminhos arbitrários. Há limite local de 100 MB para essa pasta; não há limpeza automática. O plano gratuito também tem sua própria cota de armazenamento. Remover uma imagem de um rascunho não a apaga fisicamente, pois a Meta pode ainda precisar buscá-la. Gerencie retenção e backups antes de remover arquivos.
 
 Inclua a pasta `.local/media` em backup privado junto do banco. O backup SQLite contém o histórico e as referências, mas não inclui os arquivos de imagem. Os arquivos de credenciais devem permanecer privados e nunca ficar sob a rota estática, no GitHub ou em logs.
+
+## Diagnóstico de falhas sem reenviar
+
+Em registros com **Resultado exige conferência**, use **Diagnosticar sem publicar**. O servidor faz somente consultas GET dos dez posts mais recentes, procurando legendas iguais; não publica, não remove posts e não libera o bloqueio de reenvio. Um resultado sem correspondência não prova ausência. O navegador confere a resposta JPEG da própria imagem e identifica quando ela vem da rota do aplicativo, em vez do mapeamento estático. Isso ajuda a localizar a configuração ausente no PythonAnywhere, mas não confirma a conectividade a partir da Meta.
+
+Novas respostas HTTP de erro da Meta são reduzidas a status HTTP, código, subcódigo e categorias locais (como imagem, autorização ou permissões). O texto bruto, URLs e valores do provedor não são exibidos. Erros antigos registrados antes desse ajuste não podem ter seus detalhes recuperados automaticamente. Se a publicação sair da revisão após uma falha, confira o cartão e use o diagnóstico; não confirme uma nova tentativa sem conferir antes a conta na rede social.

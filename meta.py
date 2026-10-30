@@ -128,6 +128,36 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def error_summary(error):
+    """Só códigos numéricos e categorias locais; nunca texto bruto do provedor."""
+    details=[]
+    if isinstance(error.code,int):
+        details.append(f'HTTP {error.code}')
+    try:
+        payload=json.loads(error.read(65536))
+        value=payload.get('error',{}) if isinstance(payload,dict) else {}
+        if not isinstance(value,dict):
+            value={}
+    except (ValueError,OSError):
+        value={}
+    finally:
+        error.close()
+    for key,label in [('code','código'),('error_subcode','subcódigo')]:
+        if type(value.get(key)) is int:
+            details.append(f'{label} {value[key]}')
+    text=str(value.get('message','')).casefold()
+    reason=''
+    if value.get('code')==190:
+        reason='A autorização pode ter expirado ou sido revogada.'
+    elif 'image' in text and any(word in text for word in ['download','fetch','url','uri','format','jpeg']):
+        reason='A Meta apontou um problema com a imagem ou com o endereço público dela.'
+    elif any(word in text for word in ['permission','capability','not allowed','development mode']):
+        reason='A Meta apontou uma restrição de permissões, tarefas ou configuração do aplicativo.'
+    elif 'unsupported' in text or 'does not exist' in text:
+        reason='A Meta não aceitou o objeto ou a operação solicitada; confira o acesso à conta.'
+    return ' ('+'; '.join(details)+'). '+reason
+
+
 def graph_read(settings, path, token, params=None):
     """Somente GET em destino fixo. Nunca registrar URL, cabeçalhos ou erros brutos."""
     if not re.fullmatch(r'[A-Za-z0-9_/]+',path):
@@ -143,8 +173,8 @@ def graph_read(settings, path, token, params=None):
         return result
     except urllib.error.HTTPError as error:
         # O texto do provedor pode conter dados privados; não é retornado nem logado.
-        error.close()
-        raise ValueError('A Meta recusou a consulta. Confira a validade da autorização, as permissões e os ativos liberados no aplicativo.') from None
+        detail=error_summary(error)
+        raise ValueError('A Meta recusou a consulta'+detail) from None
     except (urllib.error.URLError,OSError,TimeoutError,json.JSONDecodeError):
         raise ValueError('Não foi possível consultar a Meta. Confira o acesso a graph.facebook.com no servidor e tente novamente.') from None
 

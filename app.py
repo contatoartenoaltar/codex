@@ -173,6 +173,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Type','image/jpeg')
             self.send_header('Content-Length',str(len(payload)))
             self.send_header('Cache-Control','public, max-age=86400')
+            self.send_header('X-Arte-Media-Source','application')
             self.end_headers()
             self.wfile.write(payload)
             return
@@ -255,6 +256,8 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as c:
                     publishing.reset(c,d)
                 return self.send_json({'ok':True})
+            if self.path == '/api/posts/diagnose':
+                return self.send_json(publishing.diagnose(connect,DB.parent,d))
             with connect() as c:
                 if self.path == '/api/transactions':
                     kind = required(d, 'kind')

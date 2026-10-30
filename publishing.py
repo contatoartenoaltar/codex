@@ -130,8 +130,8 @@ def graph_post(settings, path, token, data):
             raise Uncertain('A resposta não confirmou o resultado. Confira a rede social antes de qualquer nova tentativa.')
         return result
     except urllib.error.HTTPError as error:
-        error.close()
-        raise Uncertain('A Meta recusou o envio ou não confirmou o resultado. Confira a rede social e as permissões antes de tentar novamente.') from None
+        detail=meta.error_summary(error)
+        raise Uncertain('A Meta recusou o envio ou não confirmou o resultado'+detail+' Confira a rede social antes de tentar novamente.') from None
     except (urllib.error.URLError, OSError, TimeoutError, json.JSONDecodeError):
         raise Uncertain('A conexão terminou sem confirmar o resultado. Confira a rede social antes de tentar novamente, para evitar duplicações.') from None
 
@@ -235,3 +235,55 @@ def reset(conn, data):
     cursor=conn.execute("UPDATE posts SET publish_status='draft',publish_error='',container_id='',revision=revision+1 WHERE id=? AND publish_status='review'",(data.get('id'),))
     if cursor.rowcount!=1:
         raise ValueError('Este registro não está aguardando revisão.')
+
+
+def diagnose(connect, directory, data):
+    """Consulta somente leitura. Não cria contêiner, não publica nem desbloqueia."""
+    post_id=data.get('id')
+    if type(post_id) is not int:
+        raise ValueError('Identificação inválida.')
+    with connect() as conn:
+        row=conn.execute('SELECT * FROM posts WHERE id=?',(post_id,)).fetchone()
+    if not row:
+        raise ValueError('Publicação não encontrada.')
+    row=dict(row)
+    messages=['O diagnóstico não enviou nem repetiu nenhuma publicação.']
+    if row['publish_error']:
+        messages.append('Último resultado registrado: '+row['publish_error'])
+    if row['image_name']:
+        width,height=jpeg_size(image_file(directory,row['image_name']).read_bytes())
+        messages.append(f'JPEG encontrado no servidor: {width} × {height} px.')
+    settings=meta.config(directory)
+    stored=meta.read_private(directory/'meta-connection.json')
+    token=stored.get('access_token')
+    if not token or stored.get('app_id')!=settings['app_id']:
+        raise ValueError('Conecte novamente à Meta para executar o diagnóstico.')
+    proof=hmac.new(settings['app_secret'].encode(),token.encode(),hashlib.sha256).hexdigest()
+    matches=[]
+    try:
+        if row['channel']=='Instagram':
+            path=row['account_id']+'/media'
+            fields='id,caption,timestamp'
+        else:
+            page=meta.graph_read(settings,row['account_id'],token,{'fields':'access_token','appsecret_proof':proof})
+            token=page.get('access_token')
+            if not isinstance(token,str) or not token:
+                raise ValueError('Não foi possível consultar o token da página.')
+            proof=hmac.new(settings['app_secret'].encode(),token.encode(),hashlib.sha256).hexdigest()
+            path=row['account_id']+'/posts'
+            fields='id,message,created_time'
+        result=meta.graph_read(settings,path,token,{'fields':fields,'limit':10,'appsecret_proof':proof})
+        values=result.get('data')
+        if not isinstance(values,list):
+            raise ValueError('A Meta não retornou uma lista de publicações para conferir.')
+        for item in values:
+            text=(item.get('caption') or item.get('message') or '') if isinstance(item,dict) else ''
+            if isinstance(text,str) and isinstance(item,dict) and text.strip()==row['caption'].strip():
+                identifier=str(item.get('id',''))
+                if re.fullmatch(r'[0-9_]+',identifier):
+                    matches.append(identifier)
+        messages.append('A consulta das 10 publicações mais recentes foi aceita pela Meta.')
+        messages.append('Há conteúdo com a mesma legenda na rede. Confira antes de qualquer novo envio.' if matches else 'Não foi encontrada essa legenda entre os 10 resultados. Isso não prova que o envio não aconteceu; confira também no aplicativo da rede social.')
+    except ValueError as error:
+        messages.append(str(error))
+    return {'messages':messages,'matching_ids':matches,'image_url':'/media/'+row['image_name'] if row['image_name'] else None}

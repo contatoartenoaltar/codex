@@ -136,3 +136,31 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(payload,jpeg())
         self.assertEqual(call('/api/media','POST')[0]['code'],401)
         self.assertEqual(call('/api/posts/publish','POST')[0]['code'],401)
+
+    def test_http_error_has_codes_without_secret_provider_text(self):
+        import urllib.error
+        response={'error':{'code':100,'error_subcode':2207052,'message':'Cannot fetch image from https://private.example?access_token=secret-value app-secret'}}
+        error=urllib.error.HTTPError('https://graph.facebook.com',400,'Bad Request',{},io.BytesIO(json.dumps(response).encode()))
+        with patch('urllib.request.build_opener') as opener:
+            opener.return_value.open.side_effect=error
+            with self.assertRaises(publishing.Uncertain) as caught:
+                publishing.graph_post(meta.config(app.DB.parent),'999/media','test-token',{'caption':'Texto'})
+        text=str(caught.exception)
+        self.assertIn('código 100',text)
+        self.assertIn('subcódigo 2207052',text)
+        self.assertIn('imagem',text)
+        self.assertNotIn('secret-value',text)
+        self.assertNotIn('private.example',text)
+        self.assertNotIn('app-secret',text)
+
+    def test_diagnosis_does_not_publish_reset_or_claim_absence(self):
+        with app.connect() as c:c.execute("UPDATE posts SET channel='Instagram',publish_status='review',publish_error='Erro anterior'")
+        with patch('publishing.graph_post') as send,patch('meta.graph_read',return_value={'data':[{'id':'999111','caption':'Legenda revisada'}]}) as read:
+            result=publishing.diagnose(app.connect,app.DB.parent,{'id':1})
+            send.assert_not_called()
+            self.assertEqual(read.call_args.args[1],'999/media')
+            self.assertEqual(result['matching_ids'],['999111'])
+            self.assertEqual(self.row()['publish_status'],'review')
+        with patch('meta.graph_read',return_value={'data':[]}):
+            result=publishing.diagnose(app.connect,app.DB.parent,{'id':1})
+            self.assertTrue(any('não prova' in message for message in result['messages']))
