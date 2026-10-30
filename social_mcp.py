@@ -59,7 +59,7 @@ TOOLS = [
      schema({'start': STRING, 'end': STRING}, ('start', 'end'))),
     ('social_list_recent_content', 'Consultar histórico LOCAL; não representa todas as publicações das redes.',
      schema({'account_id': STRING, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}}, ('account_id',))),
-    ('social_import_draft', 'Após mostrar conta, imagem, legenda, formato e horário e receber confirmação, criar somente rascunho. JPEG base64 deve vir de bytes reais por cliente técnico; nunca inventar base64. Entrega automática de anexos do ChatGPT ainda não validada.',
+    ('social_import_draft', 'Após mostrar conta, imagem, legenda, formato e horário e receber confirmação, criar somente rascunho. JPEG base64 deve vir dos bytes reais do arquivo aprovado. Verifique se o cliente atual permite ler e transportar o arquivo; nunca inventar base64. O servidor não lê caminhos locais do computador.',
      schema({'account_id': STRING, 'channel': {'type': 'string', 'enum': ['Instagram', 'Facebook']},
              'format': {'type': 'string', 'enum': ['feed_photo']},
              'caption': {'type': 'string', 'minLength': 1, 'maxLength': 2200},
@@ -108,7 +108,8 @@ def accounts(directory):
             'checked_at': state.get('checked_at'), 'source': 'verified_cache',
             'capabilities': {'feed_photo_draft': True, 'publish': False,
                              'stories': False, 'carousel': False, 'drive': False,
-                             'chatgpt_file_transfer_verified': False}}
+                             'jpeg_base64_import': True,
+                             'file_transfer_requires_client_access': True}}
 
 
 def allowed_account(directory, account_id, channel=None):
@@ -213,7 +214,7 @@ def rpc(message, connect, directory):
     method = message['method']
     if method == 'initialize':
         result = {'protocolVersion': VERSION, 'capabilities': {'tools': {}},
-                  'serverInfo': {'name': 'arte-no-altar', 'version': '0.1.0'}}
+                  'serverInfo': {'name': 'arte-no-altar', 'version': '0.1.1'}}
     elif method == 'ping':
         result = {}
     elif method == 'tools/list':

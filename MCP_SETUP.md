@@ -1,4 +1,39 @@
-# Arte no Altar — implantação pendente
+# Arte no Altar — conexão MCP e atualização do plugin
+
+## Estado confirmado pelo proprietário
+
+O endpoint foi implantado, o plugin privado foi instalado e consultas sociais
+funcionaram. Uma importação real de JPEG e legenda foi confirmada pelo recibo e
+pela visualização no sistema. O agendamento na interface também publicou com o
+console parado e as abas fechadas, usando acionamento HTTP externo. Esses testes
+não garantem acesso a arquivos locais em todas as sessões nem adicionam ferramentas
+de publicação/agendamento ao plugin.
+
+### Correção 0.1.1
+
+A versão 0.1.0 continha, na habilidade e na descrição da ferramenta, uma afirmação
+genérica de que a transferência ainda não estava validada. A consulta de contas
+também retornava uma flag fixa `chatgpt_file_transfer_verified=false`, apesar de o
+servidor não conseguir avaliar o acesso aos arquivos de cada cliente. Isso podia
+levar a uma recusa sem verificar a imagem da sessão atual.
+
+A versão 0.1.1 informa a capacidade real de importar bytes JPEG e exige verificar
+o acesso ao arquivo e o transporte na sessão atual. Não declara que o servidor
+consegue ler caminhos `C:/...`, não inventa base64 e não remove a confirmação do
+conteúdo. Se a transferência estiver bloqueada, o cliente deve identificar a etapa
+concreta antes de oferecer upload manual no sistema.
+
+Atualizar o GitHub ou dar Reload no PythonAnywhere não atualiza o plugin privado
+instalado. Também é necessário atualizar seu pacote/habilidade pelo Plugin Creator
+ou pelo gerenciador do plugin e conferir a versão 0.1.1 no cliente. A sessão atual
+pode continuar usando instruções em cache; depois da atualização, abra uma sessão
+com o plugin atualizado e o arquivo real disponível. Não apague o rascunho nem
+troque a chave MCP para resolver uma instrução antiga.
+
+O script de empacotamento abaixo valida o endpoint antes de gerar uma distribuição
+nova. Um pacote somente de atualização das instruções também pode manter o mesmo
+`mcp.json` do ZIP 0.1.0 previamente validado, sem mudar URL ou autenticação; isso
+não equivale a realizar um novo teste remoto de conexão ou de transferência.
 
 ## Entrega desta alteração
 
@@ -8,9 +43,9 @@ do Plugin Creator aceita `auth.type=api_key` com `headerScheme=bearer`.
 Não usa OpenAPI nem o OAuth da Meta como autenticação do plugin.
 
 Os testes locais não comprovam implantação HTTPS ou integração real com ChatGPT.
-O pacote conectado ainda não deve ser instalado: o endpoint precisa ser implantado
-e verificado. Não cadastrar a página inicial como endpoint. `plugin/` é fonte do
-pacote e suas instruções; o script só adiciona `mcp.json` após verificação remota.
+Em uma instalação nova, implantar e verificar o endpoint antes de instalar o
+pacote conectado. Não cadastrar a página inicial como endpoint. `plugin/` é fonte
+do pacote e suas instruções; o script só adiciona `mcp.json` após verificação remota.
 
 ## Implantação no PythonAnywhere
 
@@ -56,11 +91,12 @@ gerar um pacote não recarrega automaticamente o PythonAnywhere.
   validação de mídia já existente, preserva os bytes e não faz conversão. Arquivo
   fica na mídia pública com nome aleatório conforme a arquitetura atual. Exibir
   essa prévia antes da confirmação; importar não equivale a postar na rede.
-- **Ainda não há entrega de anexo ChatGPT validada.** Base64 é contrato técnico,
-  não uma capacidade automática do modelo. Não pedir para o usuário colar bytes.
+- Houve uma importação real validada pelo proprietário. Base64 é contrato técnico,
+  não uma capacidade automática do modelo. Verificar leitura e transporte do arquivo
+  na sessão atual antes de transferir ou recusar. Não pedir ao usuário para colar bytes.
   PNG, Stories, carrossel, Drive e publicação MCP não são suportados. Não adicionar
   downloader de URLs arbitrárias. A solução de anexos deve usar suporte real do
-  cliente e passar por teste antes de substituir Metricool.
+  cliente e passar por teste. O proprietário já cancelou a agenda do Metricool.
 - `confirmed=true` registra a confirmação no contrato; a skill é responsável por
   mostrar conta, imagem, legenda, formato e horário e aguardar a resposta humana.
   Não é uma assinatura criptográfica do consentimento.

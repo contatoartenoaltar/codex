@@ -1,6 +1,6 @@
 # Integração MCP — inspeção e contrato da primeira versão
 
-Análise do código para o plugin Arte no Altar. Este documento não cria um servidor MCP. Nenhum endpoint MCP, OAuth do plugin ou transferência de arquivos do ChatGPT foi validado ainda.
+Documento histórico de inspeção anterior à implementação do MCP. As tabelas e propostas abaixo descrevem aquele momento; para a implementação e os testes já confirmados pelo proprietário, consulte [MCP_SETUP.md](MCP_SETUP.md). O endpoint, as consultas e uma importação real de rascunho foram posteriormente validados. A autenticação implantada usa API key/Bearer, não OAuth do plugin.
 
 ## Evidências do repositório
 

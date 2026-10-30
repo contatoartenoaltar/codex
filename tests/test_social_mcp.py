@@ -82,6 +82,10 @@ class SocialMCPTests(unittest.TestCase):
     def test_data_isolation_and_unknown_tools(self):
         result = self.call('social_list_accounts')
         self.assertNotIn('NEVER_RETURN', json.dumps(result))
+        capabilities = result['structuredContent']['capabilities']
+        self.assertTrue(capabilities['jpeg_base64_import'])
+        self.assertTrue(capabilities['file_transfer_requires_client_access'])
+        self.assertNotIn('chatgpt_file_transfer_verified', capabilities)
         self.assertTrue(self.call('financial_list')['isError'])
         self.assertTrue(self.call('social_list_accounts', {'table': 'orders'})['isError'])
         self.assertTrue(self.call('social_list_recent_content', {'account_id': '456'})['isError'])

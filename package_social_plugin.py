@@ -15,6 +15,8 @@ import social_mcp
 
 
 def package(url, token, destination):
+    root = Path(__file__).parent / 'plugin'
+    manifest = json.loads((root / 'plugin.json').read_text())
     parsed = urllib.parse.urlsplit(url)
     if (parsed.scheme != 'https' or parsed.hostname != 'artenoaltar.pythonanywhere.com'
             or parsed.path != '/mcp' or parsed.query or parsed.fragment or parsed.username
@@ -35,7 +37,7 @@ def package(url, token, destination):
             raise ValueError('Endpoint retornou erro MCP.')
         return value['result']
     info = request('initialize', {'protocolVersion': social_mcp.VERSION,
-                   'capabilities': {}, 'clientInfo': {'name': 'arte-no-altar-validator', 'version': '0.1.0'}})
+                   'capabilities': {}, 'clientInfo': {'name': 'arte-no-altar-validator', 'version': manifest['version']}})
     if info.get('protocolVersion') != social_mcp.VERSION:
         raise ValueError('Versão do protocolo não validada.')
     found = request('tools/list').get('tools', [])
@@ -48,11 +50,9 @@ def package(url, token, destination):
     check = request('tools/call', {'name': 'social_list_accounts', 'arguments': {}})
     if check.get('isError'):
         raise ValueError('Não foi possível consultar contas.')
-    root = Path(__file__).parent / 'plugin'
     config = {'$schema': 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
               'mcpServers': {'arte-no-altar': {'type': 'streamable-http', 'url': url,
                 'extensions': {'com.openai': {'auth': {'type': 'api_key', 'headerScheme': 'bearer'}}}}}}
-    manifest = json.loads((root / 'plugin.json').read_text())
     assert len(manifest['extensions']['com.openai']['interface']['shortDescription']) <= 30
     with zipfile.ZipFile(destination, 'w', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(root.rglob('*')):
@@ -66,8 +66,9 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
     try:
+        version = json.loads((Path(__file__).parent / 'plugin' / 'plugin.json').read_text())['version']
         output = package(sys.argv[1], getpass.getpass('Chave exclusiva da integração: '),
-                         Path(__file__).parent / 'arte-no-altar-0.1.0.zip')
+                         Path(__file__).parent / f'arte-no-altar-{version}.zip')
     except Exception:
         raise SystemExit('Pacote não gerado: verificação HTTPS/MCP falhou. Confira implantação, credencial e schemas sem enviar segredos ao chat.') from None
     print(f'Pacote gerado: {output}. Validar anexos no cliente real antes de uso operacional.')
