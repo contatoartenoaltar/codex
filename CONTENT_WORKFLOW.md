@@ -4,9 +4,20 @@ Referência fornecida pelo proprietário para o projeto próprio. Distinguir o f
 
 ## Objetivo e arquitetura desejada
 
-O ChatGPT cria as imagens e legendas durante a conversa e envia os conteúdos por uma conexão, como acontecia com o conector do Metricool. O objetivo aceito neste projeto é substituir o Metricool por nosso sistema, sem contratar outro gerenciador de redes. Não pressupor que o usuário deseje geração autônoma pela API da OpenAI: o proprietário utiliza ChatGPT Plus e quer aproveitar a criação dentro do chat.
+O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. A pasta de origem ainda precisa ser identificada e ter o acesso autorizado validado.
 
-Transferir conteúdo criado no chat não exige, por si só, uma chamada à API de geração. Ainda é necessário implementar uma conexão autenticada compatível com as opções disponíveis na conta ChatGPT e verificar como a ferramenta entrega os arquivos de imagem. Não prometer acesso a arquivos gerados só por conhecer seus nomes ou links internos. O funcionamento sem uma conversa aberta exige executor de agendamentos separado; a assinatura Plus não fornece esse executor.
+Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualização no sistema, foi confirmada pelo proprietário. Isso valida aquele teste, não a seleção e criação automática a partir do Drive. Não prometer acesso a arquivos só por conhecer seus nomes ou links internos. O proprietário utiliza ChatGPT Plus: não presumir autorização para contratar API de geração. A criação autônoma fora da conversa precisa de mecanismo de geração e execução especificamente definido e testado; o Plus e o conector de consultas não comprovam essa capacidade por si sós.
+
+## Fluxo automático a implementar
+
+1. Ler a pasta privada de originais autorizada no Drive, usando IDs estáveis dos arquivos. Não exigir que a pasta inteira se torne pública e não substituir a autorização da API por scraping de links de compartilhamento.
+2. Escolher modelos variados a partir do histórico de uso, consultando a agenda antes de preencher os próximos três dias. O proprietário informou que cancelou manualmente todos os agendamentos no Metricool.
+3. Montar artes com templates e as fotos originais preservadas, criando cenários e chamadas fora da impressão do envelope. Não reconstruir textos, logos ou QR Codes com geração de imagem.
+4. Gerar legendas a partir do catálogo e das respostas comerciais aprovadas. A rotina de aprovação dos templates/lotes e a autorização de publicação automática precisam ficar explícitas; não usar um simples pedido de resumo como autorização de envio.
+5. Guardar versões finais em pasta de saída separada dos originais, conferindo os arquivos e mantendo a ligação entre origem, template, legenda, formato e horário.
+6. Enviar pelos canais da Meta e acompanhar o resultado. Stories, carrosséis, executor e geração autônoma ainda precisam de implementação/ativação e testes próprios.
+
+A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Solicitar seu link ou ID sem pedir senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o objetivo foi atualizado.
 
 ## Planejamento aprovado
 
@@ -63,7 +74,7 @@ Esses são parâmetros do Metricool, não nomes de campos da API Meta. Não copi
 - O proprietário validou publicações reais de uma foto no feed do Instagram e na página Facebook.
 - O Instagram funcionou preparando o arquivo pela foto não publicada na página vinculada da Meta; buscar a imagem diretamente no PythonAnywhere havia falhado.
 - A fila de agendamento, horário de São Paulo, cancelamento e executor estão implementados. O plano gratuito do PythonAnywhere não disponibiliza Scheduled tasks nem Always-on tasks. A execução automática em produção ainda não foi ativada.
-- Não existem ainda conexão própria com ChatGPT, integração com Drive, Stories, carrosséis ou rotina automática de três dias.
+- A conexão MCP própria já fez consultas, e o proprietário confirmou um teste de importação de rascunho com imagem e legenda. Integração com Drive, Stories, carrosséis e rotina automática de três dias continuam pendentes.
 - A transferência por conexão deve admitir envio dos arquivos, formatos distintos, slides ordenados, consulta de horários existentes e retorno de IDs/status verificáveis. Nunca expor credenciais da Meta ao chat.
 - Planejar Stories e carrosséis como novos formatos; não apresentar o envio atual de uma única foto como se já cobrisse a rotina inteira.
 
