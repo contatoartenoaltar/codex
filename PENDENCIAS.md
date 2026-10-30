@@ -36,10 +36,11 @@ solicitação e confirmação do proprietário.
 
 Primeira parte validada pelo proprietário: consulta autenticada pelo servidor,
 somente leitura, encontrou 84 PNGs na pasta de originais, sem subpastas ou atalhos.
-O comando de obter amostras está preparado para avaliar os arquivos e aprovar os
-primeiros layouts; falta executar esse download e revisar as imagens. Quantidade
-de imagens ainda não equivale a quantidade de modelos distintos. Ver
-[DRIVE_SETUP.md](DRIVE_SETUP.md).
+O download real de três amostras também funcionou e o ZIP foi enviado à conversa.
+As três imagens PNG RGB de 1448 × 1086 px foram abertas e conferidas. A primeira
+proposta de montagem está preparada em [LAYOUTS.md](LAYOUTS.md), aguardando aprovação
+visual e a logo oficial. Quantidade de imagens ainda não equivale a quantidade de
+modelos distintos. Ver [DRIVE_SETUP.md](DRIVE_SETUP.md).
 
 1. Integrar a pasta de originais do Drive ao fluxo de criação pelo ChatGPT. O
    proprietário retomou essa tarefa após validar o agendamento: catalogar modelos,

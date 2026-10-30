@@ -44,9 +44,9 @@ O estado confirmado, o teste validado e as melhorias propostas estão em [PENDEN
 
 O [conector de leitura da pasta de originais](DRIVE_SETUP.md) já foi autorizado e
 consultado no PythonAnywhere pelo proprietário: 84 PNGs, sem subpastas ou atalhos.
-Há um comando preparado para obter algumas amostras e revisar os layouts; o download
-real ainda precisa ser testado. Essa etapa não ativa geração diária, escrita no
-Drive ou novos formatos de publicação.
+O download de três amostras foi validado e a [primeira proposta de layouts](LAYOUTS.md)
+está preparada com fotos preservadas, aguardando aprovação e a logo oficial.
+Essa etapa não ativa geração diária, escrita no Drive ou novos formatos de publicação.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
 com testes isolados e preservação do horário anterior se a nova reserva falhar.

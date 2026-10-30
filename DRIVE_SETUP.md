@@ -17,8 +17,10 @@ Os testes locais usam respostas simuladas da API e uma credencial sintética par
 verificar o transporte com a biblioteca oficial Google Auth. O proprietário
 configurou a autorização na hospedagem e mostrou a consulta real bem-sucedida da
 pasta “01 - Imagens originais”: 84 arquivos, todos `image/png`, sem subpastas e sem
-atalhos. O download das amostras ainda precisa ser testado na hospedagem. A
-contagem de arquivos não confirma 84 modelos distintos.
+atalhos. O download real de três amostras também funcionou na hospedagem; o ZIP
+foi enviado à conversa e suas três imagens foram conferidas (1448 × 1086 px).
+A contagem de arquivos não confirma 84 modelos distintos. A primeira proposta de
+montagem está descrita em [LAYOUTS.md](LAYOUTS.md), aguardando aprovação.
 
 ## Configuração única no projeto existente do Google Cloud
 
@@ -120,10 +122,11 @@ completa de decodificação e a preparação de novos formatos virão na etapa d
 - Quantidade de imagens não é quantidade de modelos: fotos diferentes do mesmo
   envelope precisam ser agrupadas antes da rotação. A listagem inclui todos os
   formatos encontrados; isso não significa que cada formato já possa ser renderizado.
-- Download seletivo de amostras está implementado, pendente de teste real. Agrupamento
-  dos modelos, sorteio persistente sem reposição, layouts aprovados, montagem,
-  legendas, Stories, carrosséis e rotina diária ainda precisam de implementação
-  e testes. O catálogo não ativa publicação automática.
+- Download seletivo de amostras foi validado pelo proprietário. A montagem inicial
+  de layouts está preparada, aguardando aprovação visual e a logo oficial.
+  Agrupamento dos modelos, sorteio persistente sem reposição, legendas, Stories,
+  carrosséis e rotina diária ainda precisam de implementação e testes. O catálogo
+  e as prévias não ativam publicação automática.
 - O acesso é de leitura. Guardar artes finais no Drive exigirá destino e autorização
   distintos; esta conexão não concede escrita na pasta de originais.
 - Para revogar, retire o compartilhamento da pasta com a conta de serviço e/ou
