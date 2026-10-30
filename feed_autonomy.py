@@ -146,12 +146,14 @@ def policy(directory):
 
 
 def enable(directory):
+    old = drive.read_json(directory / SETTINGS) if (directory / SETTINGS).exists() else {}
+    if old.get('layout_review_required'):
+        raise ValueError('O layout automático foi rejeitado e precisa ser corrigido e aprovado antes da reativação.')
     verification = meta.verify_accounts(directory)
     accounts = [a for a in verification['accounts'] if a['channel'] == 'Instagram'
                 and a['name'].lstrip('@').casefold() == ACCOUNT and a.get('publishing_scope_granted')]
     if len(accounts) != 1:
         raise ValueError('A conta Instagram @arte.no.altar não foi confirmada com permissão de publicação.')
-    old = drive.read_json(directory / SETTINGS) if (directory / SETTINGS).exists() else {}
     result = {'enabled': True, 'id': old.get('id') or secrets.token_hex(16),
               'username': ACCOUNT, 'account_id': accounts[0]['id'], 'channel': 'Instagram',
               'timezone': 'America/Sao_Paulo', 'time': '12:00', 'days_ahead': 3,
@@ -159,6 +161,28 @@ def enable(directory):
               'authorization': 'Rotina diária autorizada pelo proprietário para os layouts e textos aprovados.'}
     drive.write_private(directory / SETTINGS, result)
     return result
+
+
+def pause_for_layout_review(connect, directory):
+    settings = drive.read_json(directory / SETTINGS) if (directory / SETTINGS).exists() else {}
+    drive.write_private(directory / SETTINGS, settings | {'enabled': False, 'layout_review_required': True})
+    cancelled = 0
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        rows = conn.execute('''SELECT s.* FROM post_schedule s
+            JOIN feed_compositions c ON c.post_id=s.post_id
+            JOIN feed_auto_slots a ON a.request_id=c.request_id
+            WHERE s.state='queued' ''').fetchall()
+        for row in rows:
+            scheduling.cancel(conn, {'id': row['post_id'], 'revision': row['revision'],
+                                    'expected_due_at': row['due_at']}, begin=False)
+            conn.execute("UPDATE feed_auto_slots SET state='paused' WHERE request_id IN (SELECT request_id FROM feed_compositions WHERE post_id=?)", (row['post_id'],))
+            cancelled += 1
+        in_flight = conn.execute('''SELECT COUNT(*) FROM post_schedule s
+            JOIN feed_compositions c ON c.post_id=s.post_id
+            JOIN feed_auto_slots a ON a.request_id=c.request_id
+            WHERE s.state IN ('running','processing')''').fetchone()[0]
+    return {'cancelled': cancelled, 'in_flight': in_flight}
 
 
 def sync_catalog(connect, directory, client):
@@ -476,7 +500,7 @@ def main():
     import argparse
     import app
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['enable', 'disable', 'status', 'tick', 'export-review', 'import-review'])
+    parser.add_argument('command', choices=['enable', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
     parser.add_argument('--file', help='JSON de classificação visual, sem credenciais')
     args = parser.parse_args()
     app.initialize()
@@ -490,6 +514,12 @@ def main():
             settings = drive.read_json(app.DB.parent / SETTINGS) if (app.DB.parent / SETTINGS).exists() else {}
             drive.write_private(app.DB.parent / SETTINGS, settings | {'enabled': False})
             print('Criação diária desativada. Agendamentos existentes foram preservados.')
+        elif args.command == 'pause-review':
+            result = pause_for_layout_review(app.connect, app.DB.parent)
+            print('Rotina pausada para corrigir o layout. Agendamentos automáticos cancelados:', result['cancelled'])
+            print('Outros agendamentos e todas as imagens foram preservados.')
+            if result['in_flight']:
+                print('Envios automáticos já iniciados, que exigem conferência na rede:', result['in_flight'])
         elif args.command == 'tick':
             print(tick(app.connect, app.DB.parent))
         elif args.command == 'export-review':

@@ -1,5 +1,13 @@
 # Situação e próximos passos — Arte no Altar
 
+**Status mais recente:** o proprietário rejeitou o resultado real da montagem
+automática. O envelope deve ser integrado ao ambiente, com perspectiva e sombra,
+preservando a impressão; o título não pode ficar esticado. A aprovação da arte
+de referência não valida o compositor atual. Usar `feed_autonomy.py pause-review`
+para parar a criação e cancelar somente a fila gerada pela rotina. A reativação
+fica bloqueada até corrigir e aprovar uma saída real do compositor.
+
+
 **Atualização vigente:** o proprietário aprovou quinze frases curtas genéricas.
 A criação diária agora independe de tema e não usa OCR/Tesseract. A rotação de
 imagens, a conferência de possíveis duplicações e os agendamentos existentes

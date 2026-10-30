@@ -159,6 +159,21 @@ class FeedAutonomyTests(unittest.TestCase):
         with app.connect() as conn:
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 0)
 
+    def test_visual_rejection_pauses_only_generated_queue_and_blocks_reactivation(self):
+        self.index_all()
+        self.assertEqual(self.tick(), 'prepared')
+        with app.connect() as conn:
+            manual = conn.execute("INSERT INTO posts(product,channel,caption,source,account_id,publish_status) VALUES('Manual','Instagram','Legenda','Manual','123456','scheduled')").lastrowid
+            conn.execute("INSERT INTO post_schedule(post_id,revision,due_at,state) VALUES(?,0,?,'queued')", (manual, self.now+600))
+        result = auto.pause_for_layout_review(app.connect, self.directory)
+        self.assertEqual(result, {'cancelled': 1, 'in_flight': 0})
+        self.assertEqual(self.tick(), 'disabled')
+        with app.connect() as conn:
+            self.assertEqual(conn.execute('SELECT state FROM post_schedule WHERE post_id=?', (manual,)).fetchone()[0], 'queued')
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM post_schedule WHERE state='cancelled'").fetchone()[0], 1)
+        with self.assertRaises(ValueError):
+            auto.enable(self.directory)
+
     def test_enable_verifies_exact_account_and_keeps_policy_identity(self):
         with patch('feed_autonomy.engine'), patch('meta.verify_accounts', return_value={'accounts': self.accounts}):
             enabled = auto.enable(self.directory)

@@ -1,5 +1,13 @@
 # Criação diária de feeds com frases genéricas
 
+**Status mais recente:** o proprietário rejeitou o resultado real da montagem
+automática. O envelope deve ser integrado ao ambiente, com perspectiva e sombra,
+preservando a impressão; o título não pode ficar esticado. A aprovação da arte
+de referência não valida o compositor atual. Usar `feed_autonomy.py pause-review`
+para parar a criação e cancelar somente a fila gerada pela rotina. A reativação
+fica bloqueada até corrigir e aprovar uma saída real do compositor.
+
+
 O proprietário aprovou quinze chamadas curtas genéricas e pediu que a rotina
 não dependa mais de identificar dízimos, ofertas, primícias ou Santa Ceia.
 O fluxo principal é automático; o formulário manual é apenas opcional.
