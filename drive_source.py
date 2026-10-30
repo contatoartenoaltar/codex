@@ -3,6 +3,7 @@ import argparse
 from collections import Counter, deque
 from datetime import datetime, timezone
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 API = 'https://www.googleapis.com/drive/v3/files'
 TOKEN_URI = 'https://oauth2.googleapis.com/token'
@@ -23,6 +25,9 @@ MAX_JSON = 2 * 1024 * 1024
 MAX_FILES = 20000
 MAX_FOLDERS = 2000
 MAX_PAGES = 200
+SAMPLES_FILE = 'modelos-amostra.zip'
+MAX_SAMPLE_IMAGE = 20 * 1024 * 1024
+MAX_SAMPLE_TOTAL = 24 * 1024 * 1024
 
 
 class DriveError(ValueError):
@@ -129,24 +134,21 @@ class DriveClient:
         self.opener = opener or urllib.request.build_opener(NoRedirect())
         self.transport = TokenTransport()
 
-    def get(self, path='', params=None):
+    def _read(self, path='', params=None, *, limit=MAX_JSON, accept='application/json'):
         if path:
             identifier(path)
         url = API + ('/' + path if path else '')
         if params:
             url += '?' + urllib.parse.urlencode(params)
-        headers = {'Accept': 'application/json'}
+        headers = {'Accept': accept}
         try:
             self.credential.before_request(self.transport, 'GET', url, headers)
             request = urllib.request.Request(url, headers=headers, method='GET')
             with self.opener.open(request, timeout=25) as response:
-                raw = response.read(MAX_JSON + 1)
-            if len(raw) > MAX_JSON:
-                raise DriveError('A resposta do Drive excedeu o limite. Catálogo anterior preservado.')
-            data = json.loads(raw)
-            if not isinstance(data, dict) or data.get('error'):
-                raise DriveError('O Drive não confirmou a consulta.')
-            return data
+                raw = response.read(limit + 1)
+            if len(raw) > limit:
+                raise DriveError('A resposta do Drive excedeu o limite. Arquivos anteriores preservados.')
+            return raw
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403, 404):
                 raise DriveError('Acesso ao Drive não confirmado. Confira API ativa, conta de serviço e compartilhamento da pasta como Leitor.') from None
@@ -155,6 +157,30 @@ class DriveClient:
             raise
         except Exception:
             raise DriveError('Não foi possível consultar o Drive. Confira a autenticação e o acesso de rede da hospedagem.') from None
+
+    def get(self, path='', params=None):
+        raw = self._read(path, params)
+        try:
+            data = json.loads(raw)
+        except (ValueError, UnicodeError):
+            raise DriveError('O Drive não retornou metadados válidos.') from None
+        if not isinstance(data, dict) or data.get('error'):
+            raise DriveError('O Drive não confirmou a consulta.')
+        return data
+
+    def download_image(self, item, limit=MAX_SAMPLE_IMAGE):
+        mime = item.get('mimeType')
+        if mime not in ('image/png', 'image/jpeg'):
+            raise DriveError('Amostras aceitam somente originais PNG ou JPEG.')
+        raw = self._read(identifier(item.get('id')), {'alt': 'media', 'supportsAllDrives': 'true'},
+                         limit=min(limit, MAX_SAMPLE_IMAGE), accept=mime)
+        if (mime == 'image/png' and not raw.startswith(b'\x89PNG\r\n\x1a\n') or
+                mime == 'image/jpeg' and not (raw.startswith(b'\xff\xd8') and raw.endswith(b'\xff\xd9'))):
+            raise DriveError('O arquivo recebido não corresponde ao tipo de imagem informado.')
+        checksum = item.get('md5Checksum')
+        if checksum and hashlib.md5(raw, usedforsecurity=False).hexdigest() != checksum:
+            raise DriveError('O original mudou desde a consulta. Atualize o catálogo antes de tentar novamente.')
+        return raw
 
     def catalog(self, root_id):
         root_id = identifier(root_id)
@@ -241,12 +267,65 @@ def inspect(directory, client=None):
     return catalog
 
 
+def samples(directory, count=3, client=None):
+    if type(count) is not int or not 1 <= count <= 6:
+        raise DriveError('Escolha entre uma e seis amostras.')
+    client = client or DriveClient(credentials(directory))
+    catalog = inspect(directory, client)
+    candidates = [item for item in catalog['files'] if item['mimeType'] in ('image/png', 'image/jpeg')]
+    if not candidates:
+        raise DriveError('O catálogo não contém PNG ou JPEG para as amostras.')
+    # Amostras espaçadas para revisão inicial; não é o sorteio das artes diárias.
+    amount = min(count, len(candidates))
+    indices = [i * (len(candidates) - 1) // max(amount - 1, 1) for i in range(amount)]
+    ordered = indices + [i for i in range(len(candidates)) if i not in indices]
+    chosen, total = [], 0
+    for index in ordered:
+        if len(chosen) >= count:
+            break
+        item = candidates[index]
+        try:
+            size = int(item.get('size', 0))
+        except (ValueError, TypeError):
+            raise DriveError('Tamanho de imagem inválido no catálogo.') from None
+        if size < 0:
+            raise DriveError('Tamanho de imagem inválido no catálogo.')
+        if size > min(MAX_SAMPLE_IMAGE, MAX_SAMPLE_TOTAL - total):
+            continue
+        data = client.download_image(item, limit=MAX_SAMPLE_TOTAL - total)
+        extension = 'png' if item['mimeType'] == 'image/png' else 'jpg'
+        name = f"originais/{len(chosen) + 1:02d}-{identifier(item['id'])}.{extension}"
+        chosen.append((name, item, data))
+        total += len(data)
+    if not chosen:
+        raise DriveError('As imagens excedem o limite do pacote de amostras.')
+    manifest = catalog | {'samples': [dict(item, archive_path=name) for name, item, _ in chosen]}
+    metadata = json.dumps(manifest, ensure_ascii=False, indent=2).encode()
+    if len(metadata) > MAX_JSON:
+        raise DriveError('O catálogo excedeu o limite do pacote de revisão.')
+    fd, temporary = tempfile.mkstemp(dir=directory, prefix='.drive-samples-')
+    destination = directory / SAMPLES_FILE
+    try:
+        with os.fdopen(fd, 'w+b') as stream:
+            with zipfile.ZipFile(stream, 'w', zipfile.ZIP_STORED) as archive:
+                archive.writestr('catalogo.json', metadata)
+                for name, _, data in chosen:
+                    archive.writestr(name, data)
+        os.replace(temporary, destination)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    return {'path': str(destination), 'samples': len(chosen), 'total_images': catalog['total_images'],
+            'bytes': destination.stat().st_size}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     configure_parser = sub.add_parser('configure')
     configure_parser.add_argument('--folder', required=True, help='Link ou ID da pasta de originais')
     sub.add_parser('inspect')
+    sample_parser = sub.add_parser('samples')
+    sample_parser.add_argument('--count', type=int, default=3)
     args = parser.parse_args()
     import app
     try:
@@ -255,6 +334,10 @@ def main():
             print('Compartilhe somente a pasta de originais com esta conta, como Leitor:')
             print(email)
             print('Origem configurada. O acesso ainda não foi testado.')
+        elif args.command == 'samples':
+            result = samples(app.DB.parent, args.count)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print('Pacote privado com originais e catálogo. Não contém a chave de serviço; nenhuma publicação foi criada.')
         else:
             result = inspect(app.DB.parent)
             summary = {key: result[key] for key in ('folder_name', 'total_files', 'total_images', 'formats', 'skipped_shortcuts')}

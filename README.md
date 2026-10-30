@@ -42,10 +42,11 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 
 O estado confirmado, o teste validado e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md). O proprietário retomou a integração com Drive para selecionar aleatoriamente modelos sem repetição e criar artes para feed, Stories e carrosséis. Backups e alertas permanecem adiados.
 
-O [conector de leitura da pasta de originais](DRIVE_SETUP.md) está preparado para
-listar subpastas, formatos e quantidade de imagens usando conta de serviço. A
-autorização e a consulta real no PythonAnywhere estão pendentes. Essa etapa não
-ativa geração diária, escrita no Drive ou novos formatos de publicação.
+O [conector de leitura da pasta de originais](DRIVE_SETUP.md) já foi autorizado e
+consultado no PythonAnywhere pelo proprietário: 84 PNGs, sem subpastas ou atalhos.
+Há um comando preparado para obter algumas amostras e revisar os layouts; o download
+real ainda precisa ser testado. Essa etapa não ativa geração diária, escrita no
+Drive ou novos formatos de publicação.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
 com testes isolados e preservação do horário anterior se a nova reserva falhar.

@@ -6,6 +6,8 @@ import unittest
 from unittest.mock import patch
 import urllib.error
 import urllib.parse
+import hashlib
+import zipfile
 
 import drive_source as drive
 
@@ -15,7 +17,7 @@ CHILD = 'child_folder_0002'
 
 class Response(io.BytesIO):
     def __init__(self, value, code=200):
-        super().__init__(json.dumps(value).encode())
+        super().__init__(value if isinstance(value, bytes) else json.dumps(value).encode())
         self.code = code
         self.headers = {'Content-Type': 'application/json'}
 
@@ -65,7 +67,7 @@ class DriveSourceTests(unittest.TestCase):
             {'id': 'image_file_0001', 'name': 'Modelo 1.jpg', 'mimeType': 'image/jpeg', 'size': '1200'},
             {'id': 'shortcut_0001', 'name': 'Outra pasta', 'mimeType': drive.SHORTCUT_MIME}]},
             {'files': [{'id': 'source_file_0002', 'name': 'Original.psd', 'mimeType': 'image/vnd.adobe.photoshop'}]},
-            {'files': [{'id': 'image_file_0003', 'name': 'Modelo 2.png', 'mimeType': 'image/png'},
+            {'files': [{'id': 'image_file_0003', 'name': 'Modelo 2.png', 'mimeType': 'image/png', 'size': '800'},
                        {'id': 'text_file_00004', 'name': 'Observações.txt', 'mimeType': 'text/plain'}]}]
 
     def test_folder_link_validation_does_not_accept_arbitrary_urls(self):
@@ -185,3 +187,67 @@ class DriveSourceTests(unittest.TestCase):
         self.assertEqual(claims['aud'], drive.TOKEN_URI)
         self.assertNotIn('sub', claims)
         self.assertEqual(files_opener.requests[0].get_header('Authorization'), 'Bearer synthetic-oauth-token')
+
+    def test_download_is_byte_preserving_scoped_and_checks_checksum(self):
+        image = b'\x89PNG\r\n\x1a\nsynthetic-original'
+        item = {'id': 'original_image_001', 'mimeType': 'image/png',
+                'md5Checksum': hashlib.md5(image, usedforsecurity=False).hexdigest()}
+        opener = Opener([image])
+        self.assertEqual(drive.DriveClient(Credential(), opener).download_image(item), image)
+        request = opener.requests[0]
+        self.assertEqual(request.get_method(), 'GET')
+        self.assertEqual(urllib.parse.urlsplit(request.full_url).path, '/drive/v3/files/original_image_001')
+        self.assertEqual(urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)['alt'], ['media'])
+        with self.assertRaises(drive.DriveError):
+            drive.DriveClient(Credential(), Opener([image])).download_image(item | {'md5Checksum': '0' * 32})
+
+    def test_samples_zip_contains_only_catalog_and_originals_not_credentials(self):
+        self.account()
+        drive.configure(self.directory, ROOT)
+        png = b'\x89PNG\r\n\x1a\noriginal-png'
+        jpeg = b'\xff\xd8original-jpeg\xff\xd9'
+        # O caminho da subpasta vem antes dos arquivos na raiz na ordenação.
+        opener = Opener(self.entries() + [png, jpeg])
+        result = drive.samples(self.directory, 3, drive.DriveClient(Credential(), opener))
+        self.assertEqual(result['samples'], 2)
+        path = Path(result['path'])
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        with zipfile.ZipFile(path) as archive:
+            self.assertEqual(set(archive.namelist()), {'catalogo.json',
+                'originais/01-image_file_0003.png', 'originais/02-image_file_0001.jpg'})
+            self.assertEqual(archive.read('originais/02-image_file_0001.jpg'), jpeg)
+            self.assertEqual(archive.read('originais/01-image_file_0003.png'), png)
+            for name in archive.namelist():
+                self.assertNotIn(b'synthetic-private-value', archive.read(name))
+                self.assertNotIn(b'synthetic-test-token', archive.read(name))
+            manifest = json.loads(archive.read('catalogo.json'))
+            self.assertEqual(len(manifest['samples']), 2)
+        self.assertTrue(all(r.get_method() == 'GET' for r in opener.requests))
+
+    def test_bad_image_or_failed_download_keeps_previous_zip(self):
+        self.account()
+        drive.configure(self.directory, ROOT)
+        path = self.directory / drive.SAMPLES_FILE
+        path.write_bytes(b'previous-safe-package')
+        for payload in [b'not a jpeg', urllib.error.HTTPError(drive.API, 403, 'private detail', {}, io.BytesIO())]:
+            with self.assertRaises(drive.DriveError):
+                drive.samples(self.directory, 1, drive.DriveClient(Credential(), Opener(self.entries() + [payload])))
+            self.assertEqual(path.read_bytes(), b'previous-safe-package')
+
+    def test_sample_download_enforces_payload_and_total_limits(self):
+        with self.assertRaises(drive.DriveError):
+            drive.DriveClient(Credential(), Opener([b'\x89PNG\r\n\x1a\nlarge'])).download_image(
+                {'id': 'original_image_001', 'mimeType': 'image/png'}, limit=5)
+        self.account()
+        drive.configure(self.directory, ROOT)
+        with patch('drive_source.MAX_SAMPLE_TOTAL', 1), self.assertRaises(drive.DriveError):
+            drive.samples(self.directory, 3, drive.DriveClient(Credential(), Opener(self.entries())))
+        self.assertFalse((self.directory / drive.SAMPLES_FILE).exists())
+
+    def test_sample_request_rejects_unsupported_types_and_invalid_count(self):
+        with self.assertRaises(drive.DriveError):
+            drive.DriveClient(Credential(), Opener([])).download_image(
+                {'id': 'source_file_0002', 'mimeType': 'image/vnd.adobe.photoshop'})
+        for value in [0, 7, True]:
+            with self.assertRaises(drive.DriveError):
+                drive.samples(self.directory, value)

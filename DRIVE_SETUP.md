@@ -9,12 +9,16 @@ O conector do Drive não ficou disponível nesta conversa nem após a menção a
 
 `drive_source.py` implementa configuração e inspeção somente de leitura da pasta
 privada e suas subpastas. Usa conta de serviço, escopo `drive.readonly`, autenticação
-no endpoint oficial e requisições GET na API do Drive. Não altera o Drive, não faz
-download de imagens, não cria artes e não publica ou ativa uma rotina diária.
+no endpoint oficial e requisições GET na API do Drive. Também prepara um pacote
+privado com algumas imagens originais para revisar o primeiro layout. Não altera
+o Drive, não cria artes e não publica ou ativa uma rotina diária.
 
 Os testes locais usam respostas simuladas da API e uma credencial sintética para
-verificar o transporte com a biblioteca oficial Google Auth. Não foi acessada a
-pasta real: sua autorização na hospedagem e a listagem real continuam pendentes.
+verificar o transporte com a biblioteca oficial Google Auth. O proprietário
+configurou a autorização na hospedagem e mostrou a consulta real bem-sucedida da
+pasta “01 - Imagens originais”: 84 arquivos, todos `image/png`, sem subpastas e sem
+atalhos. O download das amostras ainda precisa ser testado na hospedagem. A
+contagem de arquivos não confirma 84 modelos distintos.
 
 ## Configuração única no projeto existente do Google Cloud
 
@@ -81,6 +85,32 @@ e recusa redirecionamentos para proteger a credencial.
 
 ## Limites e próximo trabalho
 
+### Amostras para aprovar os layouts
+
+Depois de atualizar o código na hospedagem, execute:
+
+```bash
+python3.12 drive_source.py samples --count 3
+```
+
+O comando atualiza o catálogo e escolhe amostras espaçadas na listagem para a
+revisão inicial. Isso não é o sorteio diário nem registra uso de um modelo no ciclo.
+Baixa somente PNG/JPEG listados na pasta autorizada, pela API autenticada, valida
+o tipo básico e o checksum quando disponível e mantém os bytes originais.
+
+Grava `.local/modelos-amostra.zip`, com permissão 600, contendo somente imagens
+selecionadas e `catalogo.json`. Não inclui o JSON de credenciais nem outros arquivos
+da pasta `.local`. O ZIP pode ser baixado pelo painel Files autenticado e anexado
+à conversa para avaliar os originais e preparar um layout concreto para aprovação.
+
+As amostras aceitam de uma a seis imagens, com limites de 20 MiB por imagem e
+24 MiB somados, mais até 2 MiB de metadados. O resultado informa a quantidade que
+coube; pode ser menor que a solicitada. Não publica esse ZIP como mídia do site.
+Uma falha não substitui o pacote anterior por um download incompleto. A verificação
+completa de decodificação e a preparação de novos formatos virão na etapa de montagem.
+
+### Limites gerais
+
 - Consulta somente a pasta configurada e suas subpastas, com paginação. Não segue
   atalhos que possam levar a outro local. O resumo informa quantos foram ignorados.
 - Impõe limites de respostas, páginas, pastas e arquivos. Uma consulta incompleta
@@ -90,9 +120,10 @@ e recusa redirecionamentos para proteger a credencial.
 - Quantidade de imagens não é quantidade de modelos: fotos diferentes do mesmo
   envelope precisam ser agrupadas antes da rotação. A listagem inclui todos os
   formatos encontrados; isso não significa que cada formato já possa ser renderizado.
-- Download seletivo, agrupamento dos modelos, sorteio persistente sem reposição,
-  layouts aprovados, montagem, legendas, Stories, carrosséis e rotina diária ainda
-  precisam de implementação e testes. O catálogo não ativa publicação automática.
+- Download seletivo de amostras está implementado, pendente de teste real. Agrupamento
+  dos modelos, sorteio persistente sem reposição, layouts aprovados, montagem,
+  legendas, Stories, carrosséis e rotina diária ainda precisam de implementação
+  e testes. O catálogo não ativa publicação automática.
 - O acesso é de leitura. Guardar artes finais no Drive exigirá destino e autorização
   distintos; esta conexão não concede escrita na pasta de originais.
 - Para revogar, retire o compartilhamento da pasta com a conta de serviço e/ou
