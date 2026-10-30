@@ -1,5 +1,20 @@
 # Situação e próximos passos — Arte no Altar
 
+**Etapa concluída — 30/10/2026:** o proprietário aplicou a correção; a captura
+mostrou três rascunhos completos, IDs **4, 5 e 6**, com o visual aprovado.
+Depois de ativar a rotina, confirmou todos agendados para **31/10, 01/11 e
+02/11/2026**, Instagram @arte.no.altar. Criação do lote e agendamento automático
+validados na hospedagem. Não recriar esses conteúdos para repetir o teste.
+
+Acompanhar a publicação dessas três datas e a preparação do próximo lote em
+**02/11/2026**, conforme a cadência autorizada. Esses eventos futuros ainda não
+foram confirmados. Permanecem 76 imagens para reavaliação gradual, sem resetar
+ciclos ou exigir escolha diária. Stories e carrosséis continuam pendentes;
+backup e alertas mantêm o lembrete adiado abaixo.
+Ver [FEED_BATCHES.md](FEED_BATCHES.md).
+
+## Histórico de diagnóstico e correção — superado pelo estado acima
+
 **Correção em implantação — 30/10/2026:** a captura ampliada confirmou uma reserva
 retida, zero artes aptas no lote, seis modelos considerados usados e 78 em revisão.
 Foi reproduzida a colisão de ID de post excluído com agendamento antigo. IDs novos

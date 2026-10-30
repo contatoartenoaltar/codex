@@ -1,5 +1,13 @@
 # Revisão da ambientação dos envelopes
 
+**Validação real — 30/10/2026:** o proprietário aprovou o visual na hospedagem,
+confirmou os três rascunhos **4, 5 e 6** e, após ativar a rotina, os três
+agendados para **31/10, 01/11 e 02/11/2026**, Instagram @arte.no.altar.
+A geração e o agendamento do lote estão confirmados; as publicações futuras
+e o segundo lote ainda não. Ver [FEED_BATCHES.md](FEED_BATCHES.md).
+
+## Histórico anterior à confirmação do lote
+
 **Recuperação do lote — 30/10/2026:** a captura seguinte confirma uma única
 reserva `retained`, zero artes aptas, seis modelos considerados usados e 78 em
 revisão. A nova revisão previne IDs reutilizados e recupera somente rascunho novo

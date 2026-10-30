@@ -1,17 +1,13 @@
 # Arte no Altar — Gestão
 
-**Estado atual — 30/10/2026:** a nova referência de feed integrado foi aprovada e
-sua implementação autorizada. `continuous-scene-v2` usa cenário contínuo, quinze
-frases transparentes e impressão original nas faces dos envelopes, com perspectiva
-e luz coerentes. O proprietário aprovou o resultado na hospedagem, mas relatou
-um único rascunho: a captura mostra seis modelos prontos no índice e 78 em revisão.
-A revisão atual previne colisões de IDs de posts excluídos, recupera o rascunho
-apenas com evidência de agenda herdada e reavalia uma candidata não usada por vez
-com o recortador corrigido. A imagem e a legenda aprovadas são preservadas.
-Falta aplicar a correção e confirmar o lote na hospedagem; modelos em revisão
-não são liberados em bloco e o histórico de uso não é reiniciado.
+**Estado atual — 30/10/2026:** criação do primeiro lote validada na hospedagem:
+três rascunhos, IDs **4, 5 e 6**, com o visual aprovado. Após ativar a rotina,
+o proprietário confirmou todos agendados para **31/10, 01/11 e 02/11/2026**.
+`continuous-scene-v2` usa cenário contínuo, quinze frases transparentes e a
+impressão original dos envelopes, com perspectiva e luz coerentes. Modelos em
+revisão não são liberados em bloco e o histórico de uso não é reiniciado.
 
-Após essa revisão e ativação, o cron existente cria três artes por lote e, no
+A rotina ativa usa o cron existente para criar três artes por lote e, no
 terceiro dia, prepara as três seguintes: um feed diário às 12h de São Paulo,
 sem escolher temas/modelos, sem preparar os 84 arquivos e sem API de IA paga.
 Instruções de atualização, teste e ativação: [FEED_BATCHES.md](FEED_BATCHES.md).

@@ -1,12 +1,17 @@
 # Feeds integrados em lotes de três dias
 
-**Estado atual — 30/10/2026:** o proprietário aprovou a arte produzida na hospedagem,
-mas informou somente um rascunho. O diagnóstico posterior confirma uma reserva
-`retained`, zero artes aptas no lote, seis modelos considerados usados pelo
-controle, 78 em revisão e nenhum pendente, em modo `preview`. A revisão atual
-previne reutilização de IDs, recupera somente colisões históricas comprovadas
-e reavalia candidatas gradualmente com o recortador corrigido. Falta aplicar
-essa revisão na hospedagem e confirmar a recuperação e as três artes.
+**Estado atual — 30/10/2026:** o proprietário aplicou a correção e a saída real
+confirmou três rascunhos, IDs **4, 5 e 6**, em modo de teste. Depois da ativação,
+a captura mostrou #4 e #5 na fila e #6 ainda aguardando seu ciclo do cron.
+O proprietário confirmou em seguida **todos agendados para 31/10, 01/11 e
+02/11/2026**, no Instagram @arte.no.altar. A criação e o agendamento do primeiro
+lote estão validados na hospedagem. A publicação nessas datas e a preparação
+do segundo lote ainda são etapas futuras, não confirmadas.
+
+A rotina está configurada para um feed às 12h de São Paulo por dia e preparação
+das próximas três artes no terceiro dia, **02/11/2026**. A última captura de
+geração mostrou 76 imagens restantes em revisão/reavaliação; elas não foram
+liberadas em bloco nem foi reiniciado o histórico de modelos.
 
 Serão três artes por lote. O seguinte será criado no terceiro dia do atual.
 Não preparar a pasta inteira nem manter uma reposição móvel diária de três itens.
