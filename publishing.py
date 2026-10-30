@@ -219,9 +219,12 @@ def publish(connect, directory, data, finish=False, prepare_only=False, via_meta
             conn.execute('UPDATE posts SET attempt_id=? WHERE id=?',(attempt.lastrowid,post_id))
     try:
         if row['channel']=='Facebook':
-            edge='photos' if image_url else 'feed'
-            payload={'url':image_url,'caption':row['caption'],'published':'true'} if image_url else {'message':row['caption']}
-            result=graph_post(settings,row['account_id']+'/'+edge,token,payload)
+            if row['image_name']:
+                result=graph_post(settings,row['account_id']+'/photos',token,
+                    {'caption':row['caption'],'published':'true'},
+                    file_bytes=image_file(directory,row['image_name']).read_bytes())
+            else:
+                result=graph_post(settings,row['account_id']+'/feed',token,{'message':row['caption']})
             remote=str(result.get('post_id') or result['id'])
             set_status(connect,post_id,'published',remote_id=remote)
             return {'status':'published'}

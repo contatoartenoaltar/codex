@@ -73,6 +73,19 @@ class PublishingTests(unittest.TestCase):
             self.assertEqual([call.args[1] for call in send.call_args_list],['999/media','999/media_publish'])
             self.assertEqual(send.call_args.args[3],{'creation_id':'1234'})
 
+    def test_facebook_photo_uses_file_and_requires_confirmation(self):
+        name=publishing.upload(app.DB.parent,base64.b64encode(jpeg()).decode())['name']
+        with app.connect() as c:c.execute('UPDATE posts SET image_name=?',(name,))
+        with patch('publishing.graph_post',return_value={'id':'555','post_id':'999_555'}) as send,patch('meta.graph_read',return_value={'access_token':'page-token'}):
+            with self.assertRaises(ValueError):
+                publishing.publish(app.connect,app.DB.parent,{'id':1,'revision':0,'confirmed':False})
+            send.assert_not_called()
+            self.assertEqual(self.send()['status'],'published')
+            self.assertEqual(send.call_args.args[1:3],('999/photos','page-token'))
+            self.assertEqual(send.call_args.args[3],{'caption':'Legenda revisada','published':'true'})
+            self.assertEqual(send.call_args.kwargs['file_bytes'],jpeg())
+        self.assertEqual(self.row()['remote_id'],'999_555')
+
     def test_unknown_result_blocks_retries_until_explicit_reconciliation(self):
         with patch('meta.graph_read',return_value={'access_token':'page-token'}),patch('publishing.graph_post',side_effect=publishing.Uncertain('Confira a rede social.')) as send:
             with self.assertRaises(ValueError):self.send()
