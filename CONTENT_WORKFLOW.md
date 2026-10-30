@@ -44,6 +44,13 @@ Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualizaçã
 
 A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Usar o link já fornecido sem pedir novamente, nem solicitar senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o link foi fornecido.
 
+O proprietário confirmou que essa pasta reúne os modelos à venda e que possui
+projeto Google Cloud. O conector de metadados somente leitura está preparado em
+`drive_source.py`; a autorização na hospedagem e a listagem real ainda estão
+pendentes. Instruções em [DRIVE_SETUP.md](DRIVE_SETUP.md). A menção ao plugin do
+Drive também não disponibilizou suas ferramentas nesta conversa; não afirmar
+subpastas, formatos ou quantidades sem o resultado de uma consulta real.
+
 O proprietário havia adiado Drive, templates e rotação para priorizar o
 agendamento. Com o controle da fila validado, retomou essa integração como foco
 atual. Backups e alertas continuam adiados. Ver [PENDENCIAS.md](PENDENCIAS.md).

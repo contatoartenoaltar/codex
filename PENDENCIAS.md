@@ -34,6 +34,11 @@ solicitação e confirmação do proprietário.
 
 ## Próximas melhorias propostas
 
+Primeira parte preparada: `drive_source.py` consulta metadados da pasta e subpastas
+com conta de serviço e acesso somente leitura. O proprietário já tem projeto no
+Google Cloud. Falta autorizar a pasta e executar a consulta real no servidor; não
+há contagem real de imagens confirmada ainda. Ver [DRIVE_SETUP.md](DRIVE_SETUP.md).
+
 1. Integrar a pasta de originais do Drive ao fluxo de criação pelo ChatGPT. O
    proprietário retomou essa tarefa após validar o agendamento: catalogar modelos,
    sortear aleatoriamente sem repetição até completar o ciclo, criar imagens e
