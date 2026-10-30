@@ -20,8 +20,9 @@ pasta “01 - Imagens originais”: 84 arquivos, todos `image/png`, sem subpasta
 atalhos. O download real de três amostras também funcionou na hospedagem; o ZIP
 foi enviado à conversa e suas três imagens foram conferidas (1448 × 1086 px).
 A contagem de arquivos não confirma 84 modelos distintos. A primeira proposta de
-montagem está descrita em [LAYOUTS.md](LAYOUTS.md); o preto e dourado foi aprovado.
-A logo original foi recebida em RAR e aplicada nos cinco quadros das prévias.
+montagem está descrita em [LAYOUTS.md](LAYOUTS.md), mas foi rejeitada depois de
+exibir os cinco quadros com logo. O proprietário pediu reiniciar os layouts.
+A logo original já foi recebida em RAR e continua disponível para a nova proposta.
 
 ## Configuração única no projeto existente do Google Cloud
 
@@ -124,8 +125,8 @@ completa de decodificação e a preparação de novos formatos virão na etapa d
   envelope precisam ser agrupadas antes da rotação. A listagem inclui todos os
   formatos encontrados; isso não significa que cada formato já possa ser renderizado.
 - Download seletivo de amostras foi validado pelo proprietário. A montagem inicial
-  de layouts em preto e dourado foi aprovada pelo proprietário. A versão com logo
-  oficial foi renderizada e conferida no ambiente de trabalho.
+  de layouts foi rejeitada após a apresentação das artes com logo; começar os
+  layouts do zero, preservando os originais e a logo já recebidos.
   Agrupamento dos modelos, sorteio persistente sem reposição, legendas, Stories,
   carrosséis e rotina diária ainda precisam de implementação e testes. O catálogo
   e as prévias não ativam publicação automática.

@@ -38,11 +38,17 @@ Primeira parte validada pelo proprietário: consulta autenticada pelo servidor,
 somente leitura, encontrou 84 PNGs na pasta de originais, sem subpastas ou atalhos.
 O download real de três amostras também funcionou e o ZIP foi enviado à conversa.
 As três imagens PNG RGB de 1448 × 1086 px foram abertas e conferidas. A primeira
-proposta de montagem está preparada em [LAYOUTS.md](LAYOUTS.md). O proprietário
-aprovou o preto e dourado em 30/10/2026. O PNG da logo foi recebido em
-`LOGOPNGAA.rar`, aplicado aos cinco quadros sobre branco e conferido nas prévias.
-Não pedir a logo ou nova aprovação dessa linha visual. Os arquivos com logo
-estão no ambiente de trabalho; ainda não foram implantados na hospedagem.
+proposta de montagem está registrada em [LAYOUTS.md](LAYOUTS.md). Depois de ver
+os cinco quadros com a logo, o proprietário rejeitou a proposta e pediu começar
+os layouts do zero; essa decisão substitui a aprovação inicial do preto e dourado.
+Não usar `black-gold-v1` na rotina. A logo recebida em `LOGOPNGAA.rar` e os originais
+continuam disponíveis; não pedir novo envio. Preparar um novo feed para definir
+a direção visual. O feed foi confirmado em 1080 × 1350. Uma referência distinta
+de Story “Palavra da Manhã” foi enviada, com fundo claro, amanhecer e Bíblia aberta;
+o proprietário confirmou um versículo todos os dias. Preparar Stories em
+1080 × 1920, com texto/referência conferidos; a tradução bíblica ainda está
+em definição. Os arquivos anteriores
+ficam apenas como histórico privado e não foram implantados na hospedagem.
 Quantidade de imagens ainda não equivale a quantidade de
 modelos distintos. Ver [DRIVE_SETUP.md](DRIVE_SETUP.md).
 

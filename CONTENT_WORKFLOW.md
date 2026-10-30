@@ -4,7 +4,7 @@ Referência fornecida pelo proprietário para o projeto próprio. Distinguir o f
 
 ## Objetivo e arquitetura desejada
 
-O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. O proprietário forneceu o link da pasta de origem; o acesso autorizado e seu conteúdo ainda precisam ser validados.
+O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. O acesso autorizado à pasta e a leitura real de 84 PNGs foram validados na hospedagem; a ligação com a montagem e a rotina diária ainda precisa ser implementada.
 
 Após validar o agendamento pelo plugin, o proprietário retomou explicitamente
 essa ideia: escolher aleatoriamente modelos do Drive e criar artes para feed,
@@ -84,11 +84,32 @@ Manter os próximos três dias programados. Antes de criar ou agendar, consultar
 
 ## Imagens e identidade visual
 
-Usar artes aprovadas como referência e arquivos originais dos envelopes disponíveis no Google Drive. Padrão visual relatado como aprovado:
+Decisão visual atual: o proprietário rejeitou a primeira proposta de feed, Story
+e carrossel com logo e pediu começar os layouts do zero. Essa decisão substitui
+a aprovação anterior do preto e dourado. O script `layout_preview.py` ainda gera
+essa proposta antiga; não usá-lo como template aprovado para a rotina.
+
+O feed foi definido em **1080 × 1350 px (4:5)**. O proprietário pretende enviar
+um exemplo próprio para sua composição. Para o Story diário “Palavra da Manhã”,
+enviou uma referência clara, com luz do amanhecer, Bíblia aberta, folhagem, cruz,
+logo integrada ao topo, versículo preto com palavra cursiva dourada e curvas nas
+cores da marca no rodapé. A produção do Story será em **1080 × 1920 px (9:16)**.
+Essa referência de Story não deve ser tratada como exemplo do feed.
+
+Haverá um versículo bíblico todos os dias. Manter texto e referência como campos
+editáveis, com citações conferidas; a tradução bíblica ainda precisa ser definida
+antes da montagem do catálogo de textos. O exemplo recebido usa Filipenses 4:13.
+Ver detalhes em [LAYOUTS.md](LAYOUTS.md). O envio da referência não significa que
+o template ou a publicação automática de Stories estejam implementados.
+
+O padrão anteriormente relatado, agora apenas histórico da proposta rejeitada, era:
 
 - Títulos brancos e dourados em 3D; fundo preto e dourado.
 - Mesa de madeira e iluminação quente; envelope integrado naturalmente à cena.
 - Botão de WhatsApp e logo oficial da Arte no Altar sobre fundo branco.
+
+Regras gerais que permanecem:
+
 - Cada arte de produto deve usar um modelo diferente de envelope.
 - Telefone comercial: **(35) 98442-8442**.
 - Alternar chamadas: “Peça seu orçamento”, “Faça seu pedido” e “Fale conosco”.

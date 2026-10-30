@@ -1,4 +1,49 @@
-# Layouts em preto e dourado — linha visual aprovada
+# Layouts — primeira proposta rejeitada; reinício solicitado
+
+## Decisão atual do proprietário
+
+Depois de receber as prévias individuais com logo, o proprietário informou:
+“Não gostei, vamos começar do zero os Layouts”. Essa decisão substitui a aprovação
+anterior do preto e dourado para esta proposta. Os cinco quadros de
+`black-gold-v1` são referências rejeitadas, não templates aprovados para uso diário.
+Mantê-los somente como histórico; não publicar, agendar ou derivar novas artes
+deles sem uma nova solicitação. O script `layout_preview.py` ainda reproduz a
+proposta antiga e não deve ser apresentado como solução visual atual.
+
+O reinício é da composição visual. A logo original já foi recebida, e as fotos
+dos produtos continuam disponíveis e devem permanecer preservadas. Não pedir
+esses arquivos novamente. O proprietário disse que enviará um exemplo para
+começar pelo feed e confirmou o tamanho 1080 × 1350 px (4:5). Ainda não forneceu
+a referência específica do feed; não presumir que o preto e dourado é obrigatório.
+
+## Nova referência dos Stories: Palavra da Manhã
+
+O proprietário enviou uma imagem de referência identificada expressamente como
+Story e confirmou que haverá um versículo da Bíblia todos os dias. Essa imagem
+não é a referência de composição do feed, nem reaprova a primeira proposta.
+
+Elementos observados na referência enviada:
+
+- Fundo claro, luz dourada do amanhecer e cena com Bíblia aberta sobre madeira.
+- Folhagem à esquerda, cruz à direita e paisagem ao fundo.
+- Logo no alto, integrada à área clara, sem a caixa branca isolada da proposta antiga.
+- Faixa “PALAVRA DA MANHÃ”, tipografia preta grande e uma palavra em destaque
+  com escrita cursiva dourada; referência bíblica legível abaixo.
+- Faixas curvas em azul, magenta e amarelo no rodapé, remetendo à logo.
+- Texto do exemplo: “Tudo posso naquele que me fortalece.”, Filipenses 4:13.
+
+Usar 1080 × 1920 px (9:16) na produção dos Stories, com margens para a interface
+do Instagram. O tamanho 1080 × 1350 confirmado pelo proprietário é para o feed.
+A imagem enviada é referência visual; não afirmar que já existe um template
+editável nem que o arquivo foi disponibilizado para composição no servidor.
+
+Para a futura montagem diária, preparar fundo e marca como elementos fixos e
+versículo/referência como texto editável. Conferir a citação, sua referência e
+a tradução da Bíblia usada antes de incluir cada texto no catálogo; a tradução
+ainda não foi definida pelo proprietário. Não reconstruir letras por geração
+de imagem. Essa orientação não ativa publicação ou agendamento de Stories.
+
+## Histórico da primeira proposta
 
 O proprietário enviou o pacote de três amostras obtido pelo conector do Drive.
 As três imagens foram abertas e conferidas: PNG RGB, 1448 × 1086 px, com os
@@ -20,7 +65,7 @@ Os originais não são sobrescritos. Os testes comparam a área inserida à foto
 redimensionada. Isso não é uma validação de leitura do QR Code original; revisar a
 imagem final e os códigos antes de liberar uma rotina de publicação.
 
-## Situação da aprovação
+## Aprovação anterior — substituída pela rejeição acima
 
 Em 30/10/2026, o proprietário aprovou expressamente a linha visual: “Aprovo em
 preto e dourado”. Depois de duas imagens inline sem arquivo disponível, o envio
@@ -40,8 +85,8 @@ arquivos privados deste ambiente de trabalho, ainda não implantados na hospedag
 As fotos, a logo e as propostas não entram no repositório público.
 
 O manifesto mantém `approved=false` para as artes individuais: esse campo não é
-o registro da aprovação da linha visual e não autoriza publicações. A escolha
-do preto e dourado está registrada acima; não pedir sua aprovação novamente.
+o registro da aprovação da linha visual e não autoriza publicações. A aprovação
+anterior do preto e dourado foi substituída pela decisão atual de reiniciar.
 A definição do calendário e das autorizações da rotina permanece pendente.
 
 O manifesto registra os IDs e hashes dos três modelos usados nas montagens. Ao
@@ -49,7 +94,7 @@ implementar o ciclo sem repetição, considerar também essas referências já u
 nas artes criadas, além dos registros anteriores de criação/publicação; não
 reiniciar a rotação apenas por mudar de sessão.
 
-## Reprodução privada na hospedagem
+## Reprodução privada da proposta antiga — somente histórico
 
 Depois de atualizar o código e instalar dependências com o Python usado na conta:
 
