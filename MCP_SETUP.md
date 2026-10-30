@@ -18,7 +18,11 @@ O acompanhamento das pendências está em [PENDENCIAS.md](PENDENCIAS.md).
 
 Acrescenta `social_cancel_schedule` e `social_reschedule_draft`, totalizando nove
 ferramentas. Estão implementadas com testes locais; implantação e validação real
-no aplicativo ainda pendentes. A preparação não altera a fila da hospedagem.
+no aplicativo foram concluídas pelo proprietário para Instagram: o rascunho #1
+foi agendado às 11h10, reagendado às 11h20 e cancelado ao final em 30/10/2026, São
+Paulo. Os três recibos e a consulta final confirmaram rascunho, revisão 3, estado
+cancelado e nenhum agendamento ativo para o conteúdo. Esse teste não valida novos
+formatos nem garante disponibilidade futura do executor.
 
 Ambas exigem `post_id`, `revision`, `account_id`, `channel`, `expected_due_at`
 (timestamp numérico original retornado por `social_get_draft`), `idempotency_key`

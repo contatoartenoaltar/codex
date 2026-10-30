@@ -45,4 +45,6 @@ O estado confirmado, o teste validado e as melhorias propostas estão em [PENDEN
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
 com testes isolados e preservação do horário anterior se a nova reserva falhar.
 Exige revisão e horário conferidos; o botão de cancelar no site também recusa uma
-visão desatualizada. Implantação e testes reais dessas novas ações ainda pendentes.
+visão desatualizada. O proprietário confirmou o teste real no Instagram: agendar,
+reagendar e cancelar o rascunho #1, terminando em rascunho, revisão 3 e sem
+agendamento ativo para esse conteúdo.

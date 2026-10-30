@@ -16,6 +16,11 @@ Este registro não é uma consulta em tempo real à hospedagem ou à Meta.
   e a captura do sistema mostrou esse agendamento.
 - O proprietário confirmou depois a publicação desse rascunho #3 no Instagram,
   concluindo o teste de revisão, agendamento pelo plugin e execução automática.
+- Plugin 0.3.0 atualizado e ferramentas de reagendar/cancelar disponíveis após
+  reconectar o MCP. O proprietário confirmou o teste real do #1 no Instagram:
+  agendar em 30/10/2026 às 11h10, reagendar às 11h20 e cancelar ao final. Os três
+  recibos foram consultados; o estado final informado foi rascunho, revisão 3,
+  agendamento cancelado e nenhum agendamento ativo para esse conteúdo.
 
 ## Teste do agendamento pelo plugin concluído
 
@@ -23,27 +28,25 @@ A publicação do rascunho #3 foi confirmada pelo proprietário. Não tratar ess
 como pendente nem recriá-lo para repetir o teste. Recibos e presença na fila, por si
 sós, continuam não comprovando publicação de outros conteúdos.
 
+O teste de cancelamento e reagendamento do #1 também foi concluído. Não reativar
+esse agendamento para repetir o teste: ele deve permanecer cancelado, salvo nova
+solicitação e confirmação do proprietário.
+
 ## Próximas melhorias propostas
 
-1. Ativar e validar cancelamento e reagendamento pelo plugin 0.3.0, preparado em
-   testes isolados a pedido do proprietário enquanto aguardava a postagem #3.
-   Ainda não foi implantado nem testado no aplicativo. Preserva revisão, horário
-   conferido e autorização do novo horário; não interrompe um envio que já começou.
-2. Configurar backups externos automáticos e sua restauração, mantendo imagens e
+1. Configurar backups externos automáticos e sua restauração, mantendo imagens e
    configurações privadas protegidas; alertas de falha ou necessidade de reconexão
    à Meta também estão pendentes. Não confundir status consultável com alerta enviado.
-3. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
+2. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
    de publicação de cada canal. A foto de feed atual não equivale a um Story.
-4. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
+3. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
    importação, publicação e agendamento.
-5. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
+4. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
    horários existentes e evitar temas repetidos. Não há execução autônoma da criação
    de novas artes/legendas fora da conversa; definir e validar esse mecanismo antes
    de prometer que o ChatGPT gerará conteúdo continuamente.
 
-O proprietário autorizou adiantar o primeiro item enquanto aguardava o teste, que
-depois teve a publicação confirmada.
-Os demais itens são propostas a priorizar; essa lista não autoriza agendar conteúdos
+Os itens restantes são propostas a priorizar; essa lista não autoriza agendar conteúdos
 ainda não revisados nem contratar serviços.
 
 ## Adiado a pedido do proprietário
@@ -60,8 +63,8 @@ ainda não revisados nem contratar serviços.
 ## Limites que permanecem
 
 - Plugin atual: uma foto JPEG de feed, importação como rascunho, consulta e
-  agendamento confirmado. Cancelamento e reagendamento 0.3.0 estão preparados,
-  pendentes de implantação. Sem publicação imediata, Stories, carrosséis ou Drive.
+  agendamento, cancelamento e reagendamento confirmados, com teste real do controle
+  da fila no Instagram. Sem publicação imediata, Stories, carrosséis ou Drive.
 - Vídeos e Reels continuam manuais, conforme a rotina informada.
 - O histórico e a agenda do plugin são locais e podem omitir publicações externas.
 - Executor depende de chamadas bem-sucedidas do cron-job.org, hospedagem disponível

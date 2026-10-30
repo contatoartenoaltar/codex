@@ -13,7 +13,9 @@ O horário deve estar entre 2 minutos e 90 dias no futuro. O executor confere a 
 O cartão mostra horário de São Paulo e estado do executor. Enquanto estiver na fila, **Cancelar agendamento** devolve o conteúdo para rascunho e invalida a revisão anterior. Depois que o envio começa, o cancelamento não é oferecido; confira o resultado na rede. Para editar, cancele primeiro e agende novamente. Não é possível enviar manualmente, alterar ou excluir um rascunho sob controle da fila ativa.
 
 O plugin 0.3.0 implementa cancelamento e troca de horário de itens ainda na fila,
-com implantação e teste real pendentes. O reagendamento é atômico e preserva o
+com implantação e teste real confirmados pelo proprietário no Instagram. O
+rascunho #1 foi agendado, reagendado e cancelado, terminando em rascunho e sem
+agendamento ativo. O reagendamento é atômico e preserva o
 horário anterior se a nova reserva falhar. Exige revisão e horário originais e
 confirmação da nova data; não altera imagem nem legenda. Cancelar funciona com o
 executor inativo; reagendar exige sinal ativo. Atualize a página após a implantação
