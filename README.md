@@ -42,6 +42,12 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 
 O estado confirmado, o teste validado e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md). O proprietário retomou a integração com Drive para selecionar aleatoriamente modelos sem repetição e criar artes para feed, Stories e carrosséis. Backups e alertas permanecem adiados.
 
+O fluxo principal agora é a [criação diária autônoma](FEED_AUTONOMY.md), conforme
+pedido do proprietário: classificar, sortear e montar sem escolhas diárias.
+O padrão preparado é um feed às 12h, Instagram @arte.no.altar, com até três dias
+à frente e acionamento pelo cron existente. Ainda requer atualização, ativação
+e validação real na hospedagem. O formulário abaixo é opcional.
+
 A [montagem de feed](FEED_COMPOSITION.md) já está integrada ao Estúdio de conteúdo:
 modelo do Drive e tema selecionados no painel, doze chamadas aprovadas alternadas
 com histórico persistente e exportação 1080 × 1350 para rascunho. O layout comercial

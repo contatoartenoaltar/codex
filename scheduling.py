@@ -28,6 +28,28 @@ def runtime(conn):
 def save(conn,directory,data):
     if data.get('confirmed') is not True:
         raise ValueError('Confirme o canal, a conta, o conteúdo e o horário do envio automático.')
+    return _save_authorized(conn, directory, data)
+
+
+def save_automatic(conn, directory, *, post_id, revision, due_at, policy_id):
+    import feed_autonomy
+    rules = feed_autonomy.policy(directory)
+    if not rules or rules['id'] != policy_id:
+        raise ValueError('Rotina automática não autorizada.')
+    authorized = conn.execute('''SELECT 1 FROM feed_auto_slots s
+        JOIN feed_compositions c ON c.request_id=s.request_id
+        JOIN posts p ON p.id=c.post_id
+        WHERE s.policy=? AND s.state='reserved' AND s.due_at=? AND c.post_id=?
+          AND s.account_id=? AND p.account_id=s.account_id AND p.channel='Instagram'
+          AND c.file_id=s.file_id AND c.theme=s.theme AND p.revision=0''',
+        (policy_id, due_at, post_id, rules['account_id'])).fetchone()
+    if not authorized:
+        raise ValueError('Este conteúdo não pertence à política autorizada.')
+    when = datetime.fromtimestamp(due_at, ZONE).replace(tzinfo=None).isoformat(timespec='minutes')
+    return _save_authorized(conn, directory, {'id': post_id, 'revision': revision, 'when': when})
+
+
+def _save_authorized(conn, directory, data):
     if not runtime(conn)['active']:
         raise ValueError('O executor de agendamentos não está ativo. Ative-o antes de agendar; deixar o site aberto não substitui esse processo.')
     if any(type(data.get(k)) is not int for k in ['id','revision']):

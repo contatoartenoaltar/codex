@@ -1,4 +1,4 @@
-"""Acionamento HTTP restrito da fila; não cria nem autoriza agendamentos."""
+"""Aciona a fila e, quando ativa, a política de criação previamente autorizada."""
 import hashlib
 import hmac
 import os
@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 import meta
 import scheduling
+import feed_autonomy
 
 PATH = '/internal/scheduler/tick'
 KEY_FILE = 'scheduler-key.txt'
@@ -39,7 +40,17 @@ def run(connect, directory):
         conn.execute('INSERT OR REPLACE INTO scheduler_http_runtime VALUES(1,?,?,?)',
                      (now, lease, now + LEASE_SECONDS))
     try:
-        return scheduling.tick(connect, directory, mode='http')
+        result = scheduling.tick(connect, directory, mode='http')
+        # Publicação tem prioridade. A criação só usa chamadas ociosas e política ativa.
+        if result.get('status') == 'idle':
+            try:
+                feed_autonomy.tick(connect, directory)
+            except (ValueError, OSError, sqlite3.Error):
+                # O estado privado da rotina registra a falha sem expor conteúdo.
+                # Falha na criação não desliga o cron de publicações autorizadas.
+                with connect() as conn:
+                    conn.execute("UPDATE feed_auto_runtime SET state='error' WHERE id=1 AND lease_until<=?", (int(time.time()),))
+        return result
     finally:
         with connect() as conn:
             conn.execute("UPDATE scheduler_http_runtime SET lease='',lease_until=0 WHERE id=1 AND lease=?", (lease,))

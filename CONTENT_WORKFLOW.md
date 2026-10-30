@@ -4,6 +4,13 @@ Referência fornecida pelo proprietário para o projeto próprio. Distinguir o f
 
 ## Objetivo e arquitetura desejada
 
+Decisão mais recente: o proprietário não quer selecionar modelo ou tema no dia a
+dia. A rotina de [FEED_AUTONOMY.md](FEED_AUTONOMY.md) implementa classificação
+local, seleção sem reposição, frases alternadas e preparação/agendamento pela
+política autorizada. Padrão preparado: Instagram @arte.no.altar, um feed às 12h,
+São Paulo, até três dias à frente. Ela depende de ativação inicial e validação
+na hospedagem; não afirmar que os testes locais já são publicação real.
+
 O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. O acesso autorizado à pasta e a leitura real de 84 PNGs foram validados na hospedagem; a ligação com a montagem e a rotina diária ainda precisa ser implementada.
 
 Após validar o agendamento pelo plugin, o proprietário retomou explicitamente

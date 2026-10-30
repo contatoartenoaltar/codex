@@ -1,5 +1,11 @@
 # Acionamento externo do agendamento
 
+A rotina opcional de [criação diária de feeds](FEED_AUTONOMY.md) aproveita esse
+mesmo acionamento após sua ativação própria. A publicação continua prioritária;
+somente chamadas ociosas executam uma etapa da indexação ou montagem autorizada.
+A chave do cron não ativa políticas nem escolhe conteúdo via requisição. Sem a
+política privada habilitada, o comportamento continua sendo apenas executar a fila.
+
 O proprietário confirmou um teste real de publicação agendada com o executor rodando no console. Este acionamento HTTP é a alternativa para não depender daquele console: um serviço externo chama o site a cada minuto e o próprio PythonAnywhere processa a fila, com seu banco, imagens e credenciais locais.
 
 O endpoint está implementado e tem testes com publicação simulada. O proprietário instalou a versão, configurou o cron-job.org a cada minuto e confirmou publicação real com o console parado e as abas fechadas. Isso não adiciona Stories ou carrosséis. O plugin 0.2.0 também colocou um rascunho real nessa mesma fila após revisão e confirmação no aplicativo, e o proprietário confirmou sua publicação final. Consulte [MCP_SETUP.md](MCP_SETUP.md).

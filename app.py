@@ -10,6 +10,7 @@ import scheduling
 import scheduler_http
 import social_mcp
 import feed_composer
+import feed_autonomy
 import html
 import urllib.error
 import urllib.request
@@ -57,6 +58,7 @@ def initialize():
         scheduler_http.initialize(c)
         social_mcp.initialize(c)
         feed_composer.initialize(c)
+        feed_autonomy.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -208,6 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                     schedule=schedules.get(post['id'])
                     post['schedule']={k:schedule[k] for k in ['due_at','state','error']} if schedule else None
                 result['scheduler']=scheduling.runtime(c)
+                result['feed_automation']=feed_autonomy.status(c, DB.parent)
             try:
                 social = meta.status(DB.parent)
             except ValueError as error:

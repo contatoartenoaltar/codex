@@ -32,6 +32,10 @@ PHRASES = {
 LABELS = dict(zip(PHRASES, ('Dízimos', 'Ofertas', 'Primícias', 'Santa Ceia')))
 
 
+class SourceChanged(ValueError):
+    pass
+
+
 def phrase(theme, index):
     return ' '.join(part for part in PHRASES[theme][index] if part)
 
@@ -91,7 +95,7 @@ def _existing(conn, request_id, signature):
         return {'post_id': row['post_id'], 'status': post['publish_status'], 'reused': True}
 
 
-def compose(connect, directory, data, client=None):
+def compose(connect, directory, data, client=None, *, expected_sha256=None):
     theme, file_id = data.get('theme'), drive_source.identifier(data.get('file_id'))
     request_id, channel = data.get('request_id'), data.get('channel', 'Instagram')
     if (not isinstance(theme, str) or theme not in PHRASES or
@@ -109,6 +113,8 @@ def compose(connect, directory, data, client=None):
     if not item or item['mimeType'] not in ('image/png', 'image/jpeg'):
         raise ValueError('Escolha um PNG ou JPEG da pasta de originais autorizada.')
     original = client.download_image(item)
+    if expected_sha256 is not None and hashlib.sha256(original).hexdigest() != expected_sha256:
+        raise SourceChanged('O original mudou após a classificação; a rotina precisa analisá-lo novamente.')
     uploaded = None
     try:
         with connect() as conn:

@@ -34,6 +34,17 @@ solicitação e confirmação do proprietário.
 
 ## Próximas melhorias propostas
 
+**Correção mais recente:** o proprietário não quer escolher modelo ou tema.
+A rotina autônoma foi implementada com OCR local, índice gradual, sorteio sem
+reposição e frases alternadas. O padrão preparado é Instagram @arte.no.altar,
+um feed diário às 12h, até três dias à frente. A ativação grava a política e
+habilita etapas nas chamadas ociosas do cron existente. O painel mostra seu
+andamento; a seleção manual ficou secundária. Casos incertos ficam separados
+e impedem reiniciar o ciclo. Ver [FEED_AUTONOMY.md](FEED_AUTONOMY.md).
+Faltam implantação, verificação do Tesseract na hospedagem, ativação, análise
+real dos 84 arquivos e teste de publicação pela nova política. Não apresentar
+os testes locais como comprovação dessas etapas reais.
+
 **Atualização:** após as propostas rejeitadas abaixo, o proprietário aprovou o
 novo feed comercial e doze chamadas curtas. A montagem com Drive e alternância
 persistente das frases foi integrada ao Estúdio de conteúdo. Ver

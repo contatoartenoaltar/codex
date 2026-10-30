@@ -1,5 +1,10 @@
 # Montagem de feed com modelos do Drive
 
+**Decisão atual:** o proprietário pediu autonomia, sem escolher modelo ou tema
+no dia a dia. A rotina de [FEED_AUTONOMY.md](FEED_AUTONOMY.md) é o fluxo principal;
+o formulário manual abaixo permanece como opção de exceção. É necessária somente
+a ativação inicial na hospedagem; falta validar sua execução real lá.
+
 O proprietário aprovou o layout comercial com título branco/dourado, foto grande
 e botão com `35 9 8442-8442`, após rejeitar as propostas anteriores. Aprovou também
 as doze chamadas curtas, três por tema, e pediu sua integração. O banco está em
@@ -19,8 +24,8 @@ O histórico fica no banco, sobrevive a reinicializações e não depende do cha
 Repetir a mesma solicitação retorna o conteúdo já criado. Se o rascunho mudou de
 estado, a resposta informa seu estado atual; se foi excluído, não o recria.
 
-O modelo é selecionado explicitamente nesta etapa. **Ainda não há sorteio diário
-automático de modelos.** A contagem de 84 arquivos não identifica modelos únicos:
+No formulário manual, o modelo é selecionado explicitamente. Na rotina autônoma,
+o índice e o sorteio fazem essa escolha. A contagem de 84 arquivos não identifica modelos únicos:
 fotografias diferentes do mesmo envelope precisam ser agrupadas e os temas
 conferidos antes de ativar a rotação geral sem repetição. O registro de cada
 composição já guarda ID e SHA-256 do original, tema, frase, ciclo e rascunho para
@@ -72,7 +77,8 @@ precisam ser executados pelo proprietário; testes locais usam Drive simulado.
 
 ## Próximas etapas
 
-Agrupar e classificar modelos, completar o sorteio persistente sem reposição e
-definir a frequência dos feeds para a execução diária. A chamada do cron atual
-continua executando somente a fila de publicação autorizada; não foi modificada
-para criar artes. Stories e carrosséis continuam como trabalhos separados.
+O cron agora executa também etapas da rotina autônoma quando a política estiver
+ativa e a fila estiver ociosa. O padrão preparado é um feed diário às 12h para
+Instagram @arte.no.altar. Falta atualizar, ativar e observar a indexação real na
+hospedagem, resolvendo as exceções do catálogo. Stories e carrosséis continuam
+como trabalhos separados.

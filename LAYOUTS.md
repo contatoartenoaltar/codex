@@ -2,6 +2,11 @@
 
 ## Estado atual
 
+O proprietário pediu execução autônoma, sem escolher modelos ou temas. O fluxo
+principal passa a ser [FEED_AUTONOMY.md](FEED_AUTONOMY.md), com indexação, rotação
+e política para os layouts e textos aprovados. O formulário manual é secundário.
+Falta ativar e validar essa execução na hospedagem.
+
 Depois da rejeição da prévia `feed-gold-commercial-v2`, foi produzida uma nova
 arte seguindo mais fielmente a referência enviada. O proprietário aprovou essa
 composição e ajustou o botão até o texto `35 9 8442-8442`, com número destacado

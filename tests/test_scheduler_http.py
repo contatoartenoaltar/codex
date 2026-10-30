@@ -104,6 +104,17 @@ class SchedulerHTTPTests(unittest.TestCase):
             self.assertEqual(self.http()['body'], {'status': 'idle'})
             self.assertEqual(tick.call_count, 1)
 
+    def test_creation_uses_only_idle_calls_and_failure_preserves_publication_trigger(self):
+        with patch('scheduling.tick', return_value={'status': 'processing'}), patch('feed_autonomy.tick') as create:
+            self.assertEqual(self.http()['body'], {'status': 'processing'})
+            create.assert_not_called()
+        with patch('time.time', return_value=time.time()+61), patch('scheduling.tick', return_value={'status': 'idle'}), patch('feed_autonomy.tick', side_effect=ValueError('private source details')) as create:
+            result = self.http()
+            self.assertEqual(result['status'], 200)
+            self.assertEqual(result['body'], {'status': 'idle'})
+            create.assert_called_once()
+        self.assertFalse((app.DB.parent/'feed-automation.json').exists())
+
     def test_lost_runner_expires_and_failed_http_releases_lease(self):
         now = int(time.time())
         with patch('scheduling.tick', side_effect=ValueError('private detail')):
