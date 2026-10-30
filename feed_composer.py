@@ -17,6 +17,7 @@ from feed_reference_preview import lettering
 import product_scene
 
 TEMPLATE = Path(__file__).parent / 'design_assets' / 'feed' / 'template.jpg'
+CAPTION_TEMPLATE = TEMPLATE.with_name('caption.txt')
 SIZE = (1080, 1350)
 PHOTO_AREA = (0, 345, 1080, 1135)
 # prefixo, tema em dourado, complemento: ordem de leitura da chamada aprovada.
@@ -57,6 +58,19 @@ class SourceChanged(ValueError):
 
 def phrase(theme, index):
     return ' '.join(part for part in PHRASES[theme][index] if part)
+
+
+def standard_caption():
+    text = CAPTION_TEMPLATE.read_text(encoding='utf-8').strip()
+    if not text or len(text) > 2200:
+        raise ValueError('A legenda padrão precisa ter entre 1 e 2.200 caracteres.')
+    return text
+
+
+def legacy_caption(theme, index):
+    """Identifica a legenda anterior para não sobrepor uma edição do proprietário."""
+    return (phrase(theme, index) + '.\n\nPeça seu orçamento pelo WhatsApp: 35 9 8442-8442.'
+            '\n\n#ArteNoAltar #EnvelopesPersonalizados #PersonalizadosParaIgrejas')
 
 
 def initialize(conn):
@@ -159,8 +173,7 @@ def compose(connect, directory, data, client=None, *, expected_sha256=None):
             buffer = io.BytesIO()
             image.save(buffer, format='JPEG', quality=95, subsampling=0)
             uploaded = publishing.upload(directory, base64.b64encode(buffer.getvalue()).decode())
-            caption = (phrase(theme, index) + '.\n\nPeça seu orçamento pelo WhatsApp: 35 9 8442-8442.'
-                       '\n\n#ArteNoAltar #EnvelopesPersonalizados #PersonalizadosParaIgrejas')
+            caption = standard_caption()
             post_id = conn.execute('''INSERT INTO posts(product,channel,caption,source,image_name)
                 VALUES(?,?,?,?,?)''', ('Envelopes — ' + LABELS[theme], channel, caption,
                                      'Montagem Drive · revisar', uploaded['name'])).lastrowid

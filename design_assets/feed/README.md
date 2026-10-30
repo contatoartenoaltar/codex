@@ -1,5 +1,9 @@
 # Base contínua de montagem do feed
 
+`caption.txt` é a legenda comercial fixa autorizada pelo proprietário em
+30/10/2026. É independente das chamadas dentro das imagens e não altera a
+identidade da política de composição. Ver [FEED_CAPTIONS.md](../../FEED_CAPTIONS.md).
+
 `scene-v2.jpg` reúne ambiente, mesa, papéis sem impressão, sombras e CTA numa
 única fotografia-base. Não contém fotos privadas dos produtos nem credenciais.
 `scene-v2.json` calibra as faces dos papéis e a oclusão da pilha pelo envelope

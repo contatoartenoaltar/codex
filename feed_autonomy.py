@@ -220,6 +220,52 @@ def start_preview(connect, directory):
     return enable(directory, approve_layout=True, preview=True)
 
 
+def apply_caption_standard(connect, directory):
+    """Atualiza somente legendas automáticas ainda na fila, sem reagendar."""
+    rules = policy(directory)
+    if not rules:
+        raise ValueError('A rotina precisa ter uma política ativa para identificar suas legendas.')
+    caption = composer.standard_caption()
+    report = {'updated': [], 'unchanged': [], 'skipped': []}
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        rows = conn.execute('''SELECT a.post_id,a.account_id,a.request_id,c.theme,c.phrase_index,
+                    p.caption,p.image_name,p.channel,p.account_id AS post_account,p.publish_status,
+                    p.revision,p.attempt_id,p.remote_id,p.container_id,
+                    q.state AS schedule_state,q.revision AS schedule_revision,c.rowid AS composition_order,
+                    (SELECT MAX(rowid) FROM feed_compositions WHERE post_id=p.id) AS latest_post_owner
+                FROM feed_auto_slots a
+                JOIN feed_compositions c ON c.request_id=a.request_id AND c.post_id=a.post_id
+                JOIN posts p ON p.id=a.post_id
+                LEFT JOIN post_schedule q ON q.post_id=p.id
+                WHERE a.policy=? AND a.account_id=? AND a.state='queued'
+                ORDER BY a.due_at''', (rules['id'], rules['account_id'])).fetchall()
+        for row in rows:
+            if row['caption'] == caption:
+                report['unchanged'].append(row['post_id'])
+                continue
+            if (row['composition_order'] != row['latest_post_owner'] or
+                    row['post_account'] != rules['account_id'] or row['channel'] != 'Instagram' or
+                    row['publish_status'] != 'scheduled' or row['schedule_state'] != 'queued' or
+                    row['revision'] != 0 or row['schedule_revision'] != row['revision'] or
+                    row['attempt_id'] is not None or row['remote_id'] or row['container_id'] or
+                    row['theme'] not in composer.PHRASES or
+                    not 0 <= row['phrase_index'] < len(composer.PHRASES[row['theme']]) or
+                    row['caption'] != composer.legacy_caption(row['theme'], row['phrase_index'])):
+                report['skipped'].append({'id': row['post_id'], 'reason': 'Conteúdo editado, enviado ou fora da fila automática original.'})
+                continue
+            changed = conn.execute('''UPDATE posts SET caption=?,revision=revision+1
+                WHERE id=? AND revision=? AND publish_status='scheduled' ''',
+                                   (caption, row['post_id'], row['revision']))
+            queued = conn.execute('''UPDATE post_schedule SET revision=revision+1
+                WHERE post_id=? AND revision=? AND state='queued' ''',
+                                  (row['post_id'], row['revision']))
+            if changed.rowcount != 1 or queued.rowcount != 1:
+                raise ValueError('A fila mudou durante a atualização das legendas. A transação foi cancelada.')
+            report['updated'].append(row['post_id'])
+    return report
+
+
 def _used_models(conn):
     cycle = conn.execute('SELECT MAX(cycle) FROM feed_auto_slots').fetchone()[0] or 1
     used = {r[0] for r in conn.execute('SELECT model_key FROM feed_auto_slots WHERE cycle=?', (cycle,))}
@@ -816,7 +862,7 @@ def main():
     import argparse
     import app
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['enable', 'prepare-batch', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
+    parser.add_argument('command', choices=['enable', 'prepare-batch', 'apply-caption-standard', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
     parser.add_argument('--approve-layout', action='store_true', help='Registrar aprovação explícita da nova ambientação')
     parser.add_argument('--summary', action='store_true', help='Exibir o diagnóstico resumido do lote')
     parser.add_argument('--file', help='JSON de classificação visual, sem credenciais')
@@ -853,6 +899,12 @@ def main():
                             'batch_needs_review': 'Há conteúdo protegido ou uma tentativa interrompida no lote. Confira o diagnóstico.',
                             'processing': 'A preparação ainda está em andamento; o cron pode continuar este mesmo lote.'}
                 print(messages.get(progress['waiting_reason'], 'Confira o estado do lote no diagnóstico abaixo.'))
+        elif args.command == 'apply-caption-standard':
+            result = apply_caption_standard(app.connect, app.DB.parent)
+            print('Legendas atualizadas:', len(result['updated']), '| Posts:', ', '.join(map(str, result['updated'])) or 'nenhum')
+            print('Já usavam a legenda padrão:', len(result['unchanged']))
+            print('Preservados para conferência:', len(result['skipped']))
+            print('Imagens, contas e horários preservados. Nenhuma publicação iniciada por este comando.')
         elif args.command == 'disable':
             settings = drive.read_json(app.DB.parent / SETTINGS) if (app.DB.parent / SETTINGS).exists() else {}
             drive.write_private(app.DB.parent / SETTINGS, settings | {'enabled': False})

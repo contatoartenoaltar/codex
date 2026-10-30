@@ -20,6 +20,9 @@ O fluxo principal é automático; o formulário manual é apenas opcional.
 - Usar cada frase uma vez no ciclo de quinze, evitando repetição imediata na virada.
 - Montar em **1080 × 1350** com impressão original projetada nos papéis de um
   cenário contínuo, quinze chamadas transparentes e WhatsApp **35 9 8442-8442**.
+- Usar a legenda comercial fixa fornecida pelo proprietário em
+  [caption.txt](design_assets/feed/caption.txt), sem acrescentar a frase da imagem.
+  Ver [FEED_CAPTIONS.md](FEED_CAPTIONS.md) para atualizar os três já agendados.
 - Depois do teste inicial e da ativação, agendar pela política autorizada,
   sem escolhas diárias ou confirmação por arte.
 

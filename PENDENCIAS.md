@@ -1,5 +1,12 @@
 # Situação e próximos passos — Arte no Altar
 
+**Legenda autorizada — 30/10/2026:** o proprietário forneceu o texto fixo completo
+para os feeds. O padrão está implementado para novas composições e foi preparado
+um comando para atualizar somente as legendas originais dos três agendados, sem
+alterar imagens ou horários. Faltam aplicação na hospedagem e retorno do comando
+`apply-caption-standard --summary`. Não recriar o lote nem alterar a política
+por causa dessa troca. Ver [FEED_CAPTIONS.md](FEED_CAPTIONS.md).
+
 **Etapa concluída — 30/10/2026:** o proprietário aplicou a correção; a captura
 mostrou três rascunhos completos, IDs **4, 5 e 6**, com o visual aprovado.
 Depois de ativar a rotina, confirmou todos agendados para **31/10, 01/11 e

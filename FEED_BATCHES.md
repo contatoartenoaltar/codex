@@ -1,5 +1,11 @@
 # Feeds integrados em lotes de três dias
 
+**Legendas — 30/10/2026:** o proprietário autorizou uma legenda comercial fixa
+para os feeds, em [caption.txt](design_assets/feed/caption.txt). Ela substitui
+a abertura variável da legenda; as chamadas nas imagens continuam alternando.
+Ver [FEED_CAPTIONS.md](FEED_CAPTIONS.md) para aplicar aos três agendados sem
+recriar imagens nem alterar horários. Aplicação remota dessa legenda ainda pendente.
+
 **Estado atual — 30/10/2026:** o proprietário aplicou a correção e a saída real
 confirmou três rascunhos, IDs **4, 5 e 6**, em modo de teste. Depois da ativação,
 a captura mostrou #4 e #5 na fila e #6 ainda aguardando seu ciclo do cron.
@@ -138,7 +144,7 @@ para interromper a criação e cancelar somente a fila automática, se necessár
 
 ## Verificação local e limites
 
-Suíte local: **175 testes aprovados**; verificações de sintaxe JavaScript e de
+Suíte local: **181 testes aprovados**; verificações de sintaxe JavaScript e de
 diferenças também passaram. Drive e Meta são simulados nesses testes; nenhum
 lote de produção foi criado por essa verificação.
 
