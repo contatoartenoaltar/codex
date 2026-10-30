@@ -5,10 +5,11 @@ sua implementação autorizada. `continuous-scene-v2` usa cenário contínuo, qu
 frases transparentes e impressão original nas faces dos envelopes, com perspectiva
 e luz coerentes. O proprietário aprovou o resultado na hospedagem, mas relatou
 um único rascunho: a captura mostra seis modelos prontos no índice e 78 em revisão.
-A revisão atual corrige a contagem por lote e a retomada do teste, informa quais
-modelos ainda estão disponíveis sem repetição e preserva conteúdos existentes.
-Falta aplicar essa correção de controle, consultar o diagnóstico e completar as
-duas artes restantes; os modelos em revisão não foram liberados em bloco.
+A revisão atual previne colisões de IDs de posts excluídos, recupera o rascunho
+apenas com evidência de agenda herdada e reavalia uma candidata não usada por vez
+com o recortador corrigido. A imagem e a legenda aprovadas são preservadas.
+Falta aplicar a correção e confirmar o lote na hospedagem; modelos em revisão
+não são liberados em bloco e o histórico de uso não é reiniciado.
 
 Após essa revisão e ativação, o cron existente cria três artes por lote e, no
 terceiro dia, prepara as três seguintes: um feed diário às 12h de São Paulo,

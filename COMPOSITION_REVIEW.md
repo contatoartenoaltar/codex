@@ -1,5 +1,14 @@
 # Revisão da ambientação dos envelopes
 
+**Recuperação do lote — 30/10/2026:** a captura seguinte confirma uma única
+reserva `retained`, zero artes aptas, seis modelos considerados usados e 78 em
+revisão. A nova revisão previne IDs reutilizados e recupera somente rascunho novo
+com agendamento histórico comprovadamente herdado, sem alterar a arte aprovada.
+O detector anterior falhava nas duas amostras completas quando se desativavam
+as dicas manuais; `paper-quad-v2` detectou ambas automaticamente e manteve a foto
+oculta em revisão. A reavaliação é gradual e para ao completar o lote. Não houve
+recuperação remota executada por este ambiente; falta atualizar a hospedagem.
+
 **Retorno da hospedagem — 30/10/2026:** o proprietário aprovou o resultado real
 do novo compositor e informou somente um rascunho. O status mostra `preview`,
 `waiting`, seis modelos prontos e 78 em revisão; a causa exata exige o novo

@@ -1,12 +1,12 @@
 # Feeds integrados em lotes de três dias
 
 **Estado atual — 30/10/2026:** o proprietário aprovou a arte produzida na hospedagem,
-mas informou somente um rascunho. A captura mostra `waiting`, seis modelos no
-índice como prontos, 78 em revisão e modo `preview`. Não comprova três artes nem
-informa quantos dos seis modelos já foram usados. O contador antigo também podia
-consultar outro lote e informar zero. A revisão atual corrige o contador e expõe
-o diagnóstico do lote; ainda falta consultar esse diagnóstico na hospedagem e
-completar os dois rascunhos restantes.
+mas informou somente um rascunho. O diagnóstico posterior confirma uma reserva
+`retained`, zero artes aptas no lote, seis modelos considerados usados pelo
+controle, 78 em revisão e nenhum pendente, em modo `preview`. A revisão atual
+previne reutilização de IDs, recupera somente colisões históricas comprovadas
+e reavalia candidatas gradualmente com o recortador corrigido. Falta aplicar
+essa revisão na hospedagem e confirmar a recuperação e as três artes.
 
 Serão três artes por lote. O seguinte será criado no terceiro dia do atual.
 Não preparar a pasta inteira nem manter uma reposição móvel diária de três itens.
@@ -28,6 +28,9 @@ não chama geração de imagens ou textos por IA e não exige abrir o chat diari
 Duas amostras integralmente visíveis tiveram cantos conferidos e vinculados ao
 hash do original, sem guardar suas fotos no repositório. Para as outras, o OpenCV
 local procura o contorno completo do papel e confere formato, margem e bordas.
+O recortador `paper-quad-v2` combina contornos com segmentos longos de borda e
+exige papel visível e continuidade nas quatro laterais. As duas amostras completas
+também foram detectadas automaticamente, com as dicas manuais desativadas.
 Papel parcialmente oculto ou recorte sem confiança vai para revisão, sem fallback
 para a montagem retangular rejeitada. Uma amostra com livro sobre parte do papel
 foi corretamente retida. Não declarar os 84 recortes validados a partir disso.
@@ -63,11 +66,32 @@ recortes confiáveis, informa o número realmente criado, em vez de publicar uma
 montagem incorreta. O cron pode continuar tentando completar esse primeiro lote
 em modo de teste, mas não agenda ou publica seus rascunhos.
 
+Para continuar o lote bloqueado depois de atualizar, com saída curta:
+
+```bash
+python3.12 feed_autonomy.py prepare-batch --summary
+```
+
 Repetir `prepare-batch` durante um teste ativo continua o mesmo lote e preserva
 seus rascunhos, arquivos e agendamentos manuais. O contador usa a conta e a
 política atuais. Uma reserva interrompida sem composição nem post pode ser
 liberada; conteúdos editados, cancelados, excluídos ou com composição anterior
 permanecem protegidos. Três reservas interrompidas não significam três artes.
+
+`posts` agora usa IDs não reutilizáveis. A migração atômica preserva os dados,
+colunas, índices e histórico e avança a sequência acima dos IDs antigos. Uma
+colisão já existente só é recuperada em modo de teste quando a composição nova
+é dona do rascunho inalterado, sem conta ou tentativa de envio, e herdou um
+agendamento terminal cujo horário precede a criação dessa composição. O rascunho
+recebe ID novo, mantendo os mesmos bytes da imagem e a legenda; o agendamento e
+os recibos antigos não são alterados. A recuperação fica registrada em `feed_repairs`.
+Conteúdo com revisão manual, envio iniciado ou sem essa evidência continua protegido.
+
+Na falta de modelos disponíveis, a rotina reavalia uma imagem ainda não usada
+por chamada, comparando hash, possível duplicação e recorte completo. Registra
+o motivo e a versão do recortador: uma candidata rejeitada não é baixada de novo
+a cada minuto. A primeira chamada que completa o lote encerra essa preparação;
+não reprocessa as 78 imagens em bloco. O histórico de uso e o ciclo não são apagados.
 
 ## Quando o lote não chega a três
 
@@ -76,14 +100,15 @@ python3.12 feed_autonomy.py status
 ```
 
 O campo `batch` informa `drafts`, `prepared`, `target`, `slot_states`,
-`available_models`, `used_ready_models`, `review_models`, `blocked_slots` e
+`available_models`, `used_ready_models`, `review_models`, `reviews_to_recheck`,
+`review_reasons`, `blocked_slots`, os estados individuais em `slots` e
 `waiting_reason`, sempre do lote da conta e política atuais. `available_models`
 conta modelos prontos ainda não usados neste ciclo; `models.ready` inclui os já
 usados. `models_need_review` indica falta de candidatas liberadas, enquanto
 `batch_needs_review` indica conteúdo protegido ou inconsistência nas reservas.
 O diagnóstico é somente de leitura: não reinicia ciclos nem libera as 78 imagens
-indiscriminadamente. A captura anterior não distingue esses motivos; não afirmar
-que houve correção dos recortes ou que o lote remoto ficou completo sem consultá-lo.
+indiscriminadamente. `reviewing_models` indica a reavaliação gradual de candidatas.
+Não afirmar que o lote remoto ficou completo antes da nova consulta na hospedagem.
 
 Depois, **Web → Reload**, atualizar o site e conferir os novos rascunhos no Estúdio
 de conteúdo. Esse teste usa as imagens reais do Drive, a mesma extração e os mesmos
@@ -108,7 +133,7 @@ para interromper a criação e cancelar somente a fila automática, se necessár
 
 ## Verificação local e limites
 
-Suíte local: **147 testes aprovados**; verificações de sintaxe JavaScript e de
+Suíte local: **175 testes aprovados**; verificações de sintaxe JavaScript e de
 diferenças também passaram. Drive e Meta são simulados nesses testes; nenhum
 lote de produção foi criado por essa verificação.
 

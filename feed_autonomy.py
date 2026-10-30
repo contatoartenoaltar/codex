@@ -20,6 +20,7 @@ import feed_composer as composer
 import meta
 import scheduling
 import product_scene
+import post_ids
 
 SETTINGS = 'feed-automation.json'
 OCR_DATA = Path(__file__).parent / 'design_assets' / 'ocr'
@@ -47,6 +48,13 @@ def initialize(conn):
     ''')
     if 'batch_id' not in {row[1] for row in conn.execute('PRAGMA table_info(feed_auto_slots)')}:
         conn.execute("ALTER TABLE feed_auto_slots ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(feed_models)')}
+    for name in ('review_reason', 'cutout_version'):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE feed_models ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+    conn.execute('''CREATE TABLE IF NOT EXISTS feed_repairs (
+        request_id TEXT PRIMARY KEY, old_post_id INTEGER NOT NULL, new_post_id INTEGER NOT NULL,
+        reason TEXT NOT NULL, created_at INTEGER NOT NULL)''')
 
 
 def rules_hash():
@@ -222,6 +230,85 @@ def _used_models(conn):
     return used
 
 
+def recover_retained_preview(connect, rules):
+    """Desassocia somente rascunho novo que herdou agenda de um ID excluído."""
+    if rules.get('mode') != 'preview' or rules.get('cadence') != 'batch3':
+        return 0
+    repaired = 0
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        rows = conn.execute('''SELECT a.slot,a.request_id,p.id AS post_id
+            FROM feed_auto_slots a JOIN feed_compositions c ON c.request_id=a.request_id
+            JOIN posts p ON p.id=a.post_id AND p.id=c.post_id
+            JOIN post_schedule s ON s.post_id=p.id
+            WHERE a.policy=? AND a.account_id=? AND a.state='retained'
+              AND a.batch_id=(SELECT id FROM feed_batches WHERE policy=? AND account_id=? ORDER BY rowid DESC LIMIT 1)
+              AND p.source='Montagem Drive · revisar' AND p.account_id=''
+              AND p.publish_status='draft' AND p.revision=0
+              AND p.remote_id='' AND p.container_id='' AND p.attempt_id IS NULL
+              AND s.state IN ('cancelled','failed','done') AND s.revision>=p.revision
+              AND s.due_at<c.created_at
+              AND c.rowid=(SELECT MAX(rowid) FROM feed_compositions WHERE post_id=p.id)
+              AND NOT EXISTS (SELECT 1 FROM feed_repairs r WHERE r.request_id=a.request_id)
+            ''', (rules['id'], rules['account_id'], rules['id'], rules['account_id'])).fetchall()
+        for row in rows:
+            new_id = post_ids.allocate(conn)
+            conn.execute('UPDATE posts SET id=? WHERE id=?', (new_id, row['post_id']))
+            conn.execute('UPDATE feed_compositions SET post_id=? WHERE request_id=?', (new_id, row['request_id']))
+            conn.execute("UPDATE feed_auto_slots SET post_id=?,state='reserved' WHERE slot=?", (new_id, row['slot']))
+            conn.execute('INSERT INTO feed_repairs VALUES(?,?,?,?,?)',
+                         (row['request_id'], row['post_id'], new_id, 'deleted_id_reused', int(time.time())))
+            repaired += 1
+    return repaired
+
+
+def _review_candidates(conn):
+    used = _used_models(conn)
+    return [dict(row) for row in conn.execute("SELECT * FROM feed_models WHERE active=1 AND state='review' AND cutout_version!=?", (product_scene.CUTOUT_VERSION,))
+            if row['model_key'] not in used]
+
+
+def recheck_one_review(connect, files, client):
+    """Reavalia uma candidata, sem liberar a revisão ou o ciclo em bloco."""
+    with connect() as conn:
+        candidates = _review_candidates(conn)
+    if not candidates:
+        return False
+    row = secrets.choice(candidates)
+    item = next((item for item in files if item['id'] == row['file_id']), None)
+    if item is None:
+        return False
+    raw = client.download_image(item)
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != row['sha256']:
+        with connect() as conn:
+            conn.execute("UPDATE feed_models SET state='pending',review_reason='',cutout_version='' WHERE file_id=? AND sha256=?",
+                         (row['file_id'], row['sha256']))
+        return True
+    key, visual = fingerprint(raw)
+    reason = ''
+    with connect() as conn:
+        for other in conn.execute("SELECT * FROM feed_models WHERE active=1 AND visual!='' AND file_id!=?", (row['file_id'],)):
+            if other['model_key'] != row['model_key'] and (int(visual, 16)^int(other['visual'], 16)).bit_count() <= 12:
+                reason = 'possible_duplicate'
+                break
+    if not reason:
+        try:
+            product_scene.detect_quad(raw)
+        except product_scene.CutoutError:
+            reason = 'cutout'
+    with connect() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        # A conferência não sobrepõe mudança de catálogo, uso ou edição concorrente.
+        if row['model_key'] in _used_models(conn):
+            return True
+        conn.execute('''UPDATE feed_models SET state=?,theme='generico',review_reason=?,cutout_version=?
+            WHERE file_id=? AND version=? AND sha256=? AND state='review' AND active=1''',
+                     ('review' if reason else 'ready', reason, product_scene.CUTOUT_VERSION,
+                      row['file_id'], row['version'], digest))
+    return True
+
+
 def batch_progress(conn, rules):
     """Diagnóstico somente de leitura; pronto no índice não significa disponível."""
     used = _used_models(conn)
@@ -233,11 +320,14 @@ def batch_progress(conn, rules):
               'available_models': len(ready-used), 'used_ready_models': len(ready & used),
               'review_models': conn.execute("SELECT COUNT(*) FROM feed_models WHERE active=1 AND state='review'").fetchone()[0],
               'pending_models': conn.execute("SELECT COUNT(*) FROM feed_models WHERE active=1 AND state='pending'").fetchone()[0],
+              'reviews_to_recheck': len(_review_candidates(conn)),
+              'review_reasons': {row[0] or 'legacy': row[1] for row in conn.execute("SELECT review_reason,COUNT(*) FROM feed_models WHERE active=1 AND state='review' GROUP BY review_reason")},
               'first_day': batch['first_day'] if batch else None,
               'last_day': batch['last_day'] if batch else None}
     if batch:
-        rows = conn.execute('''SELECT a.*,p.id AS existing_post,p.publish_status,p.revision,
+        rows = conn.execute('''SELECT a.*,p.id AS existing_post,p.publish_status,p.revision,p.source,
                     p.account_id AS post_account,s.state AS schedule_state,c.post_id AS composition_post,
+                    s.revision AS schedule_revision,
                     c.rowid AS composition_order,
                     (SELECT MAX(rowid) FROM feed_compositions WHERE post_id=c.post_id) AS latest_post_owner
                 FROM feed_auto_slots a
@@ -245,6 +335,7 @@ def batch_progress(conn, rules):
                 LEFT JOIN posts p ON p.id=COALESCE(a.post_id,c.post_id)
                 LEFT JOIN post_schedule s ON s.post_id=p.id
                 WHERE a.batch_id=?''', (batch['id'],)).fetchall()
+        result['slots'] = []
         for row in rows:
             result['total_slots'] += 1
             state = row['state']
@@ -264,13 +355,17 @@ def batch_progress(conn, rules):
                            (owned and row['publish_status'] == 'draft' and row['revision'] == 0 and row['schedule_state'] is None)))
             if not (draft or queued or interrupted):
                 result['blocked_slots'] += 1
+            result['slots'].append({'state': state, 'post_id': row['existing_post'],
+                                    'post_status': row['publish_status'], 'revision': row['revision'],
+                                    'has_correct_account': row['post_account'] == rules['account_id'],
+                                    'schedule_state': row['schedule_state'], 'schedule_revision': row['schedule_revision']})
     if not batch and not (ready or result['review_models'] or result['pending_models']):
         reason = 'awaiting_start'
     elif result['blocked_slots']:
         reason = 'batch_needs_review'
     elif result['prepared'] >= result['target']:
         reason = 'complete' if rules.get('mode') == 'preview' else 'waiting_next_batch'
-    elif result['slot_states'].get('reserved') or result['available_models'] or result['pending_models']:
+    elif result['slot_states'].get('reserved') or result['available_models'] or result['pending_models'] or result['reviews_to_recheck']:
         reason = 'processing' if batch else 'awaiting_start'
     elif result['review_models']:
         reason = 'models_need_review'
@@ -346,19 +441,22 @@ def index_one(connect, files, client, recognizer=None, *, file_id=None):
     theme = recognizer(raw) if recognizer is not None else 'generico'
     key, visual = fingerprint(raw)
     state = 'ready' if theme in composer.PHRASES else 'review'
+    reason = '' if state == 'ready' else 'theme'
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
         for other in conn.execute("SELECT * FROM feed_models WHERE active=1 AND state IN ('ready','review') AND file_id!=?", (row['file_id'],)).fetchall():
             if other['model_key'] == key and other['theme'] and theme and other['theme'] != theme:
                 state = 'review'
-                conn.execute("UPDATE feed_models SET state='review' WHERE model_key=?", (key,))
+                reason = 'possible_duplicate'
+                conn.execute("UPDATE feed_models SET state='review',review_reason='possible_duplicate' WHERE model_key=?", (key,))
             elif other['visual'] and other['model_key'] != key and (int(visual, 16) ^ int(other['visual'], 16)).bit_count() <= 12:
                 # Sem confirmação visual, não afirmar que duas fotos são o mesmo modelo.
                 state = 'review'
-                conn.execute("UPDATE feed_models SET state='review' WHERE file_id=?", (other['file_id'],))
-        conn.execute('''UPDATE feed_models SET state=?,theme=?,sha256=?,model_key=?,visual=?
+                reason = 'possible_duplicate'
+                conn.execute("UPDATE feed_models SET state='review',review_reason='possible_duplicate' WHERE file_id=?", (other['file_id'],))
+        conn.execute('''UPDATE feed_models SET state=?,theme=?,sha256=?,model_key=?,visual=?,review_reason=?,cutout_version=''
                         WHERE file_id=? AND version=?''',
-                     (state, theme, hashlib.sha256(raw).hexdigest(), key, visual, row['file_id'], row['version']))
+                     (state, theme, hashlib.sha256(raw).hexdigest(), key, visual, reason, row['file_id'], row['version']))
     return True
 
 
@@ -565,6 +663,8 @@ def tick(connect, directory, client=None, recognizer=None):
         conn.execute("INSERT OR REPLACE INTO feed_auto_runtime VALUES(1,?,?,?,'working')", (lease, now+600, now))
     state = 'error'
     try:
+        if rules.get('cadence') == 'batch3' and rules.get('mode') == 'preview':
+            recover_retained_preview(connect, rules)
         if rules.get('cadence') == 'batch3' and rules.get('mode') != 'preview':
             with connect() as conn:
                 draft = conn.execute("SELECT * FROM feed_auto_slots WHERE policy=? AND account_id=? AND state='draft' ORDER BY due_at LIMIT 1", (rules['id'], rules['account_id'])).fetchone()
@@ -590,6 +690,9 @@ def tick(connect, directory, client=None, recognizer=None):
                     selected = secrets.choice(choices)['file_id']
                     index_one(connect, files, client, recognizer, file_id=selected)
                     slot = _reserve_batch(connect, rules, batch, now)
+                elif recheck_one_review(connect, files, client):
+                    state = 'reviewing_models'
+                    slot = _reserve_batch(connect, rules, batch, now)
             if slot:
                 try:
                     state = _produce(connect, directory, rules, slot, client)
@@ -597,11 +700,11 @@ def tick(connect, directory, client=None, recognizer=None):
                     with connect() as conn:
                         conn.execute('BEGIN IMMEDIATE')
                         if not conn.execute('SELECT 1 FROM feed_compositions WHERE request_id=?', (slot['request_id'],)).fetchone():
-                            conn.execute("UPDATE feed_models SET state='review' WHERE file_id=?", (slot['file_id'],))
+                            conn.execute("UPDATE feed_models SET state='review',review_reason='cutout',cutout_version=? WHERE file_id=?", (product_scene.CUTOUT_VERSION, slot['file_id']))
                             conn.execute("DELETE FROM feed_auto_slots WHERE slot=? AND state='reserved'", (slot['slot'],))
                     state = 'cutout_review'
             else:
-                state = 'indexing' if choices else 'waiting'
+                state = 'indexing' if choices else state if state == 'reviewing_models' else 'waiting'
         elif index_one(connect, files, client, recognizer):
             state = 'indexing'
         else:
@@ -715,6 +818,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['enable', 'prepare-batch', 'disable', 'pause-review', 'status', 'tick', 'export-review', 'import-review'])
     parser.add_argument('--approve-layout', action='store_true', help='Registrar aprovação explícita da nova ambientação')
+    parser.add_argument('--summary', action='store_true', help='Exibir o diagnóstico resumido do lote')
     parser.add_argument('--file', help='JSON de classificação visual, sem credenciais')
     args = parser.parse_args()
     app.initialize()
@@ -768,7 +872,22 @@ def main():
                 raise ValueError('Informe o JSON da classificação revisada.')
             print('Imagens classificadas:', import_review(app.connect, app.DB.parent, args.file))
         with app.connect() as conn:
-            print(json.dumps(status(conn, app.DB.parent), ensure_ascii=False, indent=2))
+            snapshot = status(conn, app.DB.parent)
+        if args.summary:
+            progress = snapshot.get('batch')
+            print('Conta:', snapshot['account'], '| Modo:', snapshot['mode'])
+            if progress:
+                print('Artes no lote:', progress['prepared'], 'de', progress['target'])
+                print('Rascunhos:', progress['drafts'], '| Modelos disponíveis sem repetição:', progress['available_models'])
+                print('Imagens para reavaliar:', progress['reviews_to_recheck'], '| Imagens em revisão:', progress['review_models'])
+                print('Motivo:', progress['waiting_reason'])
+                for slot in progress.get('slots', []):
+                    print('Post:', slot['post_id'], '| Estado:', slot['state'], '| Revisão:', slot['revision'],
+                          '| Agenda:', slot['schedule_state'], '| Revisão da agenda:', slot['schedule_revision'])
+            else:
+                print('Rotina sem política ativa.')
+        else:
+            print(json.dumps(snapshot, ensure_ascii=False, indent=2))
     except (ValueError, OSError):
         raise SystemExit('Rotina indisponível. Confira conexão com Drive, conta Meta e política de ativação. Nenhuma credencial deve ser enviada ao chat.') from None
 

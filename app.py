@@ -11,6 +11,7 @@ import scheduler_http
 import social_mcp
 import feed_composer
 import feed_autonomy
+import post_ids
 import html
 import urllib.error
 import urllib.request
@@ -51,7 +52,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, description TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, date TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, quantity REAL NOT NULL, minimum REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, product TEXT NOT NULL, quantity INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
         ''')
         publishing.initialize(c)
         scheduling.initialize(c)
@@ -59,6 +60,7 @@ def initialize():
         social_mcp.initialize(c)
         feed_composer.initialize(c)
         feed_autonomy.initialize(c)
+        post_ids.initialize(c)
 
 
 def required(data, key, limit=200):

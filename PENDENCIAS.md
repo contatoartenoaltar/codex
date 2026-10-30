@@ -1,5 +1,17 @@
 # Situação e próximos passos — Arte no Altar
 
+**Correção em implantação — 30/10/2026:** a captura ampliada confirmou uma reserva
+retida, zero artes aptas no lote, seis modelos considerados usados e 78 em revisão.
+Foi reproduzida a colisão de ID de post excluído com agendamento antigo. IDs novos
+não serão reutilizados; a recuperação preserva arquivo, legenda e recibos, e só
+atua com evidência de colisão, sem tocar em edição manual ou envio iniciado.
+O recortador também rejeitava as amostras completas sem dicas manuais; foi corrigido
+e agora detecta ambas automaticamente, mantendo a amostra oculta em revisão.
+A rotina reavalia uma candidata não usada por vez até completar o lote, sem resetar
+ciclos. **175 testes locais passaram**. Faltam atualização e resultado real de
+`prepare-batch --summary` na hospedagem; não prometer três artes já recuperadas.
+Ver [FEED_BATCHES.md](FEED_BATCHES.md).
+
 **Último teste na hospedagem — 30/10/2026:** o proprietário aprovou o resultado
 visual e relatou um rascunho. O status enviado mostra modo de teste, `waiting`,
 seis modelos prontos no índice e 78 em revisão. Faltam duas artes para o lote.

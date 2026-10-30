@@ -439,8 +439,8 @@ class FeedAutonomyTests(unittest.TestCase):
         with app.connect() as conn:
             deleted = dict(conn.execute('SELECT * FROM feed_auto_slots').fetchone())
             conn.execute('DELETE FROM posts WHERE id=?', (deleted['post_id'],))
-        # O próximo post pode receber o mesmo número no SQLite. Sua própria
-        # composição precisa ser contada uma vez, sem ressuscitar a antiga.
+        # Um banco antigo pode conter números reutilizados. A migração atual
+        # impede novas colisões; a composição excluída não pode ser ressuscitada.
         for _ in range(2):
             self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
         with app.connect() as conn:
@@ -479,7 +479,8 @@ class FeedAutonomyTests(unittest.TestCase):
             self.assertEqual(progress['used_ready_models'], 6)
             self.assertEqual(progress['review_models'], 78)
             self.assertEqual(progress['pending_models'], 0)
-            self.assertEqual(progress['waiting_reason'], 'models_need_review')
+            self.assertEqual(progress['reviews_to_recheck'], 78)
+            self.assertEqual(progress['waiting_reason'], 'processing')
 
     def test_repeated_preview_start_preserves_existing_draft_and_manual_queue(self):
         self.preview_rules()

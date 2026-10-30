@@ -54,6 +54,37 @@ class SceneTests(unittest.TestCase):
             with self.assertRaises(scene.CutoutError):
                 scene.validate_quad(quad, (500, 350))
 
+    def test_warm_paper_on_bright_background_keeps_the_entire_print(self):
+        image = Image.new('RGB', (600, 420), '#e6dfd0')
+        draw = ImageDraw.Draw(image)
+        # O fundo e o papel são claros: uma máscara branca pode juntar ambos.
+        corners = [(85, 80), (540, 90), (535, 365), (75, 350)]
+        draw.polygon(corners, fill='#fff4db')
+        draw.polygon([(100, 98), (522, 108), (518, 346), (94, 332)], fill='#224c72')
+        draw.text((160, 180), 'MODELO ORIGINAL', fill='white')
+        output = io.BytesIO()
+        image.save(output, format='PNG')
+        quad = scene.detect_quad(output.getvalue())
+        for found, expected in zip(quad, corners):
+            self.assertLess(abs(found[0]-expected[0]), 5)
+            self.assertLess(abs(found[1]-expected[1]), 5)
+
+    def test_printed_rectangle_inside_white_background_is_not_paper(self):
+        image = Image.new('RGB', (500, 350), 'white')
+        ImageDraw.Draw(image).rectangle((60, 70, 440, 310), outline='black', width=3)
+        output = io.BytesIO()
+        image.save(output, format='PNG')
+        with self.assertRaises(scene.CutoutError):
+            scene.detect_quad(output.getvalue())
+
+    def test_occluded_corner_is_held_instead_of_reconstructing_missing_print(self):
+        image = Image.open(io.BytesIO(self.source())).convert('RGB')
+        ImageDraw.Draw(image).polygon([(350, 235), (475, 210), (490, 340), (340, 340)], fill='#35251c')
+        output = io.BytesIO()
+        image.save(output, format='PNG')
+        with self.assertRaises(scene.CutoutError):
+            scene.detect_quad(output.getvalue())
+
     def test_fifteen_phrases_use_transparent_layers_on_the_continuous_scene(self):
         phrases = [feed_composer.phrase('generico', index) for index in range(15)]
         scene.validate_assets(phrases)
