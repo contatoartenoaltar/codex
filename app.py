@@ -6,6 +6,7 @@ import sqlite3
 import auth
 import meta
 import publishing
+import scheduling
 import html
 import urllib.error
 import urllib.request
@@ -49,6 +50,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
         ''')
         publishing.initialize(c)
+        scheduling.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -191,6 +193,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/state':
             with connect() as c:
                 result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
+                schedules={r['post_id']:dict(r) for r in c.execute('SELECT * FROM post_schedule')}
+                for post in result['posts']:
+                    schedule=schedules.get(post['id'])
+                    post['schedule']={k:schedule[k] for k in ['due_at','state','error']} if schedule else None
+                result['scheduler']=scheduling.runtime(c)
             try:
                 social = meta.status(DB.parent)
             except ValueError as error:
@@ -249,6 +256,14 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as c:
                     result=publishing.update(c,DB.parent,d)
                 return self.send_json(result)
+            if self.path == '/api/posts/schedule':
+                with connect() as c:
+                    result=scheduling.save(c,DB.parent,d)
+                return self.send_json(result)
+            if self.path == '/api/posts/cancel-schedule':
+                with connect() as c:
+                    scheduling.cancel(c,d)
+                return self.send_json({'ok':True})
             if self.path in ['/api/posts/publish','/api/posts/finish']:
                 result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
                 return self.send_json(result,202 if result['status']=='processing' else 200)
@@ -302,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Registro inválido.')
                     if table=='posts':
                         row=c.execute('SELECT publish_status FROM posts WHERE id=?',(d.get('id'),)).fetchone()
-                        if row and row[0] in ['sending','processing','review']:
+                        if row and row[0] in ['sending','processing','review','scheduled']:
                             raise ValueError('Confira o resultado do envio antes de excluir este registro.')
                     c.execute(f'DELETE FROM {table} WHERE id=?', (number(d, 'id', True, True),))
                 else:

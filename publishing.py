@@ -162,8 +162,8 @@ def set_status(connect, post_id, status, error='', remote_id='', container_id=''
                      (status,remote_id,post_id))
 
 
-def publish(connect, directory, data, finish=False, prepare_only=False, via_meta=False):
-    if via_meta and (not prepare_only or finish):
+def publish(connect, directory, data, finish=False, prepare_only=False, via_meta=False, scheduled=False):
+    if via_meta and ((not prepare_only and not scheduled) or finish):
         raise ValueError('O envio por arquivo está disponível somente no teste de preparação.')
     if data.get('confirmed') is not True:
         raise ValueError('Confirme a publicação depois de revisar o conteúdo e a conta.')
@@ -172,12 +172,16 @@ def publish(connect, directory, data, finish=False, prepare_only=False, via_meta
         raise ValueError('Identificação ou revisão inválida.')
     with connect() as conn:
         row = conn.execute('SELECT * FROM posts WHERE id=?',(post_id,)).fetchone()
+        if not scheduled:
+            pending=conn.execute("SELECT 1 FROM post_schedule WHERE post_id=? AND state IN ('queued','running','processing')",(post_id,)).fetchone()
+            if pending:
+                raise ValueError('Este rascunho pertence à fila automática. Cancele o agendamento antes de um envio manual.')
     if not row:
         raise ValueError('Publicação não encontrada.')
     row = dict(row)
     if prepare_only and (finish or row['channel']!='Instagram' or data.get('confirmed_absent') is not True):
         raise ValueError('Este teste é somente para imagem do Instagram. Confira antes que o post não foi publicado.')
-    expected = 'review' if prepare_only else 'processing' if finish else 'draft'
+    expected = 'review' if prepare_only else 'processing' if finish else 'scheduled' if scheduled else 'draft'
     if row['publish_status'] != expected or row['revision'] != revision:
         raise ValueError('O rascunho mudou, já está em envio ou já foi publicado. Atualize a página.')
     settings = meta.config(directory)
