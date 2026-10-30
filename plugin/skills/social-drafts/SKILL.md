@@ -1,11 +1,11 @@
 ---
 name: social-drafts
-description: Consultar contas, agenda e histórico social da Arte no Altar e transferir uma foto de feed com legenda como rascunho confirmado para seu sistema próprio.
+description: Consultar contas, rascunhos e agenda da Arte no Altar; importar JPEG com legenda e agendar uma foto de feed após revisão e confirmação.
 ---
 
 # Arte no Altar
 
-Use somente as cinco ferramentas sociais descobertas no servidor. Não use /api/state,
+Use somente as sete ferramentas sociais descobertas no servidor. Não use /api/state,
 financeiro, estoque, pedidos, clientes, arquivos de credenciais ou tokens da Meta.
 Credencial própria da integração pertence à configuração segura do conector. Não
 peça senha do Facebook, senha do sistema ou segredos na conversa.
@@ -64,11 +64,63 @@ uma nova chave para contornar uma operação incerta. Conteúdo diferente exige 
 confirmação e chave. Confira social_get_operation e relate o ID do rascunho e recibo.
 O estado draft_imported é o recibo da importação, não o estado atual de publicação.
 
+## Agendamento de uma foto de feed
+
+A versão 0.2.0 acrescenta social_get_draft e social_schedule_draft. Confira se
+essas ferramentas estão realmente disponíveis. Se faltarem, informe a versão
+pendente de atualização; não invente chamadas HTTP ou use a senha da interface.
+
+Se o rascunho já existe no sistema, use seu ID e consulte social_get_draft. Não
+reimporte a imagem para simplesmente agendar. A consulta retorna conta, canal,
+imagem, legenda, revisão, estado da fila e sinal recente do executor. Mostre a
+imagem e a legenda retornadas, não outra arte presumida a partir do nome do arquivo.
+
+Antes do agendamento, consulte contas e agenda e mostre os detalhes completos:
+
+- Conta e canal exatos, imagem, legenda completa e formato de uma foto de feed.
+- Data completa e horário em America/Sao_Paulo. Resolva referências como "amanhã"
+  usando a data atual do cliente nesse fuso; não confunda com o relógio UTC do host.
+- Ação: autorizar publicação automática futura nesse horário, sem publicar agora.
+
+Só chame social_schedule_draft com confirmed=true depois de o proprietário
+confirmar esses detalhes e o envio automático futuro. Uma confirmação de "somente
+rascunho" não autoriza agendamento. Se o proprietário já confirmou o conteúdo e
+esse horário com a mesma intenção, use a confirmação existente, sem nova pergunta.
+Se confirmou importar e agendar o conteúdo exato numa única revisão, a mesma
+confirmação pode cobrir as duas etapas; depois da importação, consulte o rascunho
+e confira que conta, imagem e legenda correspondem ao que foi aprovado.
+
+Use post_id e revision retornados por social_get_draft, account_id e channel
+correspondentes e desired_at em RFC 3339 com deslocamento de São Paulo (por
+exemplo, -03:00 quando aplicável). O horário deve ficar entre dois minutos e
+noventa dias no futuro. Exija executor ativo; consultar ou importar não o ativa.
+O servidor recusa outro agendamento ativo na mesma conta e minuto. Não mude
+silenciosamente a conta, a arte ou o horário para contornar uma recusa. Se a
+revisão mudou, consulte o rascunho novamente e revise o novo conteúdo.
+
+Crie uma chave de idempotência própria para o agendamento, diferente da usada na
+importação. Em falha incerta, consulte o ID da operação ou repita com a MESMA chave
+e os MESMOS dados. Nunca gere outra chave para contornar um resultado incerto.
+Retry de um agendamento cancelado devolve o recibo anterior e não o reativa.
+
+Depois do aceite, consulte social_get_operation e social_get_draft (ou a agenda).
+Relate ID da operação, ID do rascunho, conta, horário e estado atual da fila. O
+recibo schedule_accepted comprova que a operação colocou o conteúdo na fila;
+continua sendo um recibo histórico se houver cancelamento ou publicação posterior.
+Não o apresente como prova de publicação. Se a confirmação falhou ou o rascunho
+estiver para revisão, descreva o estado encontrado em vez de afirmar "agendado".
+Uma consulta local não equivale a conferir a publicação remota na Meta.
+
+Cancelamento e reagendamento continuam na interface do sistema. Não existe
+ferramenta MCP de cancelar, publicar agora, Stories, carrosséis ou Drive nesta
+versão. Não agende formatos que o servidor não suporta.
+
 Horário desejado é intenção no recibo, não um item na fila automática. Nunca prometa
 execução contínua sem consultar o estado do executor. O proprietário confirmou
 agendamento no sistema com o console parado e as abas fechadas, usando acionamento
-externo; isso não adiciona uma ferramenta de agendamento ao plugin. Stories,
-carrosséis, Drive e publicação pelo plugin não fazem parte desta versão. O
+externo. O horário passado a social_import_draft continua sendo só intenção; a
+fila só é ativada com social_schedule_draft confirmado. Stories, carrosséis, Drive
+e publicação imediata pelo plugin não fazem parte desta versão. O
 proprietário informou que já cancelou os agendamentos do Metricool; não recrie nem
 altere a conexão ou a agenda do Metricool.
 

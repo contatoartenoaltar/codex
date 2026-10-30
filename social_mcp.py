@@ -1,4 +1,4 @@
-"""MCP social restrito: HTTP/JSON sem SSE, sem publicação ou acesso comercial.
+"""MCP social restrito: rascunhos e agendamento, sem publicação imediata ou acesso comercial.
 
 Implantação e entrega de anexos pelo cliente precisam de validação externa.
 """
@@ -31,6 +31,11 @@ def initialize(c):
       id INTEGER PRIMARY KEY, created_at INTEGER NOT NULL,
       http_status INTEGER NOT NULL, reason TEXT NOT NULL,
       protocol TEXT NOT NULL, origin_present INTEGER NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS social_mcp_schedule_operations (
+      id TEXT PRIMARY KEY, idempotency_key TEXT UNIQUE NOT NULL,
+      content_hash TEXT NOT NULL, post_id INTEGER NOT NULL,
+      revision INTEGER NOT NULL, account_id TEXT NOT NULL, channel TEXT NOT NULL,
+      desired_at TEXT NOT NULL, due_at INTEGER NOT NULL, created_at INTEGER NOT NULL)''')
 
 
 def connection_event(connect, request, status, reason):
@@ -53,6 +58,11 @@ def schema(properties=None, required=()):
 
 
 STRING = {'type': 'string', 'minLength': 1, 'maxLength': 200}
+POST_ID = {'type': 'integer', 'minimum': 1, 'maximum': 9007199254740991}
+REVISION = {'type': 'integer', 'minimum': 0, 'maximum': 2147483647}
+CHANNEL = {'type': 'string', 'enum': ['Instagram', 'Facebook']}
+IDEMPOTENCY = {'type': 'string', 'minLength': 16, 'maxLength': 128}
+CONFIRMED = {'type': 'boolean', 'const': True}
 TOOLS = [
     ('social_list_accounts', 'Consultar contas verificadas em cache; não atualiza a Meta.', schema()),
     ('social_list_agenda', 'Consultar fila local em intervalo de até 90 dias e estado do executor.',
@@ -67,7 +77,14 @@ TOOLS = [
              'idempotency_key': {'type': 'string', 'minLength': 16, 'maxLength': 128},
              'confirmed': {'type': 'boolean', 'const': True}, 'desired_at': STRING},
             ('account_id', 'channel', 'format', 'caption', 'image_base64', 'idempotency_key', 'confirmed'))),
-    ('social_get_operation', 'Consultar recibo de importação pelo identificador; não consulta publicação remota.',
+    ('social_get_draft', 'Consultar conta, imagem, legenda, revisão e estado atual de um rascunho social autorizado antes de confirmar agendamento. Sem alterar ou publicar.',
+     schema({'post_id': POST_ID}, ('post_id',))),
+    ('social_schedule_draft', 'Autorizar publicação automática futura de uma foto de feed já salva. Exige revisão de conta, imagem, legenda e data/hora de São Paulo com confirmação explícita. Não publica agora. Recusa executor inativo, revisão alterada e conflito no mesmo minuto/conta. Repetir com a mesma chave e dados em caso de dúvida.',
+     schema({'post_id': POST_ID, 'revision': REVISION, 'account_id': STRING,
+             'channel': CHANNEL, 'desired_at': STRING, 'idempotency_key': IDEMPOTENCY,
+             'confirmed': CONFIRMED},
+            ('post_id', 'revision', 'account_id', 'channel', 'desired_at', 'idempotency_key', 'confirmed'))),
+    ('social_get_operation', 'Consultar recibo de importação ou aceite de agendamento pelo identificador. O recibo não comprova publicação; consulte social_get_draft para o estado atual local.',
      schema({'operation_id': STRING}, ('operation_id',))),
 ]
 
@@ -106,7 +123,7 @@ def accounts(directory):
     return {'accounts': [{k: a.get(k) for k in ('id', 'name', 'channel')}
                          for a in state.get('accounts', [])],
             'checked_at': state.get('checked_at'), 'source': 'verified_cache',
-            'capabilities': {'feed_photo_draft': True, 'publish': False,
+            'capabilities': {'feed_photo_draft': True, 'schedule_feed_photo': True, 'publish': False,
                              'stories': False, 'carousel': False, 'drive': False,
                              'jpeg_base64_import': True,
                              'file_transfer_requires_client_access': True}}
@@ -123,10 +140,82 @@ def operation(c, operation_id):
     row = c.execute('SELECT id,post_id,desired_at,created_at FROM social_mcp_operations WHERE id=?',
                     (operation_id,)).fetchone()
     if not row:
-        raise ValueError('Operação não encontrada.')
+        scheduled = c.execute('''SELECT id,post_id,revision,account_id,channel,
+            desired_at,due_at,created_at FROM social_mcp_schedule_operations WHERE id=?''',
+            (operation_id,)).fetchone()
+        if not scheduled:
+            raise ValueError('Operação não encontrada.')
+        return dict(scheduled) | {'status': 'schedule_accepted', 'published_by_operation': False,
+                                  'scheduled_by_operation': True, 'timezone': str(ZONE),
+                                  'review_path': '/#conteudo'}
     return dict(row) | {'status': 'draft_imported', 'published_by_operation': False,
                         'scheduled_by_operation': False, 'timezone': str(ZONE),
                         'review_path': '/#conteudo'}
+
+
+def social_post(c, directory, post_id):
+    row = c.execute('''SELECT id,revision,account_id,channel,caption,image_name,
+        publish_status,remote_id FROM posts WHERE id=?''', (post_id,)).fetchone()
+    if not row:
+        raise ValueError('Rascunho não encontrado.')
+    post = dict(row)
+    account = allowed_account(directory, post['account_id'], post['channel'])
+    return post, account
+
+
+def get_draft(connect, directory, post_id):
+    with connect() as c:
+        post, account = social_post(c, directory, post_id)
+        scheduled = c.execute('SELECT due_at,state FROM post_schedule WHERE post_id=?', (post_id,)).fetchone()
+        executor = scheduling.runtime(c)
+    image_url = None
+    if post['image_name']:
+        publishing.image_file(directory, post['image_name'])
+        image_url = meta.callback_url().removesuffix(meta.CALLBACK) + '/media/' + post['image_name']
+    return {key: post[key] for key in ('id', 'revision', 'account_id', 'channel', 'caption', 'publish_status', 'remote_id')} | {
+        'account_name': account.get('name'), 'format': 'feed_photo' if image_url else 'text',
+        'image_url': image_url, 'schedule': dict(scheduled) if scheduled else None,
+        'scheduler': executor, 'timezone': str(ZONE)}
+
+
+def schedule_draft(connect, directory, data):
+    when = instant(data['desired_at']).astimezone(ZONE).replace(microsecond=0)
+    desired = when.isoformat()
+    canonical = data | {'desired_at': desired}
+    digest = hashlib.sha256(json.dumps({k: v for k, v in canonical.items()
+        if k not in ('idempotency_key', 'confirmed')}, sort_keys=True).encode()).hexdigest()
+    with connect() as c:
+        c.execute('BEGIN IMMEDIATE')
+        post, _ = social_post(c, directory, data['post_id'])
+        if (post['account_id'], post['channel']) != (data['account_id'], data['channel']):
+            raise ValueError('A conta ou canal do rascunho não corresponde à confirmação. Revise novamente.')
+        old = c.execute('SELECT id,content_hash FROM social_mcp_schedule_operations WHERE idempotency_key=?',
+                        (data['idempotency_key'],)).fetchone()
+        if old:
+            if old['content_hash'] != digest:
+                raise ValueError('Chave de idempotência reutilizada com conteúdo diferente.')
+            return operation(c, old['id'])
+        if c.execute('SELECT 1 FROM social_mcp_operations WHERE idempotency_key=?', (data['idempotency_key'],)).fetchone():
+            raise ValueError('Use uma chave de idempotência própria para o agendamento, diferente da importação.')
+        if post['revision'] != data['revision'] or post['publish_status'] != 'draft':
+            raise ValueError('O rascunho mudou ou não está disponível. Consulte-o e revise novamente.')
+        if not post['image_name']:
+            raise ValueError('O agendamento pelo plugin exige uma foto JPEG de feed.')
+        due = int(when.timestamp())
+        minute = due // 60 * 60
+        conflict = c.execute('''SELECT 1 FROM post_schedule s JOIN posts p ON p.id=s.post_id
+            WHERE p.account_id=? AND p.channel=? AND s.state IN ('queued','running','processing')
+            AND s.due_at>=? AND s.due_at<?''',
+            (post['account_id'], post['channel'], minute, minute + 60)).fetchone()
+        if conflict:
+            raise ValueError('Já existe uma publicação nessa conta e minuto. Escolha outro horário e confirme novamente.')
+        result = scheduling.save(c, directory, {'id': data['post_id'], 'revision': data['revision'],
+            'when': when.replace(tzinfo=None).isoformat(), 'confirmed': True})
+        ident = secrets.token_hex(16)
+        c.execute('INSERT INTO social_mcp_schedule_operations VALUES(?,?,?,?,?,?,?,?,?,?)',
+            (ident, data['idempotency_key'], digest, data['post_id'], data['revision'],
+             data['account_id'], data['channel'], desired, result['due_at'], int(time.time())))
+        return operation(c, ident)
 
 
 def call(name, data, connect, directory):
@@ -162,6 +251,10 @@ def call(name, data, connect, directory):
     if name == 'social_get_operation':
         with connect() as c:
             return operation(c, data['operation_id'])
+    if name == 'social_get_draft':
+        return get_draft(connect, directory, data['post_id'])
+    if name == 'social_schedule_draft':
+        return schedule_draft(connect, directory, data)
     allowed_account(directory, data['account_id'], data['channel'])
     if not data['caption'].strip():
         raise ValueError('A legenda não pode estar vazia.')
@@ -174,6 +267,8 @@ def call(name, data, connect, directory):
         with connect() as c:
             # Serializa importações para que retries concorrentes não dupliquem imagens/posts.
             c.execute('BEGIN IMMEDIATE')
+            if c.execute('SELECT 1 FROM social_mcp_schedule_operations WHERE idempotency_key=?', (data['idempotency_key'],)).fetchone():
+                raise ValueError('Use uma chave de idempotência própria para a importação, diferente do agendamento.')
             old = c.execute('SELECT id,content_hash FROM social_mcp_operations WHERE idempotency_key=?',
                             (data['idempotency_key'],)).fetchone()
             if old:
@@ -214,14 +309,14 @@ def rpc(message, connect, directory):
     method = message['method']
     if method == 'initialize':
         result = {'protocolVersion': VERSION, 'capabilities': {'tools': {}},
-                  'serverInfo': {'name': 'arte-no-altar', 'version': '0.1.1'}}
+                  'serverInfo': {'name': 'arte-no-altar', 'version': '0.2.0'}}
     elif method == 'ping':
         result = {}
     elif method == 'tools/list':
         result = {'tools': [{'name': name, 'description': desc, 'inputSchema': spec,
-                   'annotations': {'readOnlyHint': name != 'social_import_draft',
+                   'annotations': {'readOnlyHint': name not in ('social_import_draft', 'social_schedule_draft'),
                                    'destructiveHint': False, 'idempotentHint': True,
-                                   'openWorldHint': False}} for name, desc, spec in TOOLS]}
+                                   'openWorldHint': name == 'social_schedule_draft'}} for name, desc, spec in TOOLS]}
     elif method == 'tools/call':
         try:
             value = call(params.get('name'), params.get('arguments', {}), connect, directory)

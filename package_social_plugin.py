@@ -1,11 +1,12 @@
 """Gera ZIP privado SOMENTE após verificar o endpoint HTTPS implantado.
 
 Uso: python package_social_plugin.py https://artenoaltar.pythonanywhere.com/mcp
-Credencial solicitada por getpass, nunca gravada no pacote.
+Ou acrescente --configured-key para reutilizar o arquivo privado mcp-key.txt.
+Credencial nunca exibida ou gravada no pacote; comandos administrativos, não ferramentas MCP.
 """
 import getpass
 import json
-import sys
+import argparse
 import urllib.request
 import urllib.parse
 import zipfile
@@ -63,12 +64,18 @@ def package(url, token, destination):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('url')
+    parser.add_argument('--configured-key', action='store_true',
+                        help='Usar mcp-key.txt no diretório privado do banco, sem exibir a chave')
+    args = parser.parse_args()
     try:
+        import app
         version = json.loads((Path(__file__).parent / 'plugin' / 'plugin.json').read_text())['version']
-        output = package(sys.argv[1], getpass.getpass('Chave exclusiva da integração: '),
-                         Path(__file__).parent / f'arte-no-altar-{version}.zip')
+        token = ((app.DB.parent / 'mcp-key.txt').read_text().strip() if args.configured_key
+                 else getpass.getpass('Chave exclusiva da integração: '))
+        app.DB.parent.mkdir(parents=True, exist_ok=True)
+        output = package(args.url, token, app.DB.parent / f'arte-no-altar-{version}.zip')
     except Exception:
         raise SystemExit('Pacote não gerado: verificação HTTPS/MCP falhou. Confira implantação, credencial e schemas sem enviar segredos ao chat.') from None
-    print(f'Pacote gerado: {output}. Validar anexos no cliente real antes de uso operacional.')
+    print(f'Pacote gerado: {output}. Confira as ferramentas no aplicativo e valide o novo agendamento antes de uso operacional.')

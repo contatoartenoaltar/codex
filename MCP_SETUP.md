@@ -6,8 +6,60 @@ O endpoint foi implantado, o plugin privado foi instalado e consultas sociais
 funcionaram. Uma importação real de JPEG e legenda foi confirmada pelo recibo e
 pela visualização no sistema. O agendamento na interface também publicou com o
 console parado e as abas fechadas, usando acionamento HTTP externo. Esses testes
-não garantem acesso a arquivos locais em todas as sessões nem adicionam ferramentas
-de publicação/agendamento ao plugin.
+não garantem acesso a arquivos locais em todas as sessões. O proprietário também
+confirmou a importação após atualizar o plugin para 0.1.1. O agendamento pelo
+plugin 0.2.0 abaixo está implementado e testado localmente, com implantação e
+validação real no aplicativo ainda pendentes.
+
+### Agendamento no plugin 0.2.0
+
+Acrescenta duas ferramentas às cinco existentes:
+
+| Ferramenta | Contrato |
+| --- | --- |
+| `social_get_draft` | Recebe `post_id`; retorna somente conta social autorizada, canal, legenda, URL da imagem, revisão, estado da publicação/fila e executor. Não lê financeiro nem credenciais. |
+| `social_schedule_draft` | Recebe `post_id`, `revision`, `account_id`, `channel`, `desired_at` em RFC 3339 com offset de São Paulo, `idempotency_key` própria e `confirmed=true`. Coloca somente esse rascunho revisado na fila futura existente. Não publica durante a chamada. |
+
+O fluxo é consultar contas/agenda/rascunho, mostrar conta, imagem, legenda, formato
+e data/hora e receber autorização explícita de envio automático futuro. Depois,
+agendar e consultar recibo e estado atual da fila. Uma confirmação de somente
+importar rascunho não autoriza o envio futuro. Uma revisão explícita para importar
+e agendar o mesmo conteúdo pode cobrir as duas etapas, sem confirmação repetida.
+
+O servidor exige executor ativo, foto JPEG, revisão e destino correspondentes e
+horário entre dois minutos e noventa dias no futuro. Outro item ativo na mesma
+conta, canal e minuto gera conflito. Registro da fila e recibo são atômicos. O
+controle de duplicação é feito sob transação, inclusive entre chamadas concorrentes.
+Chaves de importação e agendamento são distintas; repetir o agendamento com a mesma
+chave e dados devolve o recibo anterior, mesmo se cancelado, sem reativar a fila.
+
+`social_get_operation` agora também retorna `schedule_accepted`, com data/hora e ID
+do rascunho. Esse é um recibo histórico de aceite, não confirmação de publicação nem
+garantia de que continua na fila. Use `social_get_draft` ou agenda para o estado
+local atual; o ID remoto só aparece depois de o executor registrar a publicação.
+Cancelamento e reagendamento permanecem na interface. Sem ferramenta de publicação
+imediata, Stories, carrosséis ou Drive. A anotação do agendamento é de escrita e
+ação com efeito externo futuro, não consulta somente leitura.
+
+Para atualizar uma instalação já configurada, primeiro atualize o código e clique
+em **Web → Reload** no PythonAnywhere. Depois execute no console:
+
+```bash
+cd /home/artenoaltar/arte-no-altar
+python3.12 package_social_plugin.py https://artenoaltar.pythonanywhere.com/mcp --configured-key
+```
+
+Esse comando administrativo usa a chave MCP privada já existente no diretório do
+banco, sem imprimi-la. Não lê a chave do cron, senha ou tokens da Meta. Valida a
+descoberta das sete ferramentas e consulta somente contas; não agenda um teste.
+Grava `.local/arte-no-altar-0.2.0.zip` (ou o diretório privado do banco configurado).
+Baixe pelo painel **Files** autenticado, atualize o mesmo plugin privado pelo
+Plugin Creator e confirme a versão 0.2.0. Não exponha `.local` como rota estática.
+Atualizar o servidor não atualiza a habilidade instalada no aplicativo.
+
+Depois de confirmar as sete ferramentas no aplicativo, revise um rascunho e um
+horário futuro real, autorize o teste e confira recibo, fila e publicação na rede.
+Nenhum novo agendamento real foi criado durante o desenvolvimento desta versão.
 
 ### Correção 0.1.1
 
@@ -25,7 +77,7 @@ concreta antes de oferecer upload manual no sistema.
 
 Atualizar o GitHub ou dar Reload no PythonAnywhere não atualiza o plugin privado
 instalado. Também é necessário atualizar seu pacote/habilidade pelo Plugin Creator
-ou pelo gerenciador do plugin e conferir a versão 0.1.1 no cliente. A sessão atual
+ou pelo gerenciador do plugin e conferir a versão atual no cliente. A sessão atual
 pode continuar usando instruções em cache; depois da atualização, abra uma sessão
 com o plugin atualizado e o arquivo real disponível. Não apague o rascunho nem
 troque a chave MCP para resolver uma instrução antiga.
@@ -38,7 +90,7 @@ não equivale a realizar um novo teste remoto de conexão ou de transferência.
 ## Entrega desta alteração
 
 Implementa `/mcp` em Python padrão, Streamable HTTP JSON sem sessão/SSE, protocolo
-2025-06-18, autenticação API key/Bearer e cinco ferramentas sociais. A configuração
+2025-06-18, autenticação API key/Bearer e sete ferramentas sociais. A configuração
 do Plugin Creator aceita `auth.type=api_key` com `headerScheme=bearer`.
 Não usa OpenAPI nem o OAuth da Meta como autenticação do plugin.
 
@@ -67,7 +119,8 @@ do pacote e suas instruções; o script só adiciona `mcp.json` após verificaç
    Confirmar `Content-Type` no adaptador WSGI e não iniciar processo contínuo/SSE.
 6. Executar no console com o código atualizado:
    `python package_social_plugin.py https://artenoaltar.pythonanywhere.com/mcp`.
-   O script solicita a credencial sem eco, testa somente leituras, recusa redirects
+   O script solicita a credencial sem eco (ou usa o arquivo privado com
+   `--configured-key`), testa somente leituras, recusa redirects
    e verifica os schemas. O ZIP não contém credenciais. Validar manualmente também
    credencial incorreta/revogada e tentativas de ferramentas não sociais.
 7. Salvar o ZIP privado pelo Plugin Creator, conectar com a credencial exclusiva
@@ -94,14 +147,15 @@ gerar um pacote não recarrega automaticamente o PythonAnywhere.
 - Houve uma importação real validada pelo proprietário. Base64 é contrato técnico,
   não uma capacidade automática do modelo. Verificar leitura e transporte do arquivo
   na sessão atual antes de transferir ou recusar. Não pedir ao usuário para colar bytes.
-  PNG, Stories, carrossel, Drive e publicação MCP não são suportados. Não adicionar
+  PNG, Stories, carrossel, Drive e publicação imediata MCP não são suportados. Não adicionar
   downloader de URLs arbitrárias. A solução de anexos deve usar suporte real do
   cliente e passar por teste. O proprietário já cancelou a agenda do Metricool.
 - `confirmed=true` registra a confirmação no contrato; a skill é responsável por
   mostrar conta, imagem, legenda, formato e horário e aguardar a resposta humana.
   Não é uma assinatura criptográfica do consentimento.
-- Horário desejado exige RFC 3339 com offset de São Paulo; é somente metadado do
-  recibo. Recibo `draft_imported` confirma a importação, não publicação posterior.
+- Horário desejado exige RFC 3339 com offset de São Paulo. Na importação é somente
+  metadado; a fila é ativada somente por `social_schedule_draft` confirmado.
+  Recibos `draft_imported` e `schedule_accepted` não comprovam publicação posterior.
 - Idempotência usa hash do conteúdo e transação SQLite. Retry com mesma chave e
   conteúdo retorna o mesmo recibo; dados diferentes geram erro. Em desligamento
   abrupto pode sobrar imagem órfã, mas não rascunho parcialmente confirmado.
@@ -117,7 +171,9 @@ gerar um pacote não recarrega automaticamente o PythonAnywhere.
 
 Inclui autenticação negada/desativada, origem recusada, protocolo, dados sociais
 com seleção de campos, conta não concedida, confirmação obrigatória, formatos
-inválidos, idempotência, recibo e garantia de não publicar/não agendar. Testes de
+inválidos, idempotência, recibo, importação sem agendamento, confirmação distinta de
+agendamento, revisão alterada, conta divergente, executor inativo, conflito de
+horários, concorrência, rollback e consumo da fila pelo executor com Meta simulada. Testes de
 imagem usam fixture sintética de cabeçalho; não substituem aceite com foto real.
 
 ## Diagnóstico da conexão do aplicativo
