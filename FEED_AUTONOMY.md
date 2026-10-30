@@ -2,9 +2,12 @@
 
 **Estado atual — 30/10/2026:** o proprietário aprovou a nova referência integrada
 e autorizou implementar a montagem correspondente. `continuous-scene-v2` está
-implementado, com duas amostras reais renderizadas localmente. Falta atualizar a
-hospedagem e revisar três rascunhos produzidos pelo mesmo código antes da ativação.
-Não houve ação remota. Ver [FEED_BATCHES.md](FEED_BATCHES.md) para o procedimento.
+implementado, com duas amostras reais renderizadas localmente. O proprietário
+aprovou depois o resultado na hospedagem, mas relatou um único rascunho. A captura
+mostra seis modelos prontos no índice, 78 em revisão e `waiting` em modo de teste.
+A correção atual distingue disponibilidade de contagem do índice, conta o lote
+certo e retoma tentativas sem arte. Faltam o diagnóstico atualizado na hospedagem
+e duas artes para completar o lote. Ver [FEED_BATCHES.md](FEED_BATCHES.md).
 
 O proprietário aprovou quinze chamadas curtas genéricas e pediu que a rotina
 não dependa mais de identificar dízimos, ofertas, primícias ou Santa Ceia.

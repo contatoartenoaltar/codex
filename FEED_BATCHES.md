@@ -1,10 +1,12 @@
 # Feeds integrados em lotes de três dias
 
-**Estado atual — 30/10/2026:** a nova referência visual integrada foi aprovada e
-o proprietário autorizou sua implementação. O compositor `continuous-scene-v2`
-foi implementado e duas amostras reais foram conferidas localmente. Falta atualizar
-a hospedagem e conferir o primeiro lote de três rascunhos. A referência gerada no
-chat e os testes locais não comprovam essa etapa remota.
+**Estado atual — 30/10/2026:** o proprietário aprovou a arte produzida na hospedagem,
+mas informou somente um rascunho. A captura mostra `waiting`, seis modelos no
+índice como prontos, 78 em revisão e modo `preview`. Não comprova três artes nem
+informa quantos dos seis modelos já foram usados. O contador antigo também podia
+consultar outro lote e informar zero. A revisão atual corrige o contador e expõe
+o diagnóstico do lote; ainda falta consultar esse diagnóstico na hospedagem e
+completar os dois rascunhos restantes.
 
 Serão três artes por lote. O seguinte será criado no terceiro dia do atual.
 Não preparar a pasta inteira nem manter uma reposição móvel diária de três itens.
@@ -61,6 +63,28 @@ recortes confiáveis, informa o número realmente criado, em vez de publicar uma
 montagem incorreta. O cron pode continuar tentando completar esse primeiro lote
 em modo de teste, mas não agenda ou publica seus rascunhos.
 
+Repetir `prepare-batch` durante um teste ativo continua o mesmo lote e preserva
+seus rascunhos, arquivos e agendamentos manuais. O contador usa a conta e a
+política atuais. Uma reserva interrompida sem composição nem post pode ser
+liberada; conteúdos editados, cancelados, excluídos ou com composição anterior
+permanecem protegidos. Três reservas interrompidas não significam três artes.
+
+## Quando o lote não chega a três
+
+```bash
+python3.12 feed_autonomy.py status
+```
+
+O campo `batch` informa `drafts`, `prepared`, `target`, `slot_states`,
+`available_models`, `used_ready_models`, `review_models`, `blocked_slots` e
+`waiting_reason`, sempre do lote da conta e política atuais. `available_models`
+conta modelos prontos ainda não usados neste ciclo; `models.ready` inclui os já
+usados. `models_need_review` indica falta de candidatas liberadas, enquanto
+`batch_needs_review` indica conteúdo protegido ou inconsistência nas reservas.
+O diagnóstico é somente de leitura: não reinicia ciclos nem libera as 78 imagens
+indiscriminadamente. A captura anterior não distingue esses motivos; não afirmar
+que houve correção dos recortes ou que o lote remoto ficou completo sem consultá-lo.
+
 Depois, **Web → Reload**, atualizar o site e conferir os novos rascunhos no Estúdio
 de conteúdo. Esse teste usa as imagens reais do Drive, a mesma extração e os mesmos
 arquivos que a rotina usará. Não usar outra prévia de IA para afirmar que o servidor
@@ -84,7 +108,7 @@ para interromper a criação e cancelar somente a fila automática, se necessár
 
 ## Verificação local e limites
 
-Suíte local: **138 testes aprovados**; verificações de sintaxe JavaScript e de
+Suíte local: **147 testes aprovados**; verificações de sintaxe JavaScript e de
 diferenças também passaram. Drive e Meta são simulados nesses testes; nenhum
 lote de produção foi criado por essa verificação.
 

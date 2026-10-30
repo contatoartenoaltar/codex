@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import io
 import json
@@ -197,7 +197,7 @@ class FeedAutonomyTests(unittest.TestCase):
                 self.tick()
         with app.connect() as conn:
             conn.execute("UPDATE posts SET caption='Alteração manual',revision=1")
-        self.assertEqual(self.tick(), 'prepared')
+        self.assertEqual(self.tick(), 'retained')
         with app.connect() as conn:
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 0)
             self.assertEqual(conn.execute('SELECT state FROM feed_auto_slots').fetchone()[0], 'retained')
@@ -300,6 +300,211 @@ class FeedAutonomyTests(unittest.TestCase):
             row = conn.execute('SELECT * FROM feed_auto_slots').fetchone()
             self.assertEqual(datetime.fromtimestamp(row['due_at'], scheduling.ZONE).date().isoformat(), '2026-11-05')
             self.assertEqual(row['state'], 'draft')
+
+    def preview_rules(self):
+        self.rules |= {'cadence': 'batch3', 'mode': 'preview', 'batch_review_required': True}
+        drive.write_private(self.directory/auto.SETTINGS, self.rules)
+
+    def reserved_preview_batch(self, states=('reserved', 'reserved', 'reserved')):
+        self.index_all(lambda raw: 'generico')
+        self.preview_rules()
+        batch = auto._batch_days(app.connect, self.rules, self.now)
+        first = datetime.fromisoformat(batch['first_day']).date()
+        with app.connect() as conn:
+            models = conn.execute("SELECT * FROM feed_models WHERE state='ready' ORDER BY file_id LIMIT 3").fetchall()
+            for offset, (model, state) in enumerate(zip(models, states)):
+                day = first+timedelta(days=offset)
+                slot = f"{self.rules['account_id']}:{day.isoformat()}:{batch['id']}"
+                request = 'auto-feed-'+hashlib.sha256(slot.encode()).hexdigest()
+                due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(hour=12).timestamp())
+                conn.execute('''INSERT INTO feed_auto_slots
+                    (slot,due_at,policy,account_id,file_id,model_key,cycle,theme,request_id,state,post_id,batch_id)
+                    VALUES(?,?,?,?,?,?,1,'generico',?,?,NULL,?)''',
+                    (slot,due,self.rules['id'],self.rules['account_id'],model['file_id'],model['model_key'],request,state,batch['id']))
+        return batch
+
+    def test_progress_uses_current_account_and_policy_instead_of_latest_global_batch(self):
+        self.preview_rules()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            current = conn.execute('SELECT id FROM feed_batches').fetchone()[0]
+            for identity, account, policy in (('b'*32, '999999', self.rules['id']),
+                                              ('c'*32, self.rules['account_id'], 'd'*32)):
+                conn.execute('INSERT INTO feed_batches VALUES(?,?,?,?,?,?)',
+                             (identity,account,'2026-11-05','2026-11-07',policy,self.now))
+            before = conn.total_changes
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(conn.total_changes, before)
+            self.assertEqual(progress['id'], current)
+            self.assertEqual(progress['target'], 3)
+            self.assertEqual(progress['drafts'], 1)
+            self.assertEqual(progress['prepared'], 1)
+            self.assertEqual(progress['total_slots'], 1)
+            self.assertEqual(progress['slot_states'], {'draft': 1})
+            self.assertEqual(auto.status(conn, self.directory)['batch']['id'], current)
+
+    def test_progress_without_batch_reports_awaiting_start_and_completed_preview_reports_complete(self):
+        self.preview_rules()
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertIsNone(progress['id'])
+            self.assertEqual(progress['drafts'], 0)
+            self.assertEqual(progress['waiting_reason'], 'awaiting_start')
+        for _ in range(3):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(progress['drafts'], 3)
+            self.assertEqual(progress['prepared'], 3)
+            self.assertEqual(progress['waiting_reason'], 'complete')
+        before = self.client.downloads
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'waiting')
+        self.assertEqual(self.client.downloads, before)
+
+    def test_three_unfinished_reservations_are_resumed_before_batch_is_complete(self):
+        batch = self.reserved_preview_batch()
+        for _ in range(3):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(progress['id'], batch['id'])
+            self.assertEqual(progress['drafts'], 3)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 3)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 0)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_batches').fetchone()[0], 1)
+
+    def test_uncreated_held_reservation_is_released_and_missing_day_can_be_filled(self):
+        batch = self.reserved_preview_batch(('held', 'reserved', 'reserved'))
+        with app.connect() as conn:
+            abandoned = dict(conn.execute("SELECT * FROM feed_auto_slots WHERE state='held'").fetchone())
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            self.assertIsNone(conn.execute('SELECT 1 FROM feed_auto_slots WHERE slot=?', (abandoned['slot'],)).fetchone())
+            self.assertIsNone(conn.execute('SELECT 1 FROM feed_compositions WHERE request_id=?', (abandoned['request_id'],)).fetchone())
+        for _ in range(2):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(progress['id'], batch['id'])
+            self.assertEqual(progress['prepared'], 3)
+            self.assertEqual(progress['blocked_slots'], 0)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 3)
+
+    def assert_composed_held_reservation_is_protected(self, *, delete_post):
+        self.preview_rules()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            original = dict(conn.execute('SELECT * FROM feed_auto_slots').fetchone())
+            original_image = conn.execute('SELECT image_name FROM posts WHERE id=?', (original['post_id'],)).fetchone()[0]
+            if delete_post:
+                conn.execute('DELETE FROM posts WHERE id=?', (original['post_id'],))
+            else:
+                conn.execute("UPDATE posts SET caption='Conteúdo editado pelo proprietário',revision=1 WHERE id=?", (original['post_id'],))
+            # A composição pode existir mesmo após uma interrupção ter deixado
+            # o identificador do post ausente na reserva.
+            conn.execute("UPDATE feed_auto_slots SET state='held',post_id=NULL WHERE slot=?", (original['slot'],))
+        for _ in range(2):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'waiting')
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(progress['drafts'], 2)
+            self.assertEqual(progress['prepared'], 2)
+            self.assertEqual(progress['blocked_slots'], 1)
+            self.assertEqual(progress['waiting_reason'], 'batch_needs_review')
+            retained = conn.execute('SELECT * FROM feed_auto_slots WHERE slot=?', (original['slot'],)).fetchone()
+            self.assertEqual(retained['state'], 'held')
+            self.assertIsNone(retained['post_id'])
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_compositions WHERE request_id=?', (original['request_id'],)).fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 0)
+            post = conn.execute('SELECT * FROM posts WHERE id=?', (original['post_id'],)).fetchone()
+            if delete_post:
+                # SQLite pode reutilizar o ID do último post excluído. A arte
+                # eliminada não pode ser restaurada nem receber novo conteúdo.
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts WHERE image_name=?', (original_image,)).fetchone()[0], 0)
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 2)
+            else:
+                self.assertEqual(post['revision'], 1)
+                self.assertEqual(post['caption'], 'Conteúdo editado pelo proprietário')
+
+    def test_held_reservation_with_deleted_composed_post_is_not_freed(self):
+        self.assert_composed_held_reservation_is_protected(delete_post=True)
+
+    def test_held_reservation_with_edited_composed_post_is_not_freed(self):
+        self.assert_composed_held_reservation_is_protected(delete_post=False)
+
+    def test_reused_post_identifier_does_not_count_a_deleted_draft_again(self):
+        self.preview_rules()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            deleted = dict(conn.execute('SELECT * FROM feed_auto_slots').fetchone())
+            conn.execute('DELETE FROM posts WHERE id=?', (deleted['post_id'],))
+        # O próximo post pode receber o mesmo número no SQLite. Sua própria
+        # composição precisa ser contada uma vez, sem ressuscitar a antiga.
+        for _ in range(2):
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0], 2)
+            self.assertEqual(progress['drafts'], 2)
+            self.assertEqual(progress['prepared'], 2)
+            self.assertEqual(progress['blocked_slots'], 1)
+            self.assertEqual(progress['waiting_reason'], 'batch_needs_review')
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_compositions WHERE request_id=?', (deleted['request_id'],)).fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT state FROM feed_auto_slots WHERE slot=?', (deleted['slot'],)).fetchone()[0], 'draft')
+
+    def test_ready_count_does_not_claim_previously_used_models_are_available(self):
+        self.client = Client(6)
+        self.index_all(lambda raw: 'generico')
+        self.preview_rules()
+        batch = auto._batch_days(app.connect, self.rules, self.now)
+        with app.connect() as conn:
+            for index, model in enumerate(conn.execute('SELECT * FROM feed_models ORDER BY file_id').fetchall()):
+                request = f'auto-feed-historical-{index}'
+                post_id = conn.execute("INSERT INTO posts(product,channel,caption,source,account_id) VALUES('Histórico','Instagram','Legenda','Rotina anterior','123456')").lastrowid
+                conn.execute('INSERT INTO feed_compositions VALUES(?,?,?,?,?,?,?,?,?)',
+                             (request,'historical','generico',0,1,model['file_id'],model['sha256'],post_id,self.now))
+                conn.execute('''INSERT INTO feed_auto_slots
+                    (slot,due_at,policy,account_id,file_id,model_key,cycle,theme,request_id,state,post_id,batch_id)
+                    VALUES(?,?,?,?,?,?,1,'generico',?,'paused',?,'')''',
+                    (f'historical-slot-{index}',self.now,'e'*32,self.rules['account_id'],model['file_id'],model['model_key'],request,post_id))
+            for index in range(78):
+                conn.execute('''INSERT INTO feed_models
+                    (file_id,version,active,state,theme,sha256,model_key,visual)
+                    VALUES(?, 'historical', 1, 'review', 'generico', ?, ?, '')''',
+                    (f'review-image-{index}', 'f'*64, f'review-model-{index}'))
+            progress = auto.batch_progress(conn, self.rules)
+            self.assertEqual(progress['id'], batch['id'])
+            self.assertEqual(progress['available_models'], 0)
+            self.assertEqual(progress['used_ready_models'], 6)
+            self.assertEqual(progress['review_models'], 78)
+            self.assertEqual(progress['pending_models'], 0)
+            self.assertEqual(progress['waiting_reason'], 'models_need_review')
+
+    def test_repeated_preview_start_preserves_existing_draft_and_manual_queue(self):
+        self.preview_rules()
+        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        with app.connect() as conn:
+            draft = dict(conn.execute('SELECT * FROM posts').fetchone())
+            batch = conn.execute('SELECT id FROM feed_batches').fetchone()[0]
+            manual = conn.execute("INSERT INTO posts(product,channel,caption,source,account_id,publish_status) VALUES('Manual','Instagram','Legenda','Manual','123456','scheduled')").lastrowid
+            conn.execute("INSERT INTO post_schedule(post_id,revision,due_at,state) VALUES(?,0,?,'queued')", (manual, self.now+3600))
+        image = (self.directory/'media'/draft['image_name']).read_bytes()
+        downloads = self.client.downloads
+        with patch('feed_autonomy.pause_for_layout_review', side_effect=AssertionError('preview must resume')), \
+                patch('feed_autonomy.enable', side_effect=AssertionError('policy must remain unchanged')):
+            first = auto.start_preview(app.connect, self.directory)
+            second = auto.start_preview(app.connect, self.directory)
+        self.assertEqual(first['id'], self.rules['id'])
+        self.assertEqual(second['id'], self.rules['id'])
+        self.assertEqual(self.client.downloads, downloads)
+        with app.connect() as conn:
+            self.assertEqual(dict(conn.execute('SELECT * FROM posts WHERE id=?', (draft['id'],)).fetchone()), draft)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_batches').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT id FROM feed_batches').fetchone()[0], batch)
+            self.assertEqual(conn.execute('SELECT state FROM post_schedule WHERE post_id=?', (manual,)).fetchone()[0], 'queued')
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 1)
+        self.assertEqual((self.directory/'media'/draft['image_name']).read_bytes(), image)
 
     def test_generic_mode_migrates_old_reviews_without_ocr_and_keeps_scheduled_post(self):
         self.index_all()

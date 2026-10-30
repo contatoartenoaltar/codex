@@ -1,11 +1,20 @@
 # Situação e próximos passos — Arte no Altar
 
+**Último teste na hospedagem — 30/10/2026:** o proprietário aprovou o resultado
+visual e relatou um rascunho. O status enviado mostra modo de teste, `waiting`,
+seis modelos prontos no índice e 78 em revisão. Faltam duas artes para o lote.
+Esses seis não equivalem a seis modelos disponíveis sem repetição. A correção
+atual consulta o lote certo, retoma reservas sem arte e informa disponibilidade
+e bloqueios separadamente; falta aplicar essa revisão e consultar o diagnóstico
+remoto. Não afirmar que as 78 imagens foram revisadas nem que basta aguardar.
+Ver [FEED_BATCHES.md](FEED_BATCHES.md).
+
 **Pendência atual — 30/10/2026:** a nova referência integrada foi aprovada e sua
 implementação autorizada. `continuous-scene-v2` reúne cenário contínuo, quinze
 frases transparentes e impressão original dos envelopes, com perspectiva, oclusão
 e iluminação do papel. Duas amostras reais foram renderizadas localmente; uma
-amostra parcialmente oculta continua retida. Falta atualizar a hospedagem e
-conferir três rascunhos reais antes de retomar a rotina. Não houve ação remota.
+amostra parcialmente oculta continua retida. A atualização visual já foi testada
+pelo proprietário; falta completar e conferir o lote de três antes de retomar a rotina.
 
 Seguir [FEED_BATCHES.md](FEED_BATCHES.md): atualizar, executar `prepare-batch`,
 usar **Web → Reload** e revisar o lote no Estúdio. Depois da revisão, a ativação

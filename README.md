@@ -3,8 +3,12 @@
 **Estado atual — 30/10/2026:** a nova referência de feed integrado foi aprovada e
 sua implementação autorizada. `continuous-scene-v2` usa cenário contínuo, quinze
 frases transparentes e impressão original nas faces dos envelopes, com perspectiva
-e luz coerentes. Duas amostras reais foram conferidas localmente. Falta atualizar
-a hospedagem e revisar o primeiro lote de três rascunhos; não houve ação remota.
+e luz coerentes. O proprietário aprovou o resultado na hospedagem, mas relatou
+um único rascunho: a captura mostra seis modelos prontos no índice e 78 em revisão.
+A revisão atual corrige a contagem por lote e a retomada do teste, informa quais
+modelos ainda estão disponíveis sem repetição e preserva conteúdos existentes.
+Falta aplicar essa correção de controle, consultar o diagnóstico e completar as
+duas artes restantes; os modelos em revisão não foram liberados em bloco.
 
 Após essa revisão e ativação, o cron existente cria três artes por lote e, no
 terceiro dia, prepara as três seguintes: um feed diário às 12h de São Paulo,

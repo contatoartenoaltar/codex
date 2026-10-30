@@ -1,5 +1,12 @@
 # Revisão da ambientação dos envelopes
 
+**Retorno da hospedagem — 30/10/2026:** o proprietário aprovou o resultado real
+do novo compositor e informou somente um rascunho. O status mostra `preview`,
+`waiting`, seis modelos prontos e 78 em revisão; a causa exata exige o novo
+diagnóstico por lote. A montagem visual deixa de ser a pendência principal:
+agora é necessário completar as duas artes restantes, preservando a primeira.
+Ver [FEED_BATCHES.md](FEED_BATCHES.md) para a revisão da contagem e retomada.
+
 **Estado atual — 30/10/2026:** o proprietário aprovou a nova referência visual
 integrada e autorizou implementar a montagem automática correspondente. A referência
 gerada no chat está em
@@ -18,7 +25,7 @@ Duas amostras reais foram renderizadas e conferidas localmente em
 do papel oculta por um livro continua retida. Isso não valida os recortes dos
 84 arquivos nem constitui aprovação do primeiro lote da hospedagem.
 
-Falta atualizar o servidor e conferir três rascunhos produzidos pelo mesmo código,
+Falta completar e conferir três rascunhos produzidos pelo mesmo código,
 conforme [FEED_BATCHES.md](FEED_BATCHES.md). Depois da configuração e da revisão
 desse lote, a rotina dispensa API de IA paga e conversa diária. Prepara três artes;
 no terceiro dia prepara as três seguintes. Não processa a pasta inteira.

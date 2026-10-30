@@ -200,6 +200,86 @@ def pause_for_layout_review(connect, directory):
     return {'cancelled': cancelled, 'in_flight': in_flight}
 
 
+def start_preview(connect, directory):
+    """Continua o teste atual sem pausar ou reiniciar seu lote novamente."""
+    try:
+        current = policy(directory)
+    except (ValueError, OSError):
+        current = None
+    if current and current.get('cadence') == 'batch3' and current.get('mode') == 'preview':
+        return current
+    pause_for_layout_review(connect, directory)
+    return enable(directory, approve_layout=True, preview=True)
+
+
+def _used_models(conn):
+    cycle = conn.execute('SELECT MAX(cycle) FROM feed_auto_slots').fetchone()[0] or 1
+    used = {r[0] for r in conn.execute('SELECT model_key FROM feed_auto_slots WHERE cycle=?', (cycle,))}
+    if cycle == 1:
+        used.update(r[0] for r in conn.execute('''SELECT m.model_key FROM feed_models m
+            JOIN feed_compositions c ON c.file_id=m.file_id AND c.source_sha256=m.sha256
+            WHERE c.request_id NOT LIKE 'auto-feed-%' '''))
+    return used
+
+
+def batch_progress(conn, rules):
+    """Diagnóstico somente de leitura; pronto no índice não significa disponível."""
+    used = _used_models(conn)
+    ready = {r[0] for r in conn.execute("SELECT model_key FROM feed_models WHERE active=1 AND state='ready'")}
+    batch = conn.execute('''SELECT * FROM feed_batches WHERE account_id=? AND policy=?
+                            ORDER BY rowid DESC LIMIT 1''', (rules['account_id'], rules['id'])).fetchone()
+    result = {'id': batch['id'] if batch else None, 'target': 3, 'drafts': 0,
+              'prepared': 0, 'total_slots': 0, 'slot_states': {}, 'blocked_slots': 0,
+              'available_models': len(ready-used), 'used_ready_models': len(ready & used),
+              'review_models': conn.execute("SELECT COUNT(*) FROM feed_models WHERE active=1 AND state='review'").fetchone()[0],
+              'pending_models': conn.execute("SELECT COUNT(*) FROM feed_models WHERE active=1 AND state='pending'").fetchone()[0],
+              'first_day': batch['first_day'] if batch else None,
+              'last_day': batch['last_day'] if batch else None}
+    if batch:
+        rows = conn.execute('''SELECT a.*,p.id AS existing_post,p.publish_status,p.revision,
+                    p.account_id AS post_account,s.state AS schedule_state,c.post_id AS composition_post,
+                    c.rowid AS composition_order,
+                    (SELECT MAX(rowid) FROM feed_compositions WHERE post_id=c.post_id) AS latest_post_owner
+                FROM feed_auto_slots a
+                LEFT JOIN feed_compositions c ON c.request_id=a.request_id
+                LEFT JOIN posts p ON p.id=COALESCE(a.post_id,c.post_id)
+                LEFT JOIN post_schedule s ON s.post_id=p.id
+                WHERE a.batch_id=?''', (batch['id'],)).fetchall()
+        for row in rows:
+            result['total_slots'] += 1
+            state = row['state']
+            result['slot_states'][state] = result['slot_states'].get(state, 0)+1
+            owned = (row['existing_post'] and row['existing_post'] == row['composition_post'] and
+                     row['post_account'] == rules['account_id'] and row['composition_order'] == row['latest_post_owner'])
+            draft = (owned and state == 'draft' and row['publish_status'] == 'draft' and
+                     row['revision'] == 0 and row['schedule_state'] is None)
+            queued = (owned and state == 'queued' and row['publish_status'] in
+                      ('scheduled', 'sending', 'processing', 'published') and
+                      row['schedule_state'] in ('queued', 'running', 'processing', 'done'))
+            result['drafts'] += int(bool(draft))
+            result['prepared'] += int(bool(draft or queued))
+            # Uma reserva interrompida sem arte é recuperável. Conteúdo editado,
+            # cancelado ou excluído é protegido, não substituído automaticamente.
+            interrupted = (state == 'reserved' and (row['composition_post'] is None or
+                           (owned and row['publish_status'] == 'draft' and row['revision'] == 0 and row['schedule_state'] is None)))
+            if not (draft or queued or interrupted):
+                result['blocked_slots'] += 1
+    if not batch and not (ready or result['review_models'] or result['pending_models']):
+        reason = 'awaiting_start'
+    elif result['blocked_slots']:
+        reason = 'batch_needs_review'
+    elif result['prepared'] >= result['target']:
+        reason = 'complete' if rules.get('mode') == 'preview' else 'waiting_next_batch'
+    elif result['slot_states'].get('reserved') or result['available_models'] or result['pending_models']:
+        reason = 'processing' if batch else 'awaiting_start'
+    elif result['review_models']:
+        reason = 'models_need_review'
+    else:
+        reason = 'models_exhausted'
+    result['waiting_reason'] = reason
+    return result
+
+
 def sync_catalog(connect, directory, client):
     cache = directory / drive.CATALOG_FILE
     with connect() as conn:
@@ -346,8 +426,15 @@ def _batch_days(connect, rules, now):
         conn.execute('BEGIN IMMEDIATE')
         latest = conn.execute('SELECT * FROM feed_batches WHERE account_id=? AND policy=? ORDER BY rowid DESC LIMIT 1', (rules['account_id'], rules['id'])).fetchone()
         if latest:
+            # Uma tentativa sem composição não pode ocupar um dos três dias.
+            # Não tocar em reservas com arte existente, mesmo se o post foi
+            # editado, cancelado ou excluído pelo proprietário.
+            conn.execute('''DELETE FROM feed_auto_slots WHERE batch_id=? AND state='held'
+                AND post_id IS NULL AND NOT EXISTS
+                    (SELECT 1 FROM feed_compositions c WHERE c.request_id=feed_auto_slots.request_id)''', (latest['id'],))
             count = conn.execute('SELECT COUNT(*) FROM feed_auto_slots WHERE batch_id=?', (latest['id'],)).fetchone()[0]
-            if count < 3:
+            reserved = conn.execute("SELECT 1 FROM feed_auto_slots WHERE batch_id=? AND state='reserved'", (latest['id'],)).fetchone()
+            if count < 3 or reserved:
                 return dict(latest)
             if rules.get('mode') == 'preview' or local.date().isoformat() < latest['last_day']:
                 return None
@@ -457,7 +544,7 @@ def _produce(connect, directory, rules, slot, client):
                                       due_at=due, policy_id=rules['id'])
             state = 'queued'
         conn.execute('UPDATE feed_auto_slots SET post_id=?,state=? WHERE slot=?', (post['id'], state, slot['slot']))
-    return 'prepared'
+    return 'prepared' if state in ('draft', 'queued') else state
 
 
 def tick(connect, directory, client=None, recognizer=None):
@@ -536,11 +623,13 @@ def status(conn, directory):
         pass
     counts = {r[0]: r[1] for r in conn.execute('SELECT state,COUNT(*) FROM feed_models WHERE active=1 GROUP BY state')}
     runtime = conn.execute('SELECT state,last_tick FROM feed_auto_runtime WHERE id=1').fetchone()
-    return {'enabled': enabled, 'models': counts, 'state': runtime['state'] if runtime else 'disabled',
+    result = {'enabled': enabled, 'models': counts, 'state': runtime['state'] if runtime else 'disabled',
             'last_tick': runtime['last_tick'] if runtime else None,
             'mode': settings.get('mode', 'publish') if settings else 'disabled',
             'cadence': settings.get('cadence', 'daily') if settings else 'batch3',
             'account': '@'+ACCOUNT, 'time': '12:00', 'timezone': 'America/Sao_Paulo'}
+    result['batch'] = batch_progress(conn, settings) if settings else None
+    return result
 
 
 def export_review(connect, directory, client=None):
@@ -637,21 +726,29 @@ def main():
             print('No último dia do lote serão preparadas as próximas 3 artes. Não será processada a pasta inteira.')
         elif args.command == 'prepare-batch':
             os.environ.setdefault('ARTENOALTAR_ORIGIN', 'https://artenoaltar.pythonanywhere.com')
-            pause_for_layout_review(app.connect, app.DB.parent)
-            enable(app.DB.parent, approve_layout=True, preview=True)
+            rules = start_preview(app.connect, app.DB.parent)
             print('Teste do lote: somente rascunhos, sem agendamento nem publicação.', flush=True)
             count = 0
             for _ in range(30):
                 outcome = tick(app.connect, app.DB.parent)
                 print(outcome, flush=True)
                 with app.connect() as conn:
-                    batch = conn.execute('SELECT id FROM feed_batches ORDER BY rowid DESC LIMIT 1').fetchone()
-                    count = conn.execute("SELECT COUNT(*) FROM feed_auto_slots WHERE batch_id=? AND state='draft'", (batch['id'],)).fetchone()[0] if batch else 0
+                    progress = batch_progress(conn, rules)
+                    count = progress['drafts']
                 if count >= 3 or outcome == 'waiting':
                     break
                 if outcome == 'busy':
                     time.sleep(1)
             print('Rascunhos preparados:', count)
+            if count < 3:
+                print('Lote incompleto:', count, 'de 3 rascunhos.')
+                print('Modelos disponíveis sem repetição:', progress['available_models'])
+                print('Imagens em revisão:', progress['review_models'])
+                messages = {'models_need_review': 'As imagens restantes precisam de conferência antes de completar o lote.',
+                            'models_exhausted': 'Nenhum modelo novo disponível no ciclo atual.',
+                            'batch_needs_review': 'Há conteúdo protegido ou uma tentativa interrompida no lote. Confira o diagnóstico.',
+                            'processing': 'A preparação ainda está em andamento; o cron pode continuar este mesmo lote.'}
+                print(messages.get(progress['waiting_reason'], 'Confira o estado do lote no diagnóstico abaixo.'))
         elif args.command == 'disable':
             settings = drive.read_json(app.DB.parent / SETTINGS) if (app.DB.parent / SETTINGS).exists() else {}
             drive.write_private(app.DB.parent / SETTINGS, settings | {'enabled': False})
