@@ -34,11 +34,23 @@ solicitação e confirmação do proprietário.
 
 ## Próximas melhorias propostas
 
-1. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
+1. Integrar a pasta de originais do Drive ao fluxo de criação pelo ChatGPT. O
+   proprietário retomou essa tarefa após validar o agendamento: catalogar modelos,
+   sortear aleatoriamente sem repetição até completar o ciclo, criar imagens e
+   legendas para feed, Stories e carrosséis e transferir ao sistema para revisão
+   e agendamento. Validar acesso real aos arquivos; manter os originais preservados
+   por montagem com camadas e guardar histórico do modelo/ciclo. O proprietário
+   definiu execução diária mesmo sem abrir o chat e escolheu montagem automática
+   com layouts e textos aprovados, sem API de IA paga. A rotina deve ser ativada
+   somente após aprovação de layouts/modelos e calendário, sem pedir confirmação
+   diária na conversa depois dessa autorização. Preparar autenticação própria do servidor para
+   acessar a pasta privada. O link já foi fornecido; não pedir novamente nem
+   torná-la pública.
+2. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
    de publicação de cada canal. A foto de feed atual não equivale a um Story.
-2. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
+3. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
    importação, publicação e agendamento.
-3. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
+4. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
    horários existentes e evitar temas repetidos. Não há execução autônoma da criação
    de novas artes/legendas fora da conversa; definir e validar esse mecanismo antes
    de prometer que o ChatGPT gerará conteúdo continuamente.
@@ -54,14 +66,10 @@ ainda não revisados nem contratar serviços.
   restauração e proteção das imagens/configurações privadas, além dos alertas de
   falhas de publicação ou necessidade de reconectar à Meta. Esse é um lembrete de
   acompanhamento do projeto, sem data definida ou notificação automática agendada.
-- Conexão com a pasta privada de originais no Google Drive, catálogo de modelos e
-  pasta de saída para as artes finais. O link de origem já foi fornecido; o acesso
-  e o conteúdo ainda não foram validados nesta conversa.
-- Montagem por templates com fotos originais preservadas, sem recriar textos,
-  logos ou QR Codes do envelope.
-- Controle persistente de rotação: cada nova arte usa um modelo ainda não usado;
-  repetir somente após todos os modelos da pasta terem sido utilizados. Fotos
-  diferentes do mesmo envelope não contam como modelos novos.
+
+A integração com Drive, os templates e a rotação já não estão adiados: o
+proprietário os retomou como foco atual, com sorteio aleatório sem repetição.
+Fotos diferentes do mesmo envelope não contam como modelos novos.
 
 ## Limites que permanecem
 

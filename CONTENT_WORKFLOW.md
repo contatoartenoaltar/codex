@@ -6,12 +6,37 @@ Referência fornecida pelo proprietário para o projeto próprio. Distinguir o f
 
 O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. O proprietário forneceu o link da pasta de origem; o acesso autorizado e seu conteúdo ainda precisam ser validados.
 
+Após validar o agendamento pelo plugin, o proprietário retomou explicitamente
+essa ideia: escolher aleatoriamente modelos do Drive e criar artes para feed,
+Stories e carrosséis. O foco agora é integrar seleção de originais, criação das
+artes/legendas e envio ao sistema, e não apenas acrescentar Stories isoladamente.
+A aleatoriedade deve respeitar a rotação sem repetição descrita abaixo. O
+proprietário definiu que a rotina deve funcionar todos os dias, mesmo sem abrir
+o ChatGPT, com execução no servidor. Escolheu montagem automática com layouts e
+textos aprovados, sem API de IA paga. A criação diária não deve depender de novas
+chamadas de geração por IA. O Plus não fornece créditos de API ao servidor; não
+contratar nem executar chamadas pagas sem autorização.
+
+No modo de montagem automática, o ChatGPT pode preparar cenários, layouts e textos
+durante a configuração; o servidor combina esses elementos aprovados com as fotos
+originais a cada execução diária. Isso não deve ser apresentado como uma geração
+nova por IA em cada execução. O acesso autônomo à pasta privada também exige uma
+autenticação própria do servidor; conectar o Google Drive apenas ao ChatGPT não
+fornece automaticamente esse acesso ao PythonAnywhere.
+
+A ativação diária deverá ter configuração e autorização do proprietário para os
+layouts, os modelos e o calendário que poderão ser usados automaticamente. Depois
+de ativada, a rotina deve manter os próximos três dias preparados sem depender de
+confirmação diária na conversa, respeitando as regras aprovadas. A confirmação por
+post continua valendo para as operações conversacionais atuais do plugin; não
+fingir uma confirmação humana para ativar a nova rotina ainda não implementada.
+
 Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualização no sistema, foi confirmada pelo proprietário. Isso valida aquele teste, não a seleção e criação automática a partir do Drive. Não prometer acesso a arquivos só por conhecer seus nomes ou links internos. O proprietário utiliza ChatGPT Plus: não presumir autorização para contratar API de geração. A criação autônoma fora da conversa precisa de mecanismo de geração e execução especificamente definido e testado; o Plus e o conector de consultas não comprovam essa capacidade por si sós.
 
 ## Fluxo automático a implementar
 
 1. Ler a pasta privada de originais autorizada no Drive, usando IDs estáveis dos arquivos. Não exigir que a pasta inteira se torne pública e não substituir a autorização da API por scraping de links de compartilhamento.
-2. Escolher um modelo ainda não utilizado no ciclo atual, respeitando a regra de rotação abaixo e consultando a agenda antes de preencher os próximos três dias. O proprietário informou que cancelou manualmente todos os agendamentos no Metricool.
+2. Sortear aleatoriamente um modelo ainda não utilizado no ciclo atual, respeitando a regra de rotação abaixo e consultando a agenda antes de preencher os próximos três dias. O proprietário informou que cancelou manualmente todos os agendamentos no Metricool.
 3. Montar artes com templates e as fotos originais preservadas, criando cenários e chamadas fora da impressão do envelope. Não reconstruir textos, logos ou QR Codes com geração de imagem.
 4. Gerar legendas a partir do catálogo e das respostas comerciais aprovadas. A rotina de aprovação dos templates/lotes e a autorização de publicação automática precisam ficar explícitas; não usar um simples pedido de resumo como autorização de envio.
 5. Guardar versões finais em pasta de saída separada dos originais, conferindo os arquivos e mantendo a ligação entre origem, template, legenda, formato e horário.
@@ -19,13 +44,17 @@ Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualizaçã
 
 A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Usar o link já fornecido sem pedir novamente, nem solicitar senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o link foi fornecido.
 
-O proprietário adiou a integração com Drive, os templates e a rotação automática
-para priorizar o agendamento. Manter os requisitos registrados sem iniciar essa
-integração até a retomada desse trabalho. Ver [PENDENCIAS.md](PENDENCIAS.md).
+O proprietário havia adiado Drive, templates e rotação para priorizar o
+agendamento. Com o controle da fila validado, retomou essa integração como foco
+atual. Backups e alertas continuam adiados. Ver [PENDENCIAS.md](PENDENCIAS.md).
 
 ## Rotação obrigatória dos modelos
 
 Cada nova arte que utilizar um modelo de envelope como referência deve escolher um modelo diferente dos já usados no ciclo atual. Só permitir repetição depois que todos os modelos da pasta tiverem sido utilizados; então iniciar um novo ciclo. A regra vale entre dias, lotes e formatos, não apenas dentro de um mesmo lote.
+
+Dentro de cada ciclo, o sorteio deve considerar somente os modelos ainda não
+usados ou reservados por outra criação em andamento; não fazer sorteios
+independentes de todos os arquivos que permitam repetir antes de completar o ciclo.
 
 O controle deve identificar o modelo, e não apenas o arquivo: fotografias, recortes ou versões diferentes do mesmo envelope não contam como modelos novos. Registrar de forma persistente o ciclo, o modelo e a arte criada, para não reiniciar a rotação ao fechar o chat ou reiniciar o sistema. Artes já criadas contam como uso mesmo antes da publicação; reservar modelos durante a criação para evitar escolhas duplicadas simultâneas.
 
