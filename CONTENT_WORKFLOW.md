@@ -15,9 +15,13 @@ Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualizaçã
 3. Montar artes com templates e as fotos originais preservadas, criando cenários e chamadas fora da impressão do envelope. Não reconstruir textos, logos ou QR Codes com geração de imagem.
 4. Gerar legendas a partir do catálogo e das respostas comerciais aprovadas. A rotina de aprovação dos templates/lotes e a autorização de publicação automática precisam ficar explícitas; não usar um simples pedido de resumo como autorização de envio.
 5. Guardar versões finais em pasta de saída separada dos originais, conferindo os arquivos e mantendo a ligação entre origem, template, legenda, formato e horário.
-6. Enviar pelos canais da Meta e acompanhar o resultado. Stories, carrosséis, executor e geração autônoma ainda precisam de implementação/ativação e testes próprios.
+6. Enviar pelos canais da Meta e acompanhar o resultado. O executor de fotos de feed já publicou com acionamento externo; Stories, carrosséis e geração autônoma ainda precisam de implementação e testes próprios.
 
 A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Usar o link já fornecido sem pedir novamente, nem solicitar senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o link foi fornecido.
+
+O proprietário adiou a integração com Drive, os templates e a rotação automática
+para priorizar o agendamento. Manter os requisitos registrados sem iniciar essa
+integração até a retomada desse trabalho. Ver [PENDENCIAS.md](PENDENCIAS.md).
 
 ## Rotação obrigatória dos modelos
 
@@ -82,7 +86,7 @@ Esses são parâmetros do Metricool, não nomes de campos da API Meta. Não copi
 - O proprietário validou publicações reais de uma foto no feed do Instagram e na página Facebook.
 - O Instagram funcionou preparando o arquivo pela foto não publicada na página vinculada da Meta; buscar a imagem diretamente no PythonAnywhere havia falhado.
 - A fila de agendamento, horário de São Paulo, cancelamento e executor estão implementados. O proprietário confirmou publicação real com o console e depois com o console parado e as abas fechadas, usando cron-job.org a cada minuto. O plano gratuito do PythonAnywhere não disponibiliza Scheduled tasks nem Always-on tasks; consulte SCHEDULER_HTTP.md para o acionamento HTTP protegido.
-- A conexão MCP própria já fez consultas e importações reais de rascunho com imagem e legenda, inclusive após a atualização 0.1.1. O plugin 0.2.0 implementa revisão e agendamento confirmado na fila existente, com implantação e teste real no aplicativo ainda pendentes. Integração com Drive, Stories, carrosséis e rotina automática de três dias continuam pendentes.
+- A conexão MCP própria já fez consultas e importações reais de rascunho com imagem e legenda, inclusive após a atualização 0.1.1. O plugin 0.2.0 foi atualizado e colocou o rascunho #3 na fila após revisão e confirmação; falta confirmar a publicação final desse teste. Integração com Drive, Stories, carrosséis e rotina automática de três dias continuam pendentes.
 - A transferência por conexão deve admitir envio dos arquivos, formatos distintos, slides ordenados, consulta de horários existentes e retorno de IDs/status verificáveis. Nunca expor credenciais da Meta ao chat.
 - Planejar Stories e carrosséis como novos formatos; não apresentar o envio atual de uma única foto como se já cobrisse a rotina inteira.
 

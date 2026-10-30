@@ -2,7 +2,7 @@
 
 A fila e o executor estão implementados. O proprietário confirmou publicações reais agendadas com o console e, depois, com o console parado e as abas fechadas. O acionamento externo foi configurado no cron-job.org a cada minuto. Os testes locais usam Meta simulada; o relato do proprietário valida os testes reais feitos, não garante disponibilidade permanente futura.
 
-O acionamento por HTTP com chave exclusiva está descrito em [SCHEDULER_HTTP.md](SCHEDULER_HTTP.md). O plugin 0.2.0 acrescenta agendamento confirmado nessa mesma fila, sem criar outro executor; veja [MCP_SETUP.md](MCP_SETUP.md). Essa nova ferramenta ainda precisa de implantação e teste real no aplicativo.
+O acionamento por HTTP com chave exclusiva está descrito em [SCHEDULER_HTTP.md](SCHEDULER_HTTP.md). O plugin 0.2.0 acrescenta agendamento confirmado nessa mesma fila, sem criar outro executor; veja [MCP_SETUP.md](MCP_SETUP.md). O proprietário confirmou a atualização e o teste real de colocar o rascunho #3 na fila pelo plugin; a publicação final desse teste ainda precisa ser confirmada.
 
 ## Revisão e autorização
 

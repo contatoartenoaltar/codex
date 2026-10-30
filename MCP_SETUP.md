@@ -8,8 +8,10 @@ pela visualização no sistema. O agendamento na interface também publicou com 
 console parado e as abas fechadas, usando acionamento HTTP externo. Esses testes
 não garantem acesso a arquivos locais em todas as sessões. O proprietário também
 confirmou a importação após atualizar o plugin para 0.1.1. O agendamento pelo
-plugin 0.2.0 abaixo está implementado e testado localmente, com implantação e
-validação real no aplicativo ainda pendentes.
+plugin 0.2.0 foi atualizado no aplicativo e o proprietário mostrou um agendamento
+real do rascunho #3 para 30/10/2026 às 10h15, America/Sao_Paulo, com recibo, fila e
+executor ativo. A publicação final desse teste específico ainda não foi confirmada.
+O acompanhamento das pendências está em [PENDENCIAS.md](PENDENCIAS.md).
 
 ### Agendamento no plugin 0.2.0
 
@@ -59,7 +61,8 @@ Atualizar o servidor não atualiza a habilidade instalada no aplicativo.
 
 Depois de confirmar as sete ferramentas no aplicativo, revise um rascunho e um
 horário futuro real, autorize o teste e confira recibo, fila e publicação na rede.
-Nenhum novo agendamento real foi criado durante o desenvolvimento desta versão.
+Nenhum novo agendamento real foi criado pelos testes locais desta versão. Depois
+da implantação, o proprietário confirmou pelo aplicativo o teste descrito acima.
 
 ### Correção 0.1.1
 
