@@ -1,6 +1,36 @@
 # Revisão da ambientação dos envelopes
 
-**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
+**Estado atual — 30/10/2026:** o proprietário aprovou a nova referência visual
+integrada e autorizou implementar a montagem automática correspondente. A referência
+gerada no chat está em
+`/workspace/generated_images/exec-ff790868-fabc-4431-bb08-ab278f28e69b.png`;
+ela define a direção visual, mas não é uma saída do servidor.
+
+O compositor `continuous-scene-v2` está implementado em `product_scene.py`: cenário
+contínuo, quinze chamadas com transparência e impressão original projetada nas faces
+dos papéis. Perspectiva, bordas, espessura, sombras e oclusão seguem a mesma cena.
+A impressão recebe ajuste discreto de luminosidade do papel, de 0,94 a 1,04;
+não há redesenho de letras, logos ou QR Codes por IA nem igualdade literal dos pixels.
+WhatsApp: **35 9 8442-8442**. Feed: **1080 × 1350**.
+
+Duas amostras reais foram renderizadas e conferidas localmente em
+`.local/design-review/continuous-01.png` e `continuous-03.png`. A amostra com parte
+do papel oculta por um livro continua retida. Isso não valida os recortes dos
+84 arquivos nem constitui aprovação do primeiro lote da hospedagem.
+
+Falta atualizar o servidor e conferir três rascunhos produzidos pelo mesmo código,
+conforme [FEED_BATCHES.md](FEED_BATCHES.md). Depois da configuração e da revisão
+desse lote, a rotina dispensa API de IA paga e conversa diária. Prepara três artes;
+no terceiro dia prepara as três seguintes. Não processa a pasta inteira.
+Nenhuma ação remota, importação, agendamento ou publicação foi executada nesta revisão.
+
+## Histórico — propostas superadas
+
+`ambient-scene-v1` foi rejeitado porque frase, envelopes e cenário ainda pareciam
+partes separadas. A aprovação anterior dessa amostra não autoriza retomar esse
+layout. O cabeçalho opaco e a pilha montada separadamente deixaram de ser o fluxo atual.
+
+**Decisão daquela etapa:** o proprietário aprovou a nova ambientação com o envelope
 recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
 por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
 usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira

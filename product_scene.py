@@ -1,13 +1,16 @@
-"""Recorta a impressão original e projeta o papel na cena, sem redesenhar a arte."""
+"""Integra a impressão original aos papéis de uma cena contínua aprovada."""
 import hashlib
 import json
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 from layout_preview import decode
 
 ASSETS = Path(__file__).parent / 'design_assets' / 'feed'
-VERSION = 'ambient-scene-v1'
+VERSION = 'continuous-scene-v2'
+MASTER = ASSETS / 'scene-v2.jpg'
+SCENE_SPEC = ASSETS / 'scene-v2.json'
+TYPOGRAPHY = ASSETS / 'typography'
 
 
 class CutoutError(ValueError):
@@ -128,44 +131,80 @@ def project(image, quad, size):
     return image.transform(size, Image.Transform.PERSPECTIVE, _solve(matrix, values), Image.Resampling.BICUBIC)
 
 
+def asset_files():
+    """Inclui a geometria e as máscaras na identidade da política autorizada."""
+    return [MASTER, SCENE_SPEC, ASSETS/'cutout-hints.json', TYPOGRAPHY/'manifest.json',
+            *(TYPOGRAPHY/f'{index:02d}.png' for index in range(15))]
+
+
+def _scene():
+    spec = json.loads(SCENE_SPEC.read_text())
+    if (spec.get('version') != VERSION or spec.get('filename') != MASTER.name or
+            spec.get('size') != [1080, 1350] or
+            spec.get('sha256') != hashlib.sha256(MASTER.read_bytes()).hexdigest()):
+        raise CutoutError('O cenário precisa corresponder à montagem conferida.')
+    with Image.open(MASTER) as image:
+        if image.size != (1080, 1350):
+            raise CutoutError('Dimensões do cenário inválidas.')
+        canvas = image.convert('RGBA')
+    return canvas, spec
+
+
+def _typography(index, expected_phrase=None):
+    manifest = json.loads((TYPOGRAPHY/'manifest.json').read_text())
+    record = manifest.get(str(index), {})
+    path = TYPOGRAPHY/f'{index:02d}.png'
+    if (record.get('filename') != path.name or
+            record.get('sha256') != hashlib.sha256(path.read_bytes()).hexdigest() or
+            expected_phrase is not None and record.get('phrase') != expected_phrase):
+        raise CutoutError('A tipografia precisa corresponder à frase aprovada.')
+    with Image.open(path) as image:
+        if image.size != (1080, 450) or image.mode != 'RGBA' or image.getchannel('A').getextrema() != (0, 255):
+            raise CutoutError('A frase precisa ter fundo transparente, sem painel opaco.')
+        return image.copy()
+
+
+def validate_assets(expected_phrases=None):
+    _scene()
+    for index in range(15):
+        _typography(index, None if expected_phrases is None else expected_phrases[index])
+
+
+def _paper_light(layer, master, limits):
+    """Compartilha a luz do papel sem redesenhar letras, logos ou QR Codes."""
+    _, np = backend()
+    paper = np.asarray(master.convert('RGB'), dtype=np.float32)
+    # Uma variação discreta de luminosidade evita brancos luminosos recortados.
+    # A impressão é reamostrada geometricamente; não há geração de texto por IA.
+    luminance = paper.mean(axis=2)/240.0
+    gain = np.clip(luminance, *limits)
+    pixels = np.asarray(layer).copy()
+    pixels[:, :, :3] = np.clip(pixels[:, :, :3].astype(np.float32)*gain[:, :, None], 0, 255).astype(np.uint8)
+    return Image.fromarray(pixels)
+
+
 def render(raw, index, *, expected_phrase=None):
+    if type(index) is not int or not 0 <= index < 15:
+        raise CutoutError('Chamada fora do banco aprovado.')
     source = decode(raw).convert('RGBA')
     quad = detect_quad(raw)
+    # Afasta a amostragem poucos pixels da borda externa para não transportar
+    # o filete escuro da mesa fotografada junto com o papel claro.
+    center = [sum(point[axis] for point in quad)/4 for axis in range(2)]
+    inner = [[value*.994+center[axis]*.006 for axis, value in enumerate(point)] for point in quad]
     # QUAD pede UL, LL, LR, UR. A fonte fornece a impressão inteira, sem IA.
     face = source.transform((940, 606), Image.Transform.QUAD,
-                            tuple(v for i in (0, 3, 2, 1) for v in quad[i]), Image.Resampling.BICUBIC)
-    with Image.open(ASSETS/'template.jpg') as base:
-        canvas = base.convert('RGBA')
-    path = ASSETS/'headers'/f'{index:02d}.jpg'
-    manifest = json.loads((ASSETS/'headers'/'manifest.json').read_text())
-    record = manifest.get(str(index), {})
-    if record.get('sha256') != hashlib.sha256(path.read_bytes()).hexdigest() or expected_phrase is not None and record.get('phrase') != expected_phrase:
-        raise CutoutError('O cabeçalho precisa corresponder à frase aprovada.')
-    with Image.open(path) as header:
-        if header.size != (1080, 345):
-            raise CutoutError('Cabeçalho inválido.')
-        canvas.paste(header, (0, 0))
-    shadow = Image.new('RGBA', canvas.size)
-    ImageDraw.Draw(shadow).ellipse((60, 810, 790, 946), fill=(22, 9, 0, 155))
-    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(23)))
-    stack = [(40, 555), (602, 428), (829, 591), (239, 775)]
-    pages = Image.new('RGBA', canvas.size)
-    draw = ImageDraw.Draw(pages)
-    for i in range(48, 0, -1):
-        paper = [(x, y+i*2) for x, y in stack]
-        draw.polygon(paper, fill=(213+i%3*6, 207+i%3*6, 195+i%3*6, 255))
-        draw.line(paper+[paper[0]], fill=(245, 242, 229, 255), width=1)
-    canvas.alpha_composite(pages)
-    canvas.alpha_composite(project(face, stack, canvas.size))
-    front = [(165, 572), (970, 558), (989, 1072), (148, 1080)]
-    shadow = Image.new('RGBA', canvas.size)
-    ImageDraw.Draw(shadow).polygon([(x+15, y+13) for x, y in front], fill=(25, 10, 0, 135))
-    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(14)))
-    contact = Image.new('RGBA', canvas.size)
-    ImageDraw.Draw(contact).ellipse((151, 1065, 1010, 1102), fill=(24, 10, 0, 155))
-    canvas.alpha_composite(contact.filter(ImageFilter.GaussianBlur(8)))
-    paper = Image.new('RGBA', canvas.size)
-    ImageDraw.Draw(paper).polygon([(x+1, y+4) for x, y in front], fill='#dfd5bd')
-    canvas.alpha_composite(paper)
-    canvas.alpha_composite(project(face, front, canvas.size))
-    return canvas.convert('RGB'), tuple(front)
+                            tuple(v for i in (0, 3, 2, 1) for v in inner[i]), Image.Resampling.BICUBIC)
+    canvas, spec = _scene()
+    master = canvas.copy()
+    limits = (spec['illumination_min'], spec['illumination_max'])
+    # O fundo inteiro já contém a mesa, papéis, sombras, espessura e CTA.
+    # Substitui-se somente a superfície impressa; não se cola outra fotografia.
+    stack = project(face, spec['stack'], canvas.size).filter(ImageFilter.GaussianBlur(.45))
+    occlusion = Image.new('L', canvas.size)
+    ImageDraw.Draw(occlusion).polygon([tuple(point) for point in spec['front_paper']], fill=255)
+    stack.putalpha(ImageChops.subtract(stack.getchannel('A'), occlusion))
+    canvas.alpha_composite(_paper_light(stack, master, limits))
+    canvas.alpha_composite(_paper_light(project(face, spec['front'], canvas.size), master, limits))
+    canvas.alpha_composite(_typography(index, expected_phrase), (0, 0))
+    return canvas.convert('RGB'), tuple(tuple(point) for point in spec['front'])

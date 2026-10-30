@@ -1,20 +1,27 @@
-# Feeds ambientados em lotes de três dias
+# Feeds integrados em lotes de três dias
 
-O proprietário aprovou a amostra com o produto recortado, perspectiva e sombras,
-e pediu três artes por lote. O lote seguinte será criado no terceiro dia do atual.
+**Estado atual — 30/10/2026:** a nova referência visual integrada foi aprovada e
+o proprietário autorizou sua implementação. O compositor `continuous-scene-v2`
+foi implementado e duas amostras reais foram conferidas localmente. Falta atualizar
+a hospedagem e conferir o primeiro lote de três rascunhos. A referência gerada no
+chat e os testes locais não comprovam essa etapa remota.
+
+Serão três artes por lote. O seguinte será criado no terceiro dia do atual.
 Não preparar a pasta inteira nem manter uma reposição móvel diária de três itens.
 
 ## Montagem real
 
-`product_scene.py` extrai o papel do envelope de sua fotografia e projeta a
-impressão original no envelope frontal e na pilha sobre a mesa. O resto da
-fotografia não vira um retângulo sobre o cenário. As sombras e a espessura são
-aplicadas fora da impressão; não há redesenho de letras, logos ou QR Codes por IA.
+`product_scene.py` usa um cenário contínuo com mesa, papéis, espessura, sombras
+e contato de WhatsApp. Somente a superfície impressa da foto original é projetada
+nas faces calibradas da pilha e do envelope frontal, respeitando sua oclusão.
+A luz do papel modula discretamente a impressão, entre 0,94 e 1,04. Letras,
+logos e QR Codes vêm do original, sem redesenho por IA; seus pixels são
+reamostrados e iluminados, não preservados literalmente.
 
-Os quinze cabeçalhos foram preparados uma vez, abertos e conferidos visualmente.
-São componentes locais com a tipografia 3D, sem esticar letras em tempo de execução.
-`headers/manifest.json` vincula cada arquivo a sua chamada e hash. O servidor não
-faz chamadas de geração de imagens ou textos para os lotes diários.
+As quinze chamadas são PNGs transparentes preparados e conferidos uma vez, sem
+painel opaco nem letras esticadas. `typography/manifest.json` vincula cada arquivo
+à frase e ao hash; `scene-v2.json` vincula cenário e geometria. A rotina do servidor
+não chama geração de imagens ou textos por IA e não exige abrir o chat diariamente.
 
 Duas amostras integralmente visíveis tiveram cantos conferidos e vinculados ao
 hash do original, sem guardar suas fotos no repositório. Para as outras, o OpenCV
@@ -45,7 +52,8 @@ python3.12 -m pip install --user --no-cache-dir -r requirements.txt
 python3.12 feed_autonomy.py prepare-batch
 ```
 
-Usar o Python do virtualenv, se houver. A dependência gratuita adicional é
+Usar o Python do virtualenv, se houver. Se as dependências já estão atualizadas,
+não é necessário repetir a instalação. A dependência gratuita de recorte é
 `opencv-python-headless`; nenhuma API paga é necessária. O comando verifica a
 conta exata @arte.no.altar, cancela somente a fila ligada à rotina anterior e
 prepara até três rascunhos de teste. Há limite de tentativas: se não encontrar três
@@ -76,11 +84,21 @@ para interromper a criação e cancelar somente a fila automática, se necessár
 
 ## Verificação local e limites
 
-Os testes cobrem: recorte de papel sem levar o fundo, preservação de marcadores
-impressos, rejeição de contornos inválidos, banco de quinze cabeçalhos, ciclos,
+Suíte local: **138 testes aprovados**; verificações de sintaxe JavaScript e de
+diferenças também passaram. Drive e Meta são simulados nesses testes; nenhum
+lote de produção foi criado por essa verificação.
+
+Os testes cobrem: recorte de papel sem levar o fundo, conteúdo de marcadores
+impressos, rejeição de contornos inválidos, banco de quinze chamadas transparentes, ciclos,
 acesso a somente três candidatas entre dez, espera até o terceiro dia, lote de
 rascunhos sem agendamento, promoção das mesmas imagens aprovadas, recuperação,
 cancelamentos e bloqueio de execução concorrente. Drive/Meta são simulados.
 Duas amostras reais foram renderizadas localmente pela mesma montagem; outra
 amostra oculta foi retida. O primeiro lote real da hospedagem ainda precisa ser
 conferido. Stories e carrosséis não fazem parte desta mudança.
+
+## Histórico visual
+
+A montagem retangular e `ambient-scene-v1` foram rejeitados. A nova aprovação
+da referência integrada autorizou a implementação de `continuous-scene-v2`;
+não reaprova os layouts anteriores. Ver [COMPOSITION_REVIEW.md](COMPOSITION_REVIEW.md).

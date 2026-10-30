@@ -50,9 +50,12 @@ def initialize(conn):
 
 
 def rules_hash():
-    headers = b''.join(path.read_bytes() for path in sorted((product_scene.ASSETS/'headers').glob('*.jpg')))
-    return hashlib.sha256(composer.TEMPLATE.read_bytes() + headers + product_scene.VERSION.encode() +
-                          json.dumps(composer.PHRASES, ensure_ascii=False).encode()).hexdigest()
+    digest = hashlib.sha256(product_scene.VERSION.encode())
+    for path in product_scene.asset_files():
+        digest.update(str(path.relative_to(product_scene.ASSETS)).encode()+b'\0')
+        digest.update(path.read_bytes())
+    digest.update(json.dumps(composer.PHRASES, ensure_ascii=False).encode())
+    return digest.hexdigest()
 
 
 def engine():
@@ -157,8 +160,7 @@ def enable(directory, *, approve_layout=False, preview=False):
     if (old.get('layout_review_required') or old.get('batch_review_required')) and not approve_layout:
         raise ValueError('O layout automático foi rejeitado e precisa ser corrigido e aprovado antes da reativação.')
     product_scene.backend()
-    if any(not (product_scene.ASSETS/'headers'/f'{i:02d}.jpg').is_file() for i in range(15)):
-        raise ValueError('O banco de cabeçalhos está incompleto.')
+    product_scene.validate_assets([composer.phrase('generico', i) for i in range(15)])
     verification = meta.verify_accounts(directory)
     accounts = [a for a in verification['accounts'] if a['channel'] == 'Instagram'
                 and a['name'].lstrip('@').casefold() == ACCOUNT and a.get('publishing_scope_granted')]

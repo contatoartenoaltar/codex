@@ -1,6 +1,26 @@
 # Situação e próximos passos — Arte no Altar
 
-**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
+**Pendência atual — 30/10/2026:** a nova referência integrada foi aprovada e sua
+implementação autorizada. `continuous-scene-v2` reúne cenário contínuo, quinze
+frases transparentes e impressão original dos envelopes, com perspectiva, oclusão
+e iluminação do papel. Duas amostras reais foram renderizadas localmente; uma
+amostra parcialmente oculta continua retida. Falta atualizar a hospedagem e
+conferir três rascunhos reais antes de retomar a rotina. Não houve ação remota.
+
+Seguir [FEED_BATCHES.md](FEED_BATCHES.md): atualizar, executar `prepare-batch`,
+usar **Web → Reload** e revisar o lote no Estúdio. Depois da revisão, a ativação
+com `enable --approve-layout` agenda os mesmos arquivos. Serão três artes por
+lote, um feed diário às 12h de São Paulo; no terceiro dia prepara as três seguintes.
+Não preparar os 84 arquivos nem pedir escolhas diárias. Não há API de IA paga
+nessa rotina. Stories, carrosséis, backups e alertas permanecem fora desta correção.
+
+## Histórico — etapas anteriores, sem alterar o estado atual acima
+
+As descrições de OCR, seleção de temas, cabeçalho opaco e reposição móvel abaixo
+registram etapas superadas. `ambient-scene-v1` foi rejeitado; a aprovação da nova
+referência não comprova a atualização nem a revisão do lote na hospedagem.
+
+**Decisão daquela etapa:** o proprietário aprovou a nova ambientação com o envelope
 recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
 por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
 usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira

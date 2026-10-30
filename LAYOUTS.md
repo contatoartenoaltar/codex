@@ -1,31 +1,27 @@
-# Layouts — feed comercial aprovado e integrado à montagem
+# Layouts — feed integrado e histórico das propostas
 
-**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
-recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
-por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
-usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira
-execução na hospedagem será um lote de teste em rascunho, antes de retomar envios.
-A aprovação da amostra não comprova recortes corretos dos 84 arquivos.
-**Instruções atuais de atualização e teste:** [FEED_BATCHES.md](FEED_BATCHES.md).
+**Estado atual — 30/10/2026:** o proprietário aprovou a nova referência completa,
+com frase, envelopes e ambiente integrados, e autorizou sua implementação.
+O gerador `continuous-scene-v2` usa uma cena contínua, quinze frases transparentes
+e impressão original aplicada às faces dos papéis. A cena fornece bordas, espessura,
+sombras e oclusão; a impressão recebe ajuste discreto de luz, sem redesenho por IA.
+Formato **1080 × 1350**; WhatsApp **35 9 8442-8442**.
 
+Duas amostras reais foram renderizadas e conferidas localmente. Uma amostra
+parcialmente oculta continua retida. A atualização da hospedagem e a revisão
+do primeiro lote de três rascunhos permanecem pendentes; não houve ação remota.
+Depois desse teste e da ativação, a rotina prepara três artes e cria as três
+seguintes no terceiro dia, sem API de IA paga, conversa ou escolhas diárias.
+Não preparar os 84 modelos. Instruções: [FEED_BATCHES.md](FEED_BATCHES.md).
 
-**Status mais recente:** o proprietário rejeitou o resultado real da montagem
-automática. O envelope deve ser integrado ao ambiente, com perspectiva e sombra,
-preservando a impressão; o título não pode ficar esticado. A aprovação da arte
-de referência não valida o compositor atual. Usar `feed_autonomy.py pause-review`
-para parar a criação e cancelar somente a fila gerada pela rotina. A reativação
-fica bloqueada até corrigir e aprovar uma saída real do compositor.
+`ambient-scene-v1` foi rejeitado e fica como histórico. A nova referência aprovada
+não reaprova a montagem antiga nem comprova sua reprodução no servidor. Stories
+e carrosséis não foram implementados por esta correção.
 
+## Histórico — estado das etapas anteriores
 
-**Atualização vigente:** o proprietário aprovou quinze frases curtas genéricas.
-A criação diária agora independe de tema e não usa OCR/Tesseract. A rotação de
-imagens, a conferência de possíveis duplicações e os agendamentos existentes
-são preservados. O banco genérico tem ciclo de quinze chamadas. É necessário
-atualizar e reativar a política na hospedagem; ver [FEED_AUTONOMY.md](FEED_AUTONOMY.md).
-As referências abaixo à classificação e às doze frases por tema são históricas.
-
-
-## Estado atual
+As seções abaixo preservam decisões e propostas anteriores; para o fluxo vigente,
+prevalecem o estado acima e [COMPOSITION_REVIEW.md](COMPOSITION_REVIEW.md).
 
 O proprietário pediu execução autônoma, sem escolher modelos ou temas. O fluxo
 principal passa a ser [FEED_AUTONOMY.md](FEED_AUTONOMY.md), com indexação, rotação
@@ -44,7 +40,7 @@ continua válida. `layout_preview.py` e `feed_reference_preview.py` não são o
 compositor atual. O módulo atual é `feed_composer.py`. A rotina diária autônoma
 de criação e a implantação deste fluxo na hospedagem ainda não foram validadas.
 
-## Decisão atual do proprietário
+## Histórico — reinício dos layouts pelo proprietário
 
 Depois de receber as prévias individuais com logo, o proprietário informou:
 “Não gostei, vamos começar do zero os Layouts”. Essa decisão substitui a aprovação

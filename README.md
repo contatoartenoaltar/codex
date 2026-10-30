@@ -1,31 +1,20 @@
 # Arte no Altar — Gestão
 
-**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
-recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
-por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
-usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira
-execução na hospedagem será um lote de teste em rascunho, antes de retomar envios.
-A aprovação da amostra não comprova recortes corretos dos 84 arquivos.
-**Instruções atuais de atualização e teste:** [FEED_BATCHES.md](FEED_BATCHES.md).
+**Estado atual — 30/10/2026:** a nova referência de feed integrado foi aprovada e
+sua implementação autorizada. `continuous-scene-v2` usa cenário contínuo, quinze
+frases transparentes e impressão original nas faces dos envelopes, com perspectiva
+e luz coerentes. Duas amostras reais foram conferidas localmente. Falta atualizar
+a hospedagem e revisar o primeiro lote de três rascunhos; não houve ação remota.
 
+Após essa revisão e ativação, o cron existente cria três artes por lote e, no
+terceiro dia, prepara as três seguintes: um feed diário às 12h de São Paulo,
+sem escolher temas/modelos, sem preparar os 84 arquivos e sem API de IA paga.
+Instruções de atualização, teste e ativação: [FEED_BATCHES.md](FEED_BATCHES.md).
+Os layouts rejeitados, inclusive `ambient-scene-v1`, permanecem apenas no
+[histórico visual](COMPOSITION_REVIEW.md). Stories e carrosséis não mudaram.
 
-**Status mais recente:** o proprietário rejeitou o resultado real da montagem
-automática. O envelope deve ser integrado ao ambiente, com perspectiva e sombra,
-preservando a impressão; o título não pode ficar esticado. A aprovação da arte
-de referência não valida o compositor atual. Usar `feed_autonomy.py pause-review`
-para parar a criação e cancelar somente a fila gerada pela rotina. A reativação
-fica bloqueada até corrigir e aprovar uma saída real do compositor.
-
-
-**Atualização vigente:** o proprietário aprovou quinze frases curtas genéricas.
-A criação diária agora independe de tema e não usa OCR/Tesseract. A rotação de
-imagens, a conferência de possíveis duplicações e os agendamentos existentes
-são preservados. O banco genérico tem ciclo de quinze chamadas. É necessário
-atualizar e reativar a política na hospedagem; ver [FEED_AUTONOMY.md](FEED_AUTONOMY.md).
-As referências abaixo à classificação e às doze frases por tema são históricas.
-
-
-Sistema inicial para gestão individual da Arte no Altar, feito com Python 3.12+ e SQLite, sem dependências externas.
+Sistema para gestão individual da Arte no Altar, feito com Python 3.12+ e SQLite.
+As dependências de hospedagem, Drive e composição estão em `requirements.txt`.
 
 ```bash
 cd /workspace/codex
@@ -67,17 +56,11 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 
 O estado confirmado, o teste validado e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md). O proprietário retomou a integração com Drive para selecionar aleatoriamente modelos sem repetição e criar artes para feed, Stories e carrosséis. Backups e alertas permanecem adiados.
 
-O fluxo principal agora é a [criação diária autônoma](FEED_AUTONOMY.md), conforme
-pedido do proprietário: classificar, sortear e montar sem escolhas diárias.
-O padrão preparado é um feed às 12h, Instagram @arte.no.altar, com até três dias
-à frente e acionamento pelo cron existente. Ainda requer atualização, ativação
-e validação real na hospedagem. O formulário abaixo é opcional.
-
-A [montagem de feed](FEED_COMPOSITION.md) já está integrada ao Estúdio de conteúdo:
-modelo do Drive e tema selecionados no painel, doze chamadas aprovadas alternadas
-com histórico persistente e exportação 1080 × 1350 para rascunho. O layout comercial
-atual foi aprovado após as propostas anteriores. Implantação e teste real do novo
-fluxo, rotação dos modelos e criação diária ainda estão pendentes.
+O fluxo principal é a [criação autônoma](FEED_AUTONOMY.md) em lotes de três dias,
+Instagram @arte.no.altar, com sorteio sem reposição de modelos e quinze frases
+genéricas. Não usa OCR nem depende de escolhas diárias. O formulário manual é
+opcional; suas chamadas antigas por tema permanecem para compatibilidade.
+O feed final tem 1080 × 1350 e WhatsApp **35 9 8442-8442**.
 
 O [conector de leitura da pasta de originais](DRIVE_SETUP.md) já foi autorizado e
 consultado no PythonAnywhere pelo proprietário: 84 PNGs, sem subpastas ou atalhos.
@@ -86,9 +69,10 @@ foi rejeitada pelo proprietário, que pediu reiniciar os layouts do zero após v
 as artes com a logo. A aprovação anterior do preto e dourado foi substituída;
 `black-gold-v1` fica somente como histórico. A logo original e as fotos já estão
 disponíveis em armazenamento privado para a nova composição.
-O proprietário forneceu uma nova referência comercial de feed em 1080 × 1350;
-a prévia com título branco/dourado, foto grande e botão de WhatsApp aguarda avaliação.
-Essa etapa não ativa geração diária, escrita no Drive ou novos formatos de publicação.
+Depois das propostas anteriores rejeitadas, o proprietário aprovou a referência
+integrada e autorizou o compositor atual. A aprovação não comprova sua implantação
+nem a revisão do lote real. O conector continua somente de leitura; esta correção
+não implementa Stories ou carrosséis.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
 com testes isolados e preservação do horário anterior se a nova reserva falhar.

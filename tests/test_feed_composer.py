@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageOps
 import app
 import drive_source
 import feed_composer as feed
+import product_scene
 
 
 class Client:
@@ -54,10 +55,12 @@ class FeedComposerTests(unittest.TestCase):
                             {'request_id': request_id, 'theme': 'ofertas', 'file_id': 'model_original_1234'} | changes,
                             self.client)
 
-    def test_approved_calls_preserve_photo_and_button(self):
+    def test_calls_preserve_legacy_photo_and_each_layouts_button(self):
         original = feed.decode(self.original)
         with Image.open(feed.TEMPLATE) as base:
-            footer = base.convert('RGB').crop((0, 1140, 1080, 1350)).tobytes()
+            legacy_footer = base.convert('RGB').crop((0, 1140, 1080, 1350)).tobytes()
+        with Image.open(product_scene.MASTER) as base:
+            scene_footer = base.convert('RGB').crop((0, 1140, 1080, 1350)).tobytes()
         for theme in feed.PHRASES:
             for index in range(len(feed.PHRASES[theme])):
                 image, box = feed.render(self.original, theme, index)
@@ -65,6 +68,7 @@ class FeedComposerTests(unittest.TestCase):
                 expected = ImageOps.contain(original, (1080, 790), Image.Resampling.LANCZOS)
                 if theme != 'generico':
                     self.assertEqual(image.crop(box).tobytes(), expected.tobytes())
+                footer = scene_footer if theme == 'generico' else legacy_footer
                 self.assertEqual(image.crop((0, 1140, 1080, 1350)).tobytes(), footer)
                 self.assertTrue(feed.phrase(theme, index))
 

@@ -1,21 +1,10 @@
-# Criação diária de feeds com frases genéricas
+# Feeds autônomos com frases genéricas, em lotes de três dias
 
-**Decisão mais recente:** o proprietário aprovou a nova ambientação com o envelope
-recortado sobre a mesa, perspectiva e sombras. Pediu lotes de três artes: um feed
-por dia e, no terceiro dia, preparação do próximo lote de três. O código atual
-usará o novo compositor e cabeçalhos 3D prontos para as quinze frases. A primeira
-execução na hospedagem será um lote de teste em rascunho, antes de retomar envios.
-A aprovação da amostra não comprova recortes corretos dos 84 arquivos.
-**Instruções atuais de atualização e teste:** [FEED_BATCHES.md](FEED_BATCHES.md).
-
-
-**Status mais recente:** o proprietário rejeitou o resultado real da montagem
-automática. O envelope deve ser integrado ao ambiente, com perspectiva e sombra,
-preservando a impressão; o título não pode ficar esticado. A aprovação da arte
-de referência não valida o compositor atual. Usar `feed_autonomy.py pause-review`
-para parar a criação e cancelar somente a fila gerada pela rotina. A reativação
-fica bloqueada até corrigir e aprovar uma saída real do compositor.
-
+**Estado atual — 30/10/2026:** o proprietário aprovou a nova referência integrada
+e autorizou implementar a montagem correspondente. `continuous-scene-v2` está
+implementado, com duas amostras reais renderizadas localmente. Falta atualizar a
+hospedagem e revisar três rascunhos produzidos pelo mesmo código antes da ativação.
+Não houve ação remota. Ver [FEED_BATCHES.md](FEED_BATCHES.md) para o procedimento.
 
 O proprietário aprovou quinze chamadas curtas genéricas e pediu que a rotina
 não dependa mais de identificar dízimos, ofertas, primícias ou Santa Ceia.
@@ -23,18 +12,24 @@ O fluxo principal é automático; o formulário manual é apenas opcional.
 
 ## Fluxo atual
 
-- Instagram **@arte.no.altar**, um feed por dia às **12h**, São Paulo, até três dias
-  preparados. Se houver outro agendamento, buscar janela livre até 14h.
+- Instagram **@arte.no.altar**, um feed por dia às **12h**, São Paulo, em lotes
+  de três datas consecutivas. No terceiro dia preparar o próximo lote de três.
+  Se houver outro agendamento, buscar janela livre até 14h.
 - Sortear um modelo da pasta autorizada do Drive e uma das quinze chamadas.
 - Usar cada frase uma vez no ciclo de quinze, evitando repetição imediata na virada.
-- Montar em **1080 × 1350**, mantendo a foto inteira e o botão com **35 9 8442-8442**.
-- Agendar pela política autorizada, sem escolhas diárias ou confirmação por arte.
+- Montar em **1080 × 1350** com impressão original projetada nos papéis de um
+  cenário contínuo, quinze chamadas transparentes e WhatsApp **35 9 8442-8442**.
+- Depois do teste inicial e da ativação, agendar pela política autorizada,
+  sem escolhas diárias ou confirmação por arte.
 
 O cron existente executa a criação somente quando a fila de publicação estiver
 ociosa. Não usa OCR, não depende do Tesseract e não chama APIs de IA pagas. Os
 métodos antigos de reconhecimento permanecem apenas para compatibilidade histórica;
 não são chamados pelo fluxo atual. As chamadas antigas por tema também ficam
 somente para preservar referências de composições anteriores.
+O cenário e as chamadas são arquivos locais preparados uma vez. A montagem
+respeita perspectiva e oclusão e aplica variação discreta de luz à impressão,
+sem redesenhar seu texto, logos ou QR Codes. Não há painel opaco sobre o cenário.
 
 ## Frases aprovadas
 
@@ -66,7 +61,8 @@ contornar pendências, e consultar novos arquivos antes de permitir repetição.
 Na atualização, os hashes e comparações já calculados são reaproveitados para
 arquivos que não mudaram. Falta de reconhecimento de tema deixa de ser motivo
 para retenção. Dúvidas de duplicação continuam retidas. Imagens ainda não conferidas
-são processadas gradualmente, uma por chamada ociosa. Não reiniciar todo o índice
+são processadas conforme a necessidade do lote, uma por chamada ociosa; não é
+necessário preparar a pasta inteira. Não reiniciar todo o índice
 nem apagar histórico. Reservas sem arte criada são migradas para o banco genérico;
 rascunhos e agendamentos anteriores são preservados.
 
@@ -75,18 +71,27 @@ rascunhos e agendamentos anteriores são preservados.
 ```bash
 cd /home/artenoaltar/arte-no-altar
 git pull --ff-only origin main
-python3.12 feed_autonomy.py enable
+python3.12 -m pip install --user --no-cache-dir -r requirements.txt
+python3.12 feed_autonomy.py prepare-batch
 ```
 
-Depois, **Web → Reload** e atualizar o site. A reativação registra o novo banco de
-textos aprovado, preservando a identidade da política, a conta e a rotação de
-imagens. Não mudar o cron ou suas chaves; não é necessário atualizar o plugin.
-Até atualizar e reativar, a hospedagem continua com a versão anterior.
+Usar o Python do virtualenv, se houver; a instalação pode ser omitida quando as
+dependências já estão atualizadas. `prepare-batch` pausa a fila automática antiga
+e prepara até três rascunhos de teste, sem agendar ou publicar. Depois, **Web →
+Reload**, atualizar o site e conferir os rascunhos no Estúdio. A revisão deve usar
+essas saídas reais, sem tomar a referência gerada no chat como prova do servidor.
 
-Consultar: `python3.12 feed_autonomy.py status`. A rotina segue ativa com o chat e
-as abas fechados. O painel mostra imagens prontas, em conferência e possíveis
+Depois de validar o lote, `python3.12 feed_autonomy.py enable --approve-layout`
+ativa a política e agenda os mesmos arquivos. O histórico de modelos e frases é
+preservado. Não mudar o cron ou suas chaves; não é necessário atualizar o plugin.
+Até executar a atualização, a hospedagem continua com a versão anterior.
+
+Consultar: `python3.12 feed_autonomy.py status`. Depois de ativada, a rotina executa
+com o chat e as abas fechados. O painel mostra imagens prontas, em conferência e possíveis
 duplicações. Para pausar a criação: `python3.12 feed_autonomy.py disable`.
-Isso não cancela agendamentos existentes; usar as funções próprias para cancelá-los.
+Isso não cancela agendamentos existentes. `pause-review` também cancela somente
+a fila ligada à rotina automática e bloqueia a retomada sem revisão; envios já
+iniciados e publicações manuais não são cancelados por esse comando.
 
 ## Política e recuperação
 
@@ -100,6 +105,13 @@ Os registros e bloqueios impedem criações duplicadas após interrupções e ex
 simultâneas. Cancelamentos não são recriados, e rascunhos alterados manualmente
 não são agendados pela rotina. Mudanças no original exigem nova conferência.
 Resultados incertos da Meta continuam para revisão, sem reenvio automático.
+
+## Histórico visual
+
+A montagem retangular e `ambient-scene-v1`, com cabeçalho opaco, foram rejeitadas.
+A aprovação da nova referência integrada autorizou implementar `continuous-scene-v2`;
+não é aprovação de uma saída ainda não conferida na hospedagem. Stories e
+carrosséis não fazem parte desta atualização.
 
 ## Revisão excepcional
 
