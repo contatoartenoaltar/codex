@@ -7,6 +7,7 @@ import auth
 import meta
 import publishing
 import scheduling
+import social_mcp
 import html
 import urllib.error
 import urllib.request
@@ -51,6 +52,7 @@ def initialize():
         ''')
         publishing.initialize(c)
         scheduling.initialize(c)
+        social_mcp.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -166,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if urlsplit(self.path).path == '/mcp':
+            return social_mcp.handle(self, 'GET', connect, DB.parent)
         if self.path.startswith('/media/'):
             try:
                 payload=publishing.image_file(DB.parent,self.path.removeprefix('/media/')).read_bytes()
@@ -217,6 +221,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self):
+        if urlsplit(self.path).path == '/mcp':
+            return social_mcp.handle(self, 'POST', connect, DB.parent)
         # Origem explícita obrigatória também para login (proteção CSRF).
         if not self.valid_origin():
             return self.send_json({'error': 'Origem não permitida.'}, 403)
@@ -381,3 +387,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', '8000'))
     print(f'Arte no Altar: servidor local na porta {port}', flush=True)
     ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()
+

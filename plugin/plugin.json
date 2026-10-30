@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "arte-no-altar",
+  "version": "0.1.0",
+  "description": "Consultas sociais e importação confirmada de rascunhos para o sistema Arte no Altar.",
+  "author": {"name": "Arte no Altar"},
+  "extensions": {"com.openai": {"interface": {
+    "displayName": "Arte no Altar",
+    "shortDescription": "Conteúdo social e rascunhos",
+    "longDescription": "Consulta contas verificadas em cache, fila local e histórico local. Importa JPEG e legenda como rascunho mediante confirmação. Não publica. Transferência de anexos do ChatGPT depende de validação do cliente.",
+    "developerName": "Arte no Altar",
+    "capabilities": [],
+    "defaultPrompt": "Prepare um conteúdo para a Arte no Altar, consulte a agenda e mostre os detalhes para minha confirmação antes de transferir como rascunho."
+  }}}
+}

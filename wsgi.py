@@ -15,6 +15,7 @@ class Request(app.Handler):
             if name.startswith('HTTP_'):
                 self.headers[name[5:].replace('_', '-')] = value
         self.headers['Content-Length'] = environ.get('CONTENT_LENGTH') or '0'
+        self.headers['Content-Type'] = environ.get('CONTENT_TYPE') or ''
         self.rfile = environ['wsgi.input']
         self.wfile = io.BytesIO()
         self.response_headers = []
@@ -41,3 +42,4 @@ def application(environ, start_response):
         request.send_json({'error': 'Método não permitido.'}, 405)
     start_response(f'{request.status} {HTTPStatus(request.status).phrase}', request.response_headers)
     return [request.wfile.getvalue()]
+
