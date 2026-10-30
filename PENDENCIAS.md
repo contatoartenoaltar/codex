@@ -34,14 +34,11 @@ solicitação e confirmação do proprietário.
 
 ## Próximas melhorias propostas
 
-1. Configurar backups externos automáticos e sua restauração, mantendo imagens e
-   configurações privadas protegidas; alertas de falha ou necessidade de reconexão
-   à Meta também estão pendentes. Não confundir status consultável com alerta enviado.
-2. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
+1. Implementar e testar Stories: formato vertical, legenda opcional e diferenças
    de publicação de cada canal. A foto de feed atual não equivale a um Story.
-3. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
+2. Implementar e testar carrosséis: múltiplas imagens, ordem dos slides, revisão,
    importação, publicação e agendamento.
-4. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
+3. Planejar lotes dos próximos três dias a partir da rotina editorial, consultar
    horários existentes e evitar temas repetidos. Não há execução autônoma da criação
    de novas artes/legendas fora da conversa; definir e validar esse mecanismo antes
    de prometer que o ChatGPT gerará conteúdo continuamente.
@@ -51,6 +48,12 @@ ainda não revisados nem contratar serviços.
 
 ## Adiado a pedido do proprietário
 
+- **Lembrete para a próxima revisão das pendências:** retomar backup automático
+  e alertas de falha. O proprietário pediu expressamente para deixar a implementação
+  para outro momento e ser lembrado. Ainda faltam cópias externas automáticas,
+  restauração e proteção das imagens/configurações privadas, além dos alertas de
+  falhas de publicação ou necessidade de reconectar à Meta. Esse é um lembrete de
+  acompanhamento do projeto, sem data definida ou notificação automática agendada.
 - Conexão com a pasta privada de originais no Google Drive, catálogo de modelos e
   pasta de saída para as artes finais. O link de origem já foi fornecido; o acesso
   e o conteúdo ainda não foram validados nesta conversa.
