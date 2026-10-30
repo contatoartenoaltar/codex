@@ -1,4 +1,18 @@
-# Layouts — nova referência de feed; aguardando avaliação da prévia
+# Layouts — feed comercial aprovado e integrado à montagem
+
+## Estado atual
+
+Depois da rejeição da prévia `feed-gold-commercial-v2`, foi produzida uma nova
+arte seguindo mais fielmente a referência enviada. O proprietário aprovou essa
+composição e ajustou o botão até o texto `35 9 8442-8442`, com número destacado
+em branco e contorno verde. Depois aprovou as doze chamadas curtas (três por tema),
+com tema grande em dourado e complemento em branco, e autorizou a integração.
+
+O fluxo está implementado no painel e descrito em [FEED_COMPOSITION.md](FEED_COMPOSITION.md).
+As seções seguintes registram o histórico das propostas anteriores; sua rejeição
+continua válida. `layout_preview.py` e `feed_reference_preview.py` não são o
+compositor atual. O módulo atual é `feed_composer.py`. A rotina diária autônoma
+de criação e a implantação deste fluxo na hospedagem ainda não foram validadas.
 
 ## Decisão atual do proprietário
 

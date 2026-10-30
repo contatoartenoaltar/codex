@@ -34,6 +34,14 @@ solicitação e confirmação do proprietário.
 
 ## Próximas melhorias propostas
 
+**Atualização:** após as propostas rejeitadas abaixo, o proprietário aprovou o
+novo feed comercial e doze chamadas curtas. A montagem com Drive e alternância
+persistente das frases foi integrada ao Estúdio de conteúdo. Ver
+[FEED_COMPOSITION.md](FEED_COMPOSITION.md) para implantação e teste real.
+O modelo e seu tema ainda são selecionados no painel; agrupamento, sorteio geral
+sem repetição e criação diária sem abrir o chat permanecem pendentes. O cron e
+os agendamentos existentes não foram alterados.
+
 Primeira parte validada pelo proprietário: consulta autenticada pelo servidor,
 somente leitura, encontrou 84 PNGs na pasta de originais, sem subpastas ou atalhos.
 O download real de três amostras também funcionou e o ZIP foi enviado à conversa.

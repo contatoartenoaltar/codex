@@ -84,6 +84,13 @@ Manter os próximos três dias programados. Antes de criar ou agendar, consultar
 
 ## Imagens e identidade visual
 
+Atualização posterior às rejeições registradas abaixo: o proprietário aprovou o
+novo feed comercial com botão e número `35 9 8442-8442`, as doze chamadas curtas
+e sua integração. `feed_composer.py` monta o feed com a foto preservada e alterna
+as chamadas por tema. O painel salva o resultado como rascunho; ainda faltam a
+classificação dos modelos, o sorteio sem repetição e a execução diária autônoma.
+Detalhes e implantação em [FEED_COMPOSITION.md](FEED_COMPOSITION.md).
+
 Decisão visual atual: o proprietário rejeitou a primeira proposta de feed, Story
 e carrossel com logo e pediu começar os layouts do zero. Essa decisão substitui
 a aprovação anterior do preto e dourado. O script `layout_preview.py` ainda gera

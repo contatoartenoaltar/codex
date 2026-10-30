@@ -9,6 +9,7 @@ import publishing
 import scheduling
 import scheduler_http
 import social_mcp
+import feed_composer
 import html
 import urllib.error
 import urllib.request
@@ -55,6 +56,7 @@ def initialize():
         scheduling.initialize(c)
         scheduler_http.initialize(c)
         social_mcp.initialize(c)
+        feed_composer.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -264,6 +266,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({'ok': True})
             if self.path == '/api/media':
                 return self.send_json(publishing.upload(DB.parent,d.get('data')),201)
+            if self.path == '/api/feed/models':
+                return self.send_json(feed_composer.models(DB.parent))
+            if self.path == '/api/feed/compose':
+                return self.send_json(feed_composer.compose(connect, DB.parent, d), 201)
             if self.path == '/api/posts/update':
                 with connect() as c:
                     result=publishing.update(c,DB.parent,d)

@@ -42,6 +42,12 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 
 O estado confirmado, o teste validado e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md). O proprietário retomou a integração com Drive para selecionar aleatoriamente modelos sem repetição e criar artes para feed, Stories e carrosséis. Backups e alertas permanecem adiados.
 
+A [montagem de feed](FEED_COMPOSITION.md) já está integrada ao Estúdio de conteúdo:
+modelo do Drive e tema selecionados no painel, doze chamadas aprovadas alternadas
+com histórico persistente e exportação 1080 × 1350 para rascunho. O layout comercial
+atual foi aprovado após as propostas anteriores. Implantação e teste real do novo
+fluxo, rotação dos modelos e criação diária ainda estão pendentes.
+
 O [conector de leitura da pasta de originais](DRIVE_SETUP.md) já foi autorizado e
 consultado no PythonAnywhere pelo proprietário: 84 PNGs, sem subpastas ou atalhos.
 O download de três amostras foi validado e a [primeira proposta de layouts](LAYOUTS.md)

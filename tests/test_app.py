@@ -84,6 +84,19 @@ class WorkflowTests(unittest.TestCase):
 
 
     def test_authentication_logout_and_csrf(self):
+        for endpoint in ('feed/models', 'feed/compose'):
+            request = urllib.request.Request(self.base+'/api/'+endpoint, data=b'{}',
+                                             headers={'Content-Type': 'application/json', 'Origin': self.base})
+            with self.assertRaises(urllib.error.HTTPError) as denied:
+                urllib.request.urlopen(request)
+            self.assertEqual(denied.exception.code, 401)
+            denied.exception.close()
+            request = urllib.request.Request(self.base+'/api/'+endpoint, data=b'{}',
+                                             headers={'Content-Type': 'application/json', 'Origin': 'https://other.example'})
+            with self.assertRaises(urllib.error.HTTPError) as denied:
+                self.opener.open(request)
+            self.assertEqual(denied.exception.code, 403)
+            denied.exception.close()
         with self.assertRaises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(self.base+'/api/state')
         self.assertEqual(error.exception.code, 401)
