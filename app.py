@@ -225,6 +225,9 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as c:
                     meta.disconnect(c, DB.parent)
                 return self.send_json({'ok': True})
+            if self.path == '/api/meta/verify':
+                meta.verify_accounts(DB.parent)
+                return self.send_json({'ok': True})
             with connect() as c:
                 if self.path == '/api/transactions':
                     kind = required(d, 'kind')

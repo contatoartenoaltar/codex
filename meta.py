@@ -86,7 +86,13 @@ def status(directory):
     expires = stored.get('expires_at')
     expired = isinstance(expires,(int,float)) and expires <= time.time()
     authorized = bool(stored.get('access_token')) and not expired and stored.get('app_id') == settings['app_id']
-    return {'configured':True,'authorized':authorized,'accounts_verified':False,'callback_url':callback,
+    verification = read_private(directory/'meta-verification.json') if authorized else {}
+    if verification.get('token_hash') != digest(stored.get('access_token','')):
+        verification = {}
+    accounts = verification.get('accounts',[])
+    return {'configured':True,'authorized':authorized,'accounts_verified':bool(accounts),'accounts':accounts,
+            'permissions':verification.get('permissions',[]),'checked_at':verification.get('checked_at'),
+            'verification_notes':verification.get('notes',[]),'callback_url':callback,
             'message':('Autorização recebida. Contas e permissões de publicação ainda precisam ser verificadas.' if authorized else 'Autorização expirada. Conecte novamente.' if expired else 'Pronto para solicitar autorização à Meta.')}
 
 
@@ -122,6 +128,98 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def graph_read(settings, path, token, params=None):
+    """Somente GET em destino fixo. Nunca registrar URL, cabeçalhos ou erros brutos."""
+    if not re.fullmatch(r'[A-Za-z0-9_/]+',path):
+        raise ValueError('Consulta da Meta inválida.')
+    query = urllib.parse.urlencode(params or {})
+    request = urllib.request.Request(f'https://graph.facebook.com/{settings["version"]}/{path}?{query}',
+        headers={'Authorization':f'Bearer {token}','Accept':'application/json'})
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request,timeout=20) as response:
+            result=json.loads(response.read(262144))
+        if not isinstance(result,dict) or 'error' in result:
+            raise ValueError('A Meta recusou a consulta. Confira as permissões e os ativos liberados no aplicativo.')
+        return result
+    except urllib.error.HTTPError as error:
+        # O texto do provedor pode conter dados privados; não é retornado nem logado.
+        error.close()
+        raise ValueError('A Meta recusou a consulta. Confira a validade da autorização, as permissões e os ativos liberados no aplicativo.') from None
+    except (urllib.error.URLError,OSError,TimeoutError,json.JSONDecodeError):
+        raise ValueError('Não foi possível consultar a Meta. Confira o acesso a graph.facebook.com no servidor e tente novamente.') from None
+
+
+def verify_accounts(directory):
+    settings=config(directory)
+    stored=read_private(directory/'meta-connection.json')
+    token=stored.get('access_token')
+    if not token or stored.get('app_id')!=settings['app_id']:
+        raise ValueError('Conecte à Meta antes de verificar as contas.')
+    (directory/'meta-verification.json').unlink(missing_ok=True)
+    # A introspecção informa validade, escopos e ativos efetivamente concedidos.
+    # input_token é exigido pela API de introspecção; nunca imprimir esta URL.
+    debug=graph_read(settings,'debug_token',settings['app_id']+'|'+settings['app_secret'],{'input_token':token}).get('data',{})
+    if not isinstance(debug,dict) or debug.get('is_valid') is not True or str(debug.get('app_id'))!=settings['app_id']:
+        raise ValueError('A autorização não está válida para este aplicativo. Conecte novamente à Meta.')
+    now=int(time.time())
+    for field in ['expires_at','data_access_expires_at']:
+        expiration=debug.get(field)
+        if isinstance(expiration,(int,float)) and expiration>0 and expiration<=now:
+            raise ValueError('A autorização expirou. Conecte novamente à Meta.')
+    scopes=debug.get('scopes',[])
+    scopes=sorted({s for s in scopes if isinstance(s,str) and re.fullmatch(r'[a-z_]+',s)}) if isinstance(scopes,list) else []
+    proof=hmac.new(settings['app_secret'].encode(),token.encode(),hashlib.sha256).hexdigest()
+    accounts,notes,targets=[],[],set()
+    granular=debug.get('granular_scopes',[])
+    if isinstance(granular,list):
+        for grant in granular:
+            if isinstance(grant,dict) and grant.get('scope')=='instagram_basic':
+                values=grant.get('target_ids',[])
+                for target in (values if isinstance(values,list) else [])[:20]:
+                    if isinstance(target,str) and target.isdecimal():
+                        targets.add(target)
+    # Esta rota exige páginas concedidas; o modelo Unified Login pode conceder
+    # somente Instagram, o que não implica autorização de uma página Facebook.
+    if 'pages_show_list' in scopes:
+        try:
+            pages=graph_read(settings,'me/accounts',token,{'fields':'id,name,instagram_business_account{id,username}','limit':50,'appsecret_proof':proof})
+            values=pages.get('data',[])
+            if not isinstance(values,list):
+                raise ValueError('A Meta retornou uma lista de páginas inválida. Tente novamente.')
+            for page in values[:50]:
+                if not isinstance(page,dict) or not str(page.get('id','')).isdecimal():
+                    continue
+                accounts.append({'channel':'Facebook','id':str(page['id']),'name':str(page.get('name','Página do Facebook'))[:200],
+                    'publishing_scope_granted':'pages_manage_posts' in scopes})
+                instagram=page.get('instagram_business_account')
+                if isinstance(instagram,dict) and str(instagram.get('id','')).isdecimal():
+                    targets.add(str(instagram['id']))
+            if isinstance(pages.get('paging'),dict) and pages['paging'].get('next'):
+                notes.append('A consulta foi limitada às primeiras 50 páginas. A lista pode estar incompleta.')
+        except ValueError as error:
+            notes.append(str(error))
+    else:
+        notes.append('pages_show_list não foi concedida. Nenhuma página Facebook foi confirmada.')
+    for target in sorted(targets)[:20]:
+        try:
+            account=graph_read(settings,target,token,{'fields':'id,username','appsecret_proof':proof})
+            if not account.get('username') or str(account.get('id'))!=target:
+                notes.append('Uma conta Instagram não pôde ser identificada nesta consulta.')
+                continue
+            accounts.append({'channel':'Instagram','id':target,'name':str(account['username'])[:200],
+                'publishing_scope_granted':'instagram_content_publish' in scopes})
+        except ValueError as error:
+            notes.append(str(error))
+    if not accounts:
+        notes.append('O token é válido, mas nenhuma conta foi identificada. Confira os ativos e permissões na configuração do login da Meta.')
+    result={'token_hash':digest(token),'accounts':accounts,'permissions':scopes,'checked_at':now,'notes':list(dict.fromkeys(notes))}
+    try:
+        write_private(directory/'meta-verification.json',result)
+    except OSError:
+        raise ValueError('Não foi possível salvar a verificação no servidor. Confira as permissões do disco.') from None
+    return result
+
+
 def exchange(directory, code):
     if not code or len(code)>8192:
         raise ValueError('A Meta não retornou um código de autorização válido.')
@@ -151,6 +249,7 @@ def exchange(directory, code):
 
 def disconnect(conn, directory):
     (directory/'meta-connection.json').unlink(missing_ok=True)
+    (directory/'meta-verification.json').unlink(missing_ok=True)
     conn.execute('DELETE FROM meta_oauth_states')
 
 
