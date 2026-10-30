@@ -139,7 +139,7 @@ class PublishingTests(unittest.TestCase):
 
     def test_http_error_has_codes_without_secret_provider_text(self):
         import urllib.error
-        response={'error':{'code':100,'error_subcode':2207052,'message':'Cannot fetch image from https://private.example?access_token=secret-value app-secret'}}
+        response={'error':{'code':100,'error_subcode':2207052,'message':'Cannot fetch image from https://private.example?access_token=secret-value test-secret'}}
         error=urllib.error.HTTPError('https://graph.facebook.com',400,'Bad Request',{},io.BytesIO(json.dumps(response).encode()))
         with patch('urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect=error
@@ -152,6 +152,44 @@ class PublishingTests(unittest.TestCase):
         self.assertNotIn('secret-value',text)
         self.assertNotIn('private.example',text)
         self.assertNotIn('app-secret',text)
+        self.assertNotIn('test-secret',text)
+
+    def test_preparation_test_creates_container_without_publishing(self):
+        self.account['channel']='Instagram'
+        name=publishing.upload(app.DB.parent,base64.b64encode(jpeg()).decode())['name']
+        with app.connect() as c:
+            c.execute("UPDATE posts SET channel='Instagram',publish_status='review',image_name=?",(name,))
+        with patch('publishing.graph_post',return_value={'id':'1234'}) as send:
+            data={'id':1,'revision':0,'confirmed':True,'confirmed_absent':True}
+            result=publishing.publish(app.connect,app.DB.parent,data,prepare_only=True)
+            self.assertEqual(result['status'],'processing')
+            self.assertEqual(send.call_count,1)
+            self.assertEqual(send.call_args.args[1],'999/media')
+            self.assertNotIn('media_publish',str(send.call_args))
+            self.assertEqual(self.row()['remote_id'],'')
+            self.assertEqual(self.row()['container_id'],'1234')
+            with self.assertRaises(ValueError):
+                publishing.publish(app.connect,app.DB.parent,data,prepare_only=True)
+            self.assertEqual(send.call_count,1)
+
+    def test_preparation_test_requires_absence_confirmation(self):
+        with patch('publishing.graph_post') as send:
+            with self.assertRaises(ValueError):
+                publishing.publish(app.connect,app.DB.parent,{'id':1,'revision':0,'confirmed':True},prepare_only=True)
+            send.assert_not_called()
+
+    def test_meta_user_message_is_preserved_with_credentials_removed(self):
+        import urllib.error
+        response={'error':{'code':9004,'error_subcode':2207052,
+            'error_user_title':'Media download failed',
+            'error_user_msg':'The image could not be fetched from this URI: https://private.example/file.jpg',
+            'message':'token test-token secret test-secret authorization=abc123'}}
+        error=urllib.error.HTTPError('https://graph.facebook.com',400,'Bad Request',{},io.BytesIO(json.dumps(response).encode()))
+        text=meta.error_summary(error,['test-token','test-secret'])
+        self.assertIn('Media download failed',text)
+        self.assertIn('The image could not be fetched',text)
+        for private in ['test-token','test-secret','private.example','abc123']:
+            self.assertNotIn(private,text)
 
     def test_diagnosis_does_not_publish_reset_or_claim_absence(self):
         with app.connect() as c:c.execute("UPDATE posts SET channel='Instagram',publish_status='review',publish_error='Erro anterior'")

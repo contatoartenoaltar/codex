@@ -252,6 +252,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path in ['/api/posts/publish','/api/posts/finish']:
                 result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
                 return self.send_json(result,202 if result['status']=='processing' else 200)
+            if self.path == '/api/posts/test-image':
+                result=publishing.publish(connect,DB.parent,d,prepare_only=True)
+                return self.send_json(result,202)
             if self.path == '/api/posts/reset':
                 with connect() as c:
                     publishing.reset(c,d)

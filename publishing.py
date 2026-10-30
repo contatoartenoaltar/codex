@@ -130,7 +130,7 @@ def graph_post(settings, path, token, data):
             raise Uncertain('A resposta não confirmou o resultado. Confira a rede social antes de qualquer nova tentativa.')
         return result
     except urllib.error.HTTPError as error:
-        detail=meta.error_summary(error)
+        detail=meta.error_summary(error,[token,settings['app_secret'],proof,*data.values()])
         raise Uncertain('A Meta recusou o envio ou não confirmou o resultado'+detail+' Confira a rede social antes de tentar novamente.') from None
     except (urllib.error.URLError, OSError, TimeoutError, json.JSONDecodeError):
         raise Uncertain('A conexão terminou sem confirmar o resultado. Confira a rede social antes de tentar novamente, para evitar duplicações.') from None
@@ -144,7 +144,7 @@ def set_status(connect, post_id, status, error='', remote_id='', container_id=''
                      (status,remote_id,post_id))
 
 
-def publish(connect, directory, data, finish=False):
+def publish(connect, directory, data, finish=False, prepare_only=False):
     if data.get('confirmed') is not True:
         raise ValueError('Confirme a publicação depois de revisar o conteúdo e a conta.')
     post_id, revision = data.get('id'), data.get('revision')
@@ -155,7 +155,9 @@ def publish(connect, directory, data, finish=False):
     if not row:
         raise ValueError('Publicação não encontrada.')
     row = dict(row)
-    expected = 'processing' if finish else 'draft'
+    if prepare_only and (finish or row['channel']!='Instagram' or data.get('confirmed_absent') is not True):
+        raise ValueError('Este teste é somente para imagem do Instagram. Confira antes que o post não foi publicado.')
+    expected = 'review' if prepare_only else 'processing' if finish else 'draft'
     if row['publish_status'] != expected or row['revision'] != revision:
         raise ValueError('O rascunho mudou, já está em envio ou já foi publicado. Atualize a página.')
     settings = meta.config(directory)

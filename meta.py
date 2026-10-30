@@ -128,8 +128,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def error_summary(error):
-    """Só códigos numéricos e categorias locais; nunca texto bruto do provedor."""
+def error_summary(error, private_values=()):
+    """Códigos e descrição do provedor com credenciais e URLs removidas."""
     details=[]
     if isinstance(error.code,int):
         details.append(f'HTTP {error.code}')
@@ -155,7 +155,23 @@ def error_summary(error):
         reason='A Meta apontou uma restrição de permissões, tarefas ou configuração do aplicativo.'
     elif 'unsupported' in text or 'does not exist' in text:
         reason='A Meta não aceitou o objeto ou a operação solicitada; confira o acesso à conta.'
-    return ' ('+'; '.join(details)+'). '+reason
+    messages=[]
+    for key in ['error_user_title','error_user_msg','message']:
+        message=value.get(key)
+        if not isinstance(message,str):
+            continue
+        for private in private_values:
+            if isinstance(private,str) and private:
+                for representation in [private,urllib.parse.quote(private,safe=''),urllib.parse.quote_plus(private)]:
+                    message=message.replace(representation,'[dado privado]')
+        message=re.sub(r'https?://[^\s<>"\']+','[endereço omitido]',message,flags=re.I)
+        message=re.sub(r'(?i)(access_token|client_secret|appsecret_proof|authorization)\s*[:=]\s*[^\s,;]+',r'\1=[omitido]',message)
+        message=re.sub(r'[A-Za-z0-9_+/=-]{32,}','[identificador omitido]',message)
+        message=' '.join(message.split())[:500]
+        if message and message not in messages:
+            messages.append(message)
+    description=(' Detalhe da Meta: '+' | '.join(messages)) if messages else ''
+    return ' ('+'; '.join(details)+'). '+reason+description
 
 
 def graph_read(settings, path, token, params=None):
@@ -173,7 +189,7 @@ def graph_read(settings, path, token, params=None):
         return result
     except urllib.error.HTTPError as error:
         # O texto do provedor pode conter dados privados; não é retornado nem logado.
-        detail=error_summary(error)
+        detail=error_summary(error,[token,settings['app_secret'],*(params or {}).values()])
         raise ValueError('A Meta recusou a consulta'+detail) from None
     except (urllib.error.URLError,OSError,TimeoutError,json.JSONDecodeError):
         raise ValueError('Não foi possível consultar a Meta. Confira o acesso a graph.facebook.com no servidor e tente novamente.') from None
