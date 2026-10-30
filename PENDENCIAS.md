@@ -14,12 +14,14 @@ Este registro não é uma consulta em tempo real à hospedagem ou à Meta.
 - Revisão e confirmação pelo plugin do rascunho #3 para Instagram @arte.no.altar,
   em 30/10/2026 às 10h15, America/Sao_Paulo. O retorno informou fila e executor ativo,
   e a captura do sistema mostrou esse agendamento.
+- O proprietário confirmou depois a publicação desse rascunho #3 no Instagram,
+  concluindo o teste de revisão, agendamento pelo plugin e execução automática.
 
-## Teste atual ainda sem confirmação final
+## Teste do agendamento pelo plugin concluído
 
-Conferir a publicação do rascunho #3 na rede e o estado final no sistema.
-O recibo de agendamento e a presença na fila não comprovam publicação. Não reenviar,
-reimportar ou criar outro agendamento para contornar um resultado ainda desconhecido.
+A publicação do rascunho #3 foi confirmada pelo proprietário. Não tratar esse post
+como pendente nem recriá-lo para repetir o teste. Recibos e presença na fila, por si
+sós, continuam não comprovando publicação de outros conteúdos.
 
 ## Próximas melhorias propostas
 
@@ -39,7 +41,8 @@ reimportar ou criar outro agendamento para contornar um resultado ainda desconhe
    de novas artes/legendas fora da conversa; definir e validar esse mecanismo antes
    de prometer que o ChatGPT gerará conteúdo continuamente.
 
-O proprietário autorizou adiantar o primeiro item enquanto aguardava o teste atual.
+O proprietário autorizou adiantar o primeiro item enquanto aguardava o teste, que
+depois teve a publicação confirmada.
 Os demais itens são propostas a priorizar; essa lista não autoriza agendar conteúdos
 ainda não revisados nem contratar serviços.
 

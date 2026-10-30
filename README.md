@@ -38,9 +38,9 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 
 [CONTENT_WORKFLOW.md](CONTENT_WORKFLOW.md) registra a rotina aprovada de Stories e carrosséis, a preservação das artes originais, o armazenamento no Drive e o fluxo anterior via conector Metricool. Esse documento distingue os requisitos futuros das funcionalidades já validadas. O objetivo é transferir conteúdo criado no ChatGPT para o sistema próprio; registrar o fluxo não ativa a conexão ou a automação.
 
-[MCP_INTEGRATION.md](MCP_INTEGRATION.md) preserva a inspeção histórica anterior à implementação. [MCP_SETUP.md](MCP_SETUP.md) descreve a conexão implantada e o plugin 0.2.0: consultas, importações de rascunho e um agendamento real na fila foram confirmados pelo proprietário. A publicação final desse agendamento pelo plugin ainda precisa ser confirmada. Cada sessão precisa ter acesso real ao JPEG para importar; um rascunho existente pode ser agendado pelo ID sem reenviar a imagem. Atualizar o servidor não atualiza automaticamente a habilidade do plugin privado instalado.
+[MCP_INTEGRATION.md](MCP_INTEGRATION.md) preserva a inspeção histórica anterior à implementação. [MCP_SETUP.md](MCP_SETUP.md) descreve a conexão implantada e o plugin 0.2.0: consultas, importações de rascunho, agendamento pelo plugin e publicação final de um teste real foram confirmados pelo proprietário. Cada sessão precisa ter acesso real ao JPEG para importar; um rascunho existente pode ser agendado pelo ID sem reenviar a imagem. Atualizar o servidor não atualiza automaticamente a habilidade do plugin privado instalado.
 
-O estado confirmado, o teste em acompanhamento e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md), incluindo a integração com Drive adiada pelo proprietário.
+O estado confirmado, o teste validado e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md), incluindo a integração com Drive adiada pelo proprietário.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
 com testes isolados e preservação do horário anterior se a nova reserva falhar.

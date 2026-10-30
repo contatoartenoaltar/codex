@@ -2,7 +2,7 @@
 
 O proprietário confirmou um teste real de publicação agendada com o executor rodando no console. Este acionamento HTTP é a alternativa para não depender daquele console: um serviço externo chama o site a cada minuto e o próprio PythonAnywhere processa a fila, com seu banco, imagens e credenciais locais.
 
-O endpoint está implementado e tem testes com publicação simulada. O proprietário instalou a versão, configurou o cron-job.org a cada minuto e confirmou publicação real com o console parado e as abas fechadas. Isso não adiciona Stories ou carrosséis. A versão 0.2.0 do plugin já colocou um rascunho real nessa mesma fila após revisão e confirmação no aplicativo; falta confirmar a publicação final desse teste específico. Consulte [MCP_SETUP.md](MCP_SETUP.md).
+O endpoint está implementado e tem testes com publicação simulada. O proprietário instalou a versão, configurou o cron-job.org a cada minuto e confirmou publicação real com o console parado e as abas fechadas. Isso não adiciona Stories ou carrosséis. O plugin 0.2.0 também colocou um rascunho real nessa mesma fila após revisão e confirmação no aplicativo, e o proprietário confirmou sua publicação final. Consulte [MCP_SETUP.md](MCP_SETUP.md).
 
 ## Instalação no PythonAnywhere
 

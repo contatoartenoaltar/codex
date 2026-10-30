@@ -10,7 +10,8 @@ não garantem acesso a arquivos locais em todas as sessões. O proprietário tam
 confirmou a importação após atualizar o plugin para 0.1.1. O agendamento pelo
 plugin 0.2.0 foi atualizado no aplicativo e o proprietário mostrou um agendamento
 real do rascunho #3 para 30/10/2026 às 10h15, America/Sao_Paulo, com recibo, fila e
-executor ativo. A publicação final desse teste específico ainda não foi confirmada.
+executor ativo. Depois, o proprietário confirmou a publicação desse post, concluindo
+o teste real do fluxo de agendamento pelo plugin.
 O acompanhamento das pendências está em [PENDENCIAS.md](PENDENCIAS.md).
 
 ### Cancelamento e reagendamento no plugin 0.3.0
