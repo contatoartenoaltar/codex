@@ -52,18 +52,32 @@ class FeedComposerTests(unittest.TestCase):
                             {'request_id': request_id, 'theme': 'ofertas', 'file_id': 'model_original_1234'} | changes,
                             self.client)
 
-    def test_all_twelve_approved_calls_preserve_photo_and_button(self):
+    def test_approved_calls_preserve_photo_and_button(self):
         original = feed.decode(self.original)
         with Image.open(feed.TEMPLATE) as base:
             footer = base.convert('RGB').crop((0, 1140, 1080, 1350)).tobytes()
         for theme in feed.PHRASES:
-            for index in range(3):
+            for index in range(len(feed.PHRASES[theme])):
                 image, box = feed.render(self.original, theme, index)
                 self.assertEqual(image.size, (1080, 1350))
                 expected = ImageOps.contain(original, (1080, 790), Image.Resampling.LANCZOS)
                 self.assertEqual(image.crop(box).tobytes(), expected.tobytes())
                 self.assertEqual(image.crop((0, 1140, 1080, 1350)).tobytes(), footer)
                 self.assertTrue(feed.phrase(theme, index))
+
+    def test_fifteen_generic_phrases_rotate_completely_before_repeating(self):
+        self.assertEqual(len(feed.PHRASES['generico']), 15)
+        for index in range(16):
+            self.compose(f'generic-request-number-{index}', theme='generico')
+            if index in (5, 10):
+                app.initialize()
+        with app.connect() as conn:
+            rows = conn.execute("SELECT * FROM feed_compositions WHERE theme='generico' ORDER BY rowid").fetchall()
+            self.assertEqual({r['phrase_index'] for r in rows[:15]}, set(range(15)))
+            self.assertEqual({r['cycle'] for r in rows[:15]}, {1})
+            self.assertEqual(rows[15]['cycle'], 2)
+            self.assertNotEqual(rows[14]['phrase_index'], rows[15]['phrase_index'])
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 0)
 
     def test_rotation_survives_restart_and_request_retry_never_duplicates(self):
         for index in range(7):

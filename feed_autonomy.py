@@ -146,7 +146,6 @@ def policy(directory):
 
 
 def enable(directory):
-    engine()
     verification = meta.verify_accounts(directory)
     accounts = [a for a in verification['accounts'] if a['channel'] == 'Instagram'
                 and a['name'].lstrip('@').casefold() == ACCOUNT and a.get('publishing_scope_granted')]
@@ -185,25 +184,47 @@ def sync_catalog(connect, directory, client):
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
         conn.execute('UPDATE feed_models SET active=0')
+        migrated = []
         for f in files:
-            version = json.dumps([f.get(k) for k in ('md5Checksum', 'modifiedTime', 'size')])
-            old = conn.execute('SELECT version FROM feed_models WHERE file_id=?', (f['id'],)).fetchone()
+            identity = [f.get(k) for k in ('md5Checksum', 'modifiedTime', 'size')]
+            version = json.dumps(identity + ['generic-v1'])
+            old = conn.execute('SELECT * FROM feed_models WHERE file_id=?', (f['id'],)).fetchone()
             if old and old['version'] == version:
                 conn.execute('UPDATE feed_models SET active=1 WHERE file_id=?', (f['id'],))
+            elif (old and old['version'] == json.dumps(identity) and
+                  old['sha256'] and old['model_key'] and old['visual']):
+                # Reaproveitar a conferência do arquivo antigo. OCR incerto não é
+                # mais motivo para retenção; a comparação de duplicações continua.
+                conn.execute("UPDATE feed_models SET active=1,version=?,theme='generico',state='ready' WHERE file_id=?", (version, f['id']))
+                migrated.append(f['id'])
             else:
                 conn.execute('''INSERT OR REPLACE INTO feed_models(file_id,version,active,state)
                                 VALUES(?,?,1,'pending')''', (f['id'], version))
+        if migrated:
+            indexed = conn.execute("SELECT * FROM feed_models WHERE active=1 AND visual!=''").fetchall()
+            for item in indexed:
+                if item['file_id'] not in migrated:
+                    continue
+                for other in indexed:
+                    if item['model_key'] != other['model_key'] and (int(item['visual'], 16) ^ int(other['visual'], 16)).bit_count() <= 12:
+                        conn.execute("UPDATE feed_models SET state='review' WHERE file_id IN (?,?)", (item['file_id'], other['file_id']))
+            conn.execute('''UPDATE feed_auto_slots SET theme='generico'
+                WHERE state='reserved' AND NOT EXISTS
+                    (SELECT 1 FROM feed_compositions c WHERE c.request_id=feed_auto_slots.request_id)
+                  AND file_id IN (SELECT file_id FROM feed_models WHERE active=1 AND theme='generico')''')
     return files
 
 
-def index_one(connect, files, client, recognizer=recognize):
+def index_one(connect, files, client, recognizer=None):
     with connect() as conn:
         row = conn.execute("SELECT * FROM feed_models WHERE active=1 AND state='pending' ORDER BY file_id LIMIT 1").fetchone()
     if not row:
         return False
     item = next(f for f in files if f['id'] == row['file_id'])
     raw = client.download_image(item)
-    theme = recognizer(raw)
+    # A execução normal não lê palavras do envelope. O argumento opcional existe
+    # apenas para compatibilidade com testes e ferramentas antigas de revisão.
+    theme = recognizer(raw) if recognizer is not None else 'generico'
     key, visual = fingerprint(raw)
     state = 'ready' if theme in composer.PHRASES else 'review'
     with connect() as conn:
@@ -330,7 +351,7 @@ def _produce(connect, directory, rules, slot, client):
     return 'prepared'
 
 
-def tick(connect, directory, client=None, recognizer=recognize):
+def tick(connect, directory, client=None, recognizer=None):
     rules = policy(directory)
     if not rules:
         return 'disabled'
@@ -385,7 +406,7 @@ def export_review(connect, directory, client=None):
         raise ValueError('O pacote de revisão aceita até 100 imagens.')
     destination = directory / 'revisao-modelos.zip'
     temporary = directory / ('.review-'+secrets.token_hex(8)+'.zip')
-    metadata = {'models': {}, 'note': 'Temas e agrupamentos para revisão visual. Não contém credenciais.'}
+    metadata = {'models': {}, 'note': 'Possíveis duplicações para revisão visual. Frases genéricas; não contém credenciais.'}
     try:
         with zipfile.ZipFile(temporary, 'x') as archive:
             for start in range(0, len(rows), 8):
@@ -403,7 +424,7 @@ def export_review(connect, directory, client=None):
                     page.paste(image, (x+(600-image.width)//2, y+45))
                     draw.text((x+12, y+10), f'{start+offset+1:02d} · {row["file_id"]}',
                               font=composer.font(16), fill='black')
-                    metadata['models'][row['file_id']] = {'sha256': row['sha256'], 'theme': '', 'same_model_as': ''}
+                    metadata['models'][row['file_id']] = {'sha256': row['sha256'], 'theme': 'generico', 'same_model_as': ''}
                 output = io.BytesIO()
                 page.save(output, format='JPEG', quality=92)
                 archive.writestr(f'pagina-{start//8+1:02d}.jpg', output.getvalue())
@@ -429,7 +450,7 @@ def import_review(connect, directory, path):
                     or row['state'] not in ('ready', 'review') or not re.fullmatch(r'[a-f0-9]{64}', row['sha256'])):
                 raise ValueError('A classificação não corresponde aos originais atuais.')
             if value.get('theme') not in composer.PHRASES:
-                raise ValueError('A classificação deve usar somente os quatro temas aprovados.')
+                raise ValueError('Use generico para a revisão atual ou um tema histórico válido.')
             groups.setdefault(row['model_key'], set()).add(value['theme'])
         if any(len(themes) > 1 for themes in groups.values()):
             raise ValueError('Fotos do mesmo modelo não podem ter temas diferentes.')
@@ -480,7 +501,7 @@ def main():
         with app.connect() as conn:
             print(json.dumps(status(conn, app.DB.parent), ensure_ascii=False, indent=2))
     except (ValueError, OSError):
-        raise SystemExit('Rotina indisponível. Confira OCR local, conexão com Drive, conta Meta e política de ativação. Nenhuma credencial deve ser enviada ao chat.') from None
+        raise SystemExit('Rotina indisponível. Confira conexão com Drive, conta Meta e política de ativação. Nenhuma credencial deve ser enviada ao chat.') from None
 
 
 if __name__ == '__main__':

@@ -220,6 +220,29 @@ class FeedAutonomyTests(unittest.TestCase):
         self.assertEqual(self.tick(), 'indexing')
         self.assertEqual(self.client.downloads, 1)
 
+    def test_generic_mode_migrates_old_reviews_without_ocr_and_keeps_scheduled_post(self):
+        self.index_all()
+        self.assertEqual(self.tick(), 'prepared')
+        with app.connect() as conn:
+            original_post = dict(conn.execute('SELECT * FROM posts').fetchone())
+            original_slot = dict(conn.execute('SELECT * FROM feed_auto_slots').fetchone())
+            for row in conn.execute('SELECT file_id,version FROM feed_models').fetchall():
+                old_version = json.dumps(json.loads(row['version'])[:3])
+                conn.execute("UPDATE feed_models SET version=?,state='review',theme='' WHERE file_id=?", (old_version, row['file_id']))
+        with patch('feed_autonomy.recognize', side_effect=AssertionError('must not read theme')), patch('feed_autonomy.engine', side_effect=AssertionError('must not require OCR')):
+            before = self.client.downloads
+            self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+            self.assertEqual(self.client.downloads, before+1)
+            with patch('meta.verify_accounts', return_value={'accounts': self.accounts}):
+                auto.enable(self.directory)
+        with app.connect() as conn:
+            self.assertEqual({r[0] for r in conn.execute('SELECT theme FROM feed_models')}, {'generico'})
+            retained = dict(conn.execute('SELECT * FROM posts WHERE id=?', (original_post['id'],)).fetchone())
+            self.assertEqual(retained, original_post)
+            slots = conn.execute('SELECT * FROM feed_auto_slots ORDER BY rowid').fetchall()
+            self.assertEqual(slots[1]['theme'], 'generico')
+            self.assertNotEqual(slots[1]['model_key'], original_slot['model_key'])
+
     def test_new_model_is_found_before_cycle_restarts_even_with_fresh_cache(self):
         self.client = Client(3)
         self.index_all()

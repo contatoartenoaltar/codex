@@ -20,6 +20,23 @@ SIZE = (1080, 1350)
 PHOTO_AREA = (0, 345, 1080, 1135)
 # prefixo, tema em dourado, complemento: ordem de leitura da chamada aprovada.
 PHRASES = {
+    'generico': [
+        ('', 'Envelopes', 'com a sua identidade'),
+        ('Sua igreja', 'em cada detalhe', ''),
+        ('', 'Personalização', 'que faz a diferença'),
+        ('Feitos para', 'a sua igreja', ''),
+        ('Seu modelo,', 'sua identidade', ''),
+        ('', 'Envelopes', 'que levam propósito'),
+        ('Cada detalhe', 'comunica cuidado', ''),
+        ('A marca', 'da sua igreja', ''),
+        ('Sua identidade', 'merece destaque', ''),
+        ('Pequenos detalhes,', 'grande significado', ''),
+        ('Sua igreja,', 'seu estilo', ''),
+        ('Personalize com', 'a Arte no Altar', ''),
+        ('Cuidado', 'em cada impressão', ''),
+        ('Transforme detalhes', 'em identidade', ''),
+        ('Envelopes', 'personalizados', 'para sua igreja'),
+    ],
     'dizimos': [('','Dízimos','com a sua identidade'), ('Seu','dízimo,','sua identidade'),
                 ('Envelopes de','dízimo','personalizados')],
     'ofertas': [('Sua','oferta','merece destaque'), ('','Ofertas','com a sua identidade'),
@@ -29,7 +46,8 @@ PHRASES = {
     'santa_ceia': [('','Comunhão','em cada detalhe'), ('','Santa Ceia','com identidade'),
                   ('Personalize seus envelopes de','Santa Ceia','')],
 }
-LABELS = dict(zip(PHRASES, ('Dízimos', 'Ofertas', 'Primícias', 'Santa Ceia')))
+LABELS = {'generico': 'Personalizados', 'dizimos': 'Dízimos', 'ofertas': 'Ofertas',
+          'primicias': 'Primícias', 'santa_ceia': 'Santa Ceia'}
 
 
 class SourceChanged(ValueError):
@@ -48,7 +66,7 @@ def initialize(conn):
 
 
 def render(original, theme, index):
-    if theme not in PHRASES or type(index) is not int or not 0 <= index < 3:
+    if theme not in PHRASES or type(index) is not int or not 0 <= index < len(PHRASES[theme]):
         raise ValueError('Selecione um dos temas e chamadas aprovados.')
     source = decode(original)
     with Image.open(TEMPLATE) as template:
@@ -81,7 +99,8 @@ def models(directory, client=None):
     catalog = drive_source.inspect(directory, client)
     return {'models': [{k: f[k] for k in ('id', 'name')} for f in catalog['files']
                        if f['mimeType'] in ('image/png', 'image/jpeg')],
-            'themes': LABELS, 'phrases': {t: [phrase(t, n) for n in range(3)] for t in PHRASES}}
+            'themes': {'generico': LABELS['generico']},
+            'phrases': {'generico': [phrase('generico', n) for n in range(len(PHRASES['generico']))]}}
 
 
 def _existing(conn, request_id, signature):
@@ -96,7 +115,7 @@ def _existing(conn, request_id, signature):
 
 
 def compose(connect, directory, data, client=None, *, expected_sha256=None):
-    theme, file_id = data.get('theme'), drive_source.identifier(data.get('file_id'))
+    theme, file_id = data.get('theme', 'generico'), drive_source.identifier(data.get('file_id'))
     request_id, channel = data.get('request_id'), data.get('channel', 'Instagram')
     if (not isinstance(theme, str) or theme not in PHRASES or
             not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', request_id)
@@ -114,7 +133,7 @@ def compose(connect, directory, data, client=None, *, expected_sha256=None):
         raise ValueError('Escolha um PNG ou JPEG da pasta de originais autorizada.')
     original = client.download_image(item)
     if expected_sha256 is not None and hashlib.sha256(original).hexdigest() != expected_sha256:
-        raise SourceChanged('O original mudou após a classificação; a rotina precisa analisá-lo novamente.')
+        raise SourceChanged('O original mudou após a análise; a rotina precisa conferi-lo novamente.')
     uploaded = None
     try:
         with connect() as conn:
@@ -125,10 +144,11 @@ def compose(connect, directory, data, client=None, *, expected_sha256=None):
             rows = conn.execute('SELECT phrase_index,cycle FROM feed_compositions WHERE theme=? ORDER BY rowid', (theme,)).fetchall()
             cycle = rows[-1]['cycle'] if rows else 1
             used = {r['phrase_index'] for r in rows if r['cycle'] == cycle}
-            if len(used) == 3:
+            count = len(PHRASES[theme])
+            if len(used) == count:
                 cycle += 1
                 used = set()
-            candidates = set(range(3)) - used
+            candidates = set(range(count)) - used
             if rows and len(candidates) > 1:
                 candidates.discard(rows[-1]['phrase_index'])
             index = secrets.choice(sorted(candidates))

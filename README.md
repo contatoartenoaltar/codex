@@ -1,5 +1,13 @@
 # Arte no Altar — Gestão
 
+**Atualização vigente:** o proprietário aprovou quinze frases curtas genéricas.
+A criação diária agora independe de tema e não usa OCR/Tesseract. A rotação de
+imagens, a conferência de possíveis duplicações e os agendamentos existentes
+são preservados. O banco genérico tem ciclo de quinze chamadas. É necessário
+atualizar e reativar a política na hospedagem; ver [FEED_AUTONOMY.md](FEED_AUTONOMY.md).
+As referências abaixo à classificação e às doze frases por tema são históricas.
+
+
 Sistema inicial para gestão individual da Arte no Altar, feito com Python 3.12+ e SQLite, sem dependências externas.
 
 ```bash
