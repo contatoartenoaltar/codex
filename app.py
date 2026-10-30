@@ -273,6 +273,8 @@ class Handler(BaseHTTPRequestHandler):
                     result=scheduling.save(c,DB.parent,d)
                 return self.send_json(result)
             if self.path == '/api/posts/cancel-schedule':
+                if any(type(d.get(key)) is not int for key in ('revision','expected_due_at')):
+                    raise ValueError('Atualize a página e confira o agendamento antes de cancelar.')
                 with connect() as c:
                     scheduling.cancel(c,d)
                 return self.send_json({'ok':True})

@@ -59,10 +59,21 @@ def save(conn,directory,data):
     return {'due_at':due}
 
 
-def cancel(conn,data):
+def cancel(conn,data,*,begin=True):
     if type(data.get('id')) is not int:
         raise ValueError('Identificação inválida.')
-    conn.execute('BEGIN IMMEDIATE')
+    # O MCP pode incluir cancelamento, novo horário e recibo na mesma transação.
+    if begin:
+        conn.execute('BEGIN IMMEDIATE')
+    if 'revision' in data or 'expected_due_at' in data:
+        if any(type(data.get(key)) is not int for key in ('revision','expected_due_at')):
+            raise ValueError('Atualize a página e confira o agendamento antes de cancelar.')
+        current=conn.execute('''SELECT s.due_at,s.revision,p.revision AS post_revision
+            FROM post_schedule s JOIN posts p ON p.id=s.post_id
+            WHERE s.post_id=? AND s.state='queued' AND p.publish_status='scheduled' ''',(data['id'],)).fetchone()
+        if (not current or current['due_at']!=data['expected_due_at'] or
+                current['revision']!=data['revision'] or current['post_revision']!=data['revision']):
+            raise ValueError('O agendamento mudou ou o envio já começou. Atualize a página antes de cancelar.')
     result=conn.execute("UPDATE post_schedule SET state='cancelled' WHERE post_id=? AND state='queued'",(data['id'],))
     if result.rowcount!=1:
         raise ValueError('O envio já começou ou este agendamento não pode ser cancelado.')

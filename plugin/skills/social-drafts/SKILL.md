@@ -1,11 +1,11 @@
 ---
 name: social-drafts
-description: Consultar contas, rascunhos e agenda da Arte no Altar; importar JPEG com legenda e agendar uma foto de feed após revisão e confirmação.
+description: Consultar contas, rascunhos e agenda da Arte no Altar; importar JPEG e agendar, cancelar ou reagendar após revisão e confirmação.
 ---
 
 # Arte no Altar
 
-Use somente as sete ferramentas sociais descobertas no servidor. Não use /api/state,
+Use somente as nove ferramentas sociais descobertas no servidor. Não use /api/state,
 financeiro, estoque, pedidos, clientes, arquivos de credenciais ou tokens da Meta.
 Credencial própria da integração pertence à configuração segura do conector. Não
 peça senha do Facebook, senha do sistema ou segredos na conversa.
@@ -111,8 +111,45 @@ Não o apresente como prova de publicação. Se a confirmação falhou ou o rasc
 estiver para revisão, descreva o estado encontrado em vez de afirmar "agendado".
 Uma consulta local não equivale a conferir a publicação remota na Meta.
 
-Cancelamento e reagendamento continuam na interface do sistema. Não existe
-ferramenta MCP de cancelar, publicar agora, Stories, carrosséis ou Drive nesta
+## Cancelamento e reagendamento
+
+A versão 0.3.0 acrescenta social_cancel_schedule e social_reschedule_draft. Confira
+se foram descobertas pelo cliente; não suponha que a versão 0.2.0 já as disponibilize.
+Consulte social_get_draft antes de propor qualquer alteração e use o post_id,
+revision e schedule.due_at retornados. Passe esse due_at numérico no argumento
+expected_due_at; não o substitua pelo relógio atual ou pelo novo horário.
+
+Se image_available=false, informe que a prévia não está disponível. Isso não
+impede consultar o estado ou confirmar o cancelamento do envio futuro, mas não
+autoriza agendar ou reagendar sem uma imagem válida.
+
+Para cancelar, mostre conta, conteúdo e data/hora atuais em São Paulo e diga que
+o item sairá da fila e voltará a rascunho. Para reagendar, mostre também a nova
+data/hora e diga que autoriza a publicação futura nesse novo horário. Só chame a
+ferramenta correspondente depois da confirmação explícita desses detalhes. Uma
+confirmação anterior de agendar não é autorização para cancelar ou trocar o horário.
+
+Use account_id e channel correspondentes e uma nova chave de idempotência própria
+da alteração. Em reagendamento, desired_at é o novo horário em RFC 3339 com offset
+de São Paulo; consulte a agenda e o executor. Cancelar não exige executor ativo;
+reagendar exige executor ativo, JPEG e novo horário válido entre dois minutos e
+noventa dias. O servidor só permite alterar um item em queued, com revisão e
+horário original correspondentes ao que foi conferido.
+
+Use social_reschedule_draft diretamente para trocar o horário. Não simule essa
+ação com duas chamadas separadas de cancelar e agendar: a operação única mantém
+o horário antigo se a nova reserva falhar. Ela não muda a imagem ou a legenda.
+Se o envio já estiver running/processing, ou o conteúdo estiver publicado ou em
+revisão, informe o estado e não tente contornar a recusa ou apagar algo na rede.
+
+Repita uma tentativa incerta somente com a MESMA chave e os MESMOS dados. Os
+recibos cancellation_accepted e reschedule_accepted são históricos. Uma repetição
+não deve cancelar um agendamento novo nem restaurar um horário anterior. Depois
+de cada ação, consulte social_get_operation e social_get_draft e relate o estado
+atual, o horário afetado e os IDs. Não afirme que um post remoto foi removido:
+cancelar aqui retira somente um envio futuro da fila local.
+
+Não existe ferramenta MCP de publicar agora, Stories, carrosséis ou Drive nesta
 versão. Não agende formatos que o servidor não suporta.
 
 Horário desejado é intenção no recibo, não um item na fila automática. Nunca prometa

@@ -1,13 +1,13 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "arte-no-altar",
-  "version": "0.2.0",
-  "description": "Consultas, importação de rascunhos e agendamento confirmado de fotos de feed na Arte no Altar.",
+  "version": "0.3.0",
+  "description": "Consultas, rascunhos e agendamento, cancelamento e reagendamento confirmados na Arte no Altar.",
   "author": {"name": "Arte no Altar"},
   "extensions": {"com.openai": {"interface": {
     "displayName": "Arte no Altar",
     "shortDescription": "Rascunhos e agendamentos",
-    "longDescription": "Consulta contas, agenda e histórico local. Importa JPEG e legenda como rascunho e agenda uma foto de feed após confirmação da conta, conteúdo e horário de São Paulo. Verifica o executor e o estado da fila. Não publica imediatamente.",
+    "longDescription": "Consulta contas, agenda e histórico local. Importa JPEG e legenda, agenda, cancela ou reagenda itens ainda na fila após revisão e confirmação. Usa o horário de São Paulo e protege contra alterações concorrentes. Não publica imediatamente nem interrompe envio iniciado.",
     "developerName": "Arte no Altar",
     "capabilities": [],
     "defaultPrompt": "Prepare ou consulte um rascunho da Arte no Altar e mostre conta, imagem, legenda, formato e horário de São Paulo para eu confirmar antes de agendar."

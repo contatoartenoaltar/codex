@@ -13,6 +13,32 @@ real do rascunho #3 para 30/10/2026 às 10h15, America/Sao_Paulo, com recibo, fi
 executor ativo. A publicação final desse teste específico ainda não foi confirmada.
 O acompanhamento das pendências está em [PENDENCIAS.md](PENDENCIAS.md).
 
+### Cancelamento e reagendamento no plugin 0.3.0
+
+Acrescenta `social_cancel_schedule` e `social_reschedule_draft`, totalizando nove
+ferramentas. Estão implementadas com testes locais; implantação e validação real
+no aplicativo ainda pendentes. A preparação não altera a fila da hospedagem.
+
+Ambas exigem `post_id`, `revision`, `account_id`, `channel`, `expected_due_at`
+(timestamp numérico original retornado por `social_get_draft`), `idempotency_key`
+própria e `confirmed=true`. O reagendamento também exige `desired_at` com o novo
+horário em RFC 3339 com offset de São Paulo. A habilidade deve mostrar conta,
+conteúdo e horário original, além do horário novo ao reagendar, antes da confirmação.
+
+Só pode ser alterado um item `queued`, com publicação ainda `scheduled`, revisão
+e horário originais correspondentes. Um envio `running` ou `processing` não é
+interrompido. Cancelar não exige executor ativo e devolve o conteúdo ao rascunho.
+Reagendar exige executor ativo e as validações de JPEG, data futura e conflitos.
+Cancelamento, nova reserva e recibo são uma única transação: se houver falha, o
+agendamento original permanece. A revisão é incrementada para invalidar cópias
+antigas. O botão de cancelar na interface também verifica revisão e horário.
+
+Os recibos `cancellation_accepted` e `reschedule_accepted` são históricos. Repetir
+uma chamada com a mesma chave e dados devolve o recibo, sem cancelar um agendamento
+posterior nem restaurar um horário antigo. Consultar o rascunho continua necessário
+para o estado atual. A migração da tabela preserva os recibos de agendamento 0.2.0.
+Nenhuma dessas ferramentas remove uma publicação remota.
+
 ### Agendamento no plugin 0.2.0
 
 Acrescenta duas ferramentas às cinco existentes:
@@ -39,8 +65,9 @@ chave e dados devolve o recibo anterior, mesmo se cancelado, sem reativar a fila
 do rascunho. Esse é um recibo histórico de aceite, não confirmação de publicação nem
 garantia de que continua na fila. Use `social_get_draft` ou agenda para o estado
 local atual; o ID remoto só aparece depois de o executor registrar a publicação.
-Cancelamento e reagendamento permanecem na interface. Sem ferramenta de publicação
-imediata, Stories, carrosséis ou Drive. A anotação do agendamento é de escrita e
+Na versão 0.2.0, cancelamento e reagendamento permaneciam na interface; a versão
+0.3.0 acrescenta as duas ações ao MCP, conforme descrito acima. Sem ferramenta de
+publicação imediata, Stories, carrosséis ou Drive. A anotação do agendamento é de escrita e
 ação com efeito externo futuro, não consulta somente leitura.
 
 Para atualizar uma instalação já configurada, primeiro atualize o código e clique
@@ -53,13 +80,13 @@ python3.12 package_social_plugin.py https://artenoaltar.pythonanywhere.com/mcp -
 
 Esse comando administrativo usa a chave MCP privada já existente no diretório do
 banco, sem imprimi-la. Não lê a chave do cron, senha ou tokens da Meta. Valida a
-descoberta das sete ferramentas e consulta somente contas; não agenda um teste.
-Grava `.local/arte-no-altar-0.2.0.zip` (ou o diretório privado do banco configurado).
+descoberta das nove ferramentas e consulta somente contas; não agenda um teste.
+Grava `.local/arte-no-altar-0.3.0.zip` (ou o diretório privado do banco configurado).
 Baixe pelo painel **Files** autenticado, atualize o mesmo plugin privado pelo
-Plugin Creator e confirme a versão 0.2.0. Não exponha `.local` como rota estática.
+Plugin Creator e confirme a versão 0.3.0. Não exponha `.local` como rota estática.
 Atualizar o servidor não atualiza a habilidade instalada no aplicativo.
 
-Depois de confirmar as sete ferramentas no aplicativo, revise um rascunho e um
+Depois de confirmar as nove ferramentas no aplicativo, revise um rascunho e um
 horário futuro real, autorize o teste e confira recibo, fila e publicação na rede.
 Nenhum novo agendamento real foi criado pelos testes locais desta versão. Depois
 da implantação, o proprietário confirmou pelo aplicativo o teste descrito acima.
@@ -93,7 +120,7 @@ não equivale a realizar um novo teste remoto de conexão ou de transferência.
 ## Entrega desta alteração
 
 Implementa `/mcp` em Python padrão, Streamable HTTP JSON sem sessão/SSE, protocolo
-2025-06-18, autenticação API key/Bearer e sete ferramentas sociais. A configuração
+2025-06-18, autenticação API key/Bearer e nove ferramentas sociais. A configuração
 do Plugin Creator aceita `auth.type=api_key` com `headerScheme=bearer`.
 Não usa OpenAPI nem o OAuth da Meta como autenticação do plugin.
 

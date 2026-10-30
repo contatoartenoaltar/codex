@@ -70,3 +70,18 @@ class ProductionTests(unittest.TestCase):
     def test_health_and_method(self):
         self.assertEqual(json.loads(self.call('/healthz')['body']), {'ok':True})
         self.assertEqual(self.call('/api/state','DELETE')['status'],405)
+
+    def test_stale_browser_cannot_cancel_a_new_schedule(self):
+        login=self.call('/api/login','POST',{'password':'senha-isolada-producao'})
+        cookie=login['headers']['Set-Cookie'].split(';')[0]
+        with app.connect() as c:
+            c.execute("INSERT INTO posts(id,product,channel,caption,source,publish_status,revision) VALUES(1,'Envelope','Instagram','Aprovada','Teste','scheduled',1)")
+            c.execute("INSERT INTO post_schedule(post_id,revision,due_at,state) VALUES(1,1,1800000000,'queued')")
+        for data in [{'id':1}, {'id':1,'revision':0,'expected_due_at':1799999900}]:
+            self.assertEqual(self.call('/api/posts/cancel-schedule','POST',data,cookie)['status'],400)
+        with app.connect() as c:
+            self.assertEqual(c.execute('SELECT state FROM post_schedule').fetchone()[0],'queued')
+        self.assertEqual(self.call('/api/posts/cancel-schedule','POST',
+            {'id':1,'revision':1,'expected_due_at':1800000000},cookie)['status'],200)
+        with app.connect() as c:
+            self.assertEqual(c.execute('SELECT publish_status,revision FROM posts').fetchone()[:],('draft',2))

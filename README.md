@@ -41,3 +41,8 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 [MCP_INTEGRATION.md](MCP_INTEGRATION.md) preserva a inspeção histórica anterior à implementação. [MCP_SETUP.md](MCP_SETUP.md) descreve a conexão implantada e o plugin 0.2.0: consultas, importações de rascunho e um agendamento real na fila foram confirmados pelo proprietário. A publicação final desse agendamento pelo plugin ainda precisa ser confirmada. Cada sessão precisa ter acesso real ao JPEG para importar; um rascunho existente pode ser agendado pelo ID sem reenviar a imagem. Atualizar o servidor não atualiza automaticamente a habilidade do plugin privado instalado.
 
 O estado confirmado, o teste em acompanhamento e as melhorias propostas estão em [PENDENCIAS.md](PENDENCIAS.md), incluindo a integração com Drive adiada pelo proprietário.
+
+A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,
+com testes isolados e preservação do horário anterior se a nova reserva falhar.
+Exige revisão e horário conferidos; o botão de cancelar no site também recusa uma
+visão desatualizada. Implantação e testes reais dessas novas ações ainda pendentes.

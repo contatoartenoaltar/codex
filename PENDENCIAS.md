@@ -23,9 +23,10 @@ reimportar ou criar outro agendamento para contornar um resultado ainda desconhe
 
 ## Próximas melhorias propostas
 
-1. Cancelar e reagendar pelo plugin. Hoje essas ações são feitas na interface;
-   não há ferramentas MCP para executá-las. Preservar a revisão e a autorização
-   do novo horário e não interromper um envio que já começou.
+1. Ativar e validar cancelamento e reagendamento pelo plugin 0.3.0, preparado em
+   testes isolados a pedido do proprietário enquanto aguardava a postagem #3.
+   Ainda não foi implantado nem testado no aplicativo. Preserva revisão, horário
+   conferido e autorização do novo horário; não interrompe um envio que já começou.
 2. Configurar backups externos automáticos e sua restauração, mantendo imagens e
    configurações privadas protegidas; alertas de falha ou necessidade de reconexão
    à Meta também estão pendentes. Não confundir status consultável com alerta enviado.
@@ -38,9 +39,9 @@ reimportar ou criar outro agendamento para contornar um resultado ainda desconhe
    de novas artes/legendas fora da conversa; definir e validar esse mecanismo antes
    de prometer que o ChatGPT gerará conteúdo continuamente.
 
-Esses itens são planejamento, não autorização para agendar conteúdos ainda não
-revisados nem para contratar serviços. A próxima implementação deve ser escolhida
-com o proprietário depois de concluir o teste atual.
+O proprietário autorizou adiantar o primeiro item enquanto aguardava o teste atual.
+Os demais itens são propostas a priorizar; essa lista não autoriza agendar conteúdos
+ainda não revisados nem contratar serviços.
 
 ## Adiado a pedido do proprietário
 
@@ -56,7 +57,8 @@ com o proprietário depois de concluir o teste atual.
 ## Limites que permanecem
 
 - Plugin atual: uma foto JPEG de feed, importação como rascunho, consulta e
-  agendamento confirmado. Sem publicação imediata, Stories, carrosséis ou Drive.
+  agendamento confirmado. Cancelamento e reagendamento 0.3.0 estão preparados,
+  pendentes de implantação. Sem publicação imediata, Stories, carrosséis ou Drive.
 - Vídeos e Reels continuam manuais, conforme a rotina informada.
 - O histórico e a agenda do plugin são locais e podem omitir publicações externas.
 - Executor depende de chamadas bem-sucedidas do cron-job.org, hospedagem disponível

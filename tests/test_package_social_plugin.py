@@ -30,7 +30,7 @@ class PluginPackageTests(unittest.TestCase):
             destination = package.package('https://artenoaltar.pythonanywhere.com/mcp', token, Path(directory) / 'plugin.zip')
             with zipfile.ZipFile(destination) as archive:
                 manifest = json.loads(archive.read('plugin.json'))
-                self.assertEqual(manifest['version'], '0.2.0')
+                self.assertEqual(manifest['version'], '0.3.0')
                 for name in archive.namelist():
                     self.assertNotIn(token.encode(), archive.read(name))
                 self.assertIn(b'social_schedule_draft', archive.read('skills/social-drafts/SKILL.md'))
@@ -40,7 +40,7 @@ class PluginPackageTests(unittest.TestCase):
 
     def test_old_endpoint_missing_schedule_is_not_packaged(self):
         opener = Mock()
-        old = [t for t in self.tools() if t['name'] not in ('social_get_draft', 'social_schedule_draft')]
+        old = [t for t in self.tools() if t['name'] not in ('social_get_draft', 'social_schedule_draft', 'social_cancel_schedule', 'social_reschedule_draft')]
         opener.open.side_effect = self.responses(old)
         with tempfile.TemporaryDirectory() as directory, patch('urllib.request.build_opener', return_value=opener):
             destination = Path(directory) / 'plugin.zip'
@@ -61,5 +61,15 @@ class PluginPackageTests(unittest.TestCase):
             with patch.object(app, 'DB', private / 'test.db'), patch('urllib.request.build_opener', return_value=opener), patch('sys.stdout', output), patch('sys.argv', ['package_social_plugin.py', 'https://artenoaltar.pythonanywhere.com/mcp', '--configured-key']):
                 runpy.run_path(str(Path(package.__file__)), run_name='__main__')
             self.assertNotIn(token, output.getvalue())
-            self.assertTrue((private / 'arte-no-altar-0.2.0.zip').is_file())
+            self.assertTrue((private / 'arte-no-altar-0.3.0.zip').is_file())
             self.assertFalse((private / 'test.db').exists())
+
+    def test_endpoint_020_without_cancel_or_reschedule_is_not_packaged(self):
+        opener = Mock()
+        old = [t for t in self.tools() if t['name'] not in ('social_cancel_schedule', 'social_reschedule_draft')]
+        opener.open.side_effect = self.responses(old)
+        with tempfile.TemporaryDirectory() as directory, patch('urllib.request.build_opener', return_value=opener):
+            destination = Path(directory) / 'plugin.zip'
+            with self.assertRaises(ValueError):
+                package.package('https://artenoaltar.pythonanywhere.com/mcp', 'synthetic-token', destination)
+            self.assertFalse(destination.exists())
