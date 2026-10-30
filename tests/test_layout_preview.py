@@ -96,3 +96,38 @@ class LayoutPreviewTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 layouts.build_review(path, Path(name) / 'review')
             self.assertEqual(path.read_bytes(), before)
+
+    def test_transparent_logo_remains_unchanged_and_is_rendered_on_white(self):
+        logo = Image.new('RGBA', (575, 230), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(logo)
+        draw.rectangle((70, 0, 504, 229), fill='black')
+        draw.rectangle((200, 70, 370, 160), fill=(230, 150, 20, 128))
+        before = logo.tobytes()
+        for height in (1350, 1920):
+            canvas = layouts.Canvas(height, logo)
+            mark = ImageOps.contain(logo, (336, 104), Image.Resampling.LANCZOS)
+            expected = Image.new('RGBA', mark.size, '#fffdf8')
+            expected.alpha_composite(mark)
+            x = 64 + (360 - mark.width) // 2
+            y = (216 if height == 1920 else 28) + (116 - mark.height) // 2
+            actual = canvas.result().image.crop((x, y, x + mark.width, y + mark.height))
+            self.assertEqual(actual.tobytes(), expected.convert('RGB').tobytes())
+        self.assertEqual(logo.tobytes(), before)
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            source = directory / 'samples.zip'
+            self.sample_archive(source)
+            logo_path = directory / 'logo.png'
+            logo.save(logo_path)
+            original_bytes = logo_path.read_bytes()
+            result = layouts.build_review(source, directory / 'review', logo_path)
+            self.assertTrue(result['official_logo_supplied'])
+            metadata = json.loads((directory / 'review' / 'proposta.json').read_text())
+            self.assertEqual(metadata['logo']['sha256'], hashlib.sha256(original_bytes).hexdigest())
+            self.assertEqual(metadata['logo']['size'], [575, 230])
+            self.assertEqual(logo_path.read_bytes(), original_bytes)
+            # Preserva também os modelos ao aplicar a logo em todos os formatos.
+            expected = ImageOps.contain(self.source('navy'), (960, 720), Image.Resampling.LANCZOS)
+            box = metadata['canvases']['feed']['photo_box']
+            with Image.open(directory / 'review' / 'feed.png') as final:
+                self.assertEqual(final.crop(box).tobytes(), expected.tobytes())

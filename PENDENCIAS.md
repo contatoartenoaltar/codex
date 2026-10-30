@@ -39,9 +39,11 @@ somente leitura, encontrou 84 PNGs na pasta de originais, sem subpastas ou atalh
 O download real de três amostras também funcionou e o ZIP foi enviado à conversa.
 As três imagens PNG RGB de 1448 × 1086 px foram abertas e conferidas. A primeira
 proposta de montagem está preparada em [LAYOUTS.md](LAYOUTS.md). O proprietário
-aprovou o preto e dourado em 30/10/2026 e mostrou a logo na conversa; falta o PNG
-como arquivo acessível para aplicá-la fielmente. Não pedir nova aprovação dessa
-linha visual. Quantidade de imagens ainda não equivale a quantidade de
+aprovou o preto e dourado em 30/10/2026. O PNG da logo foi recebido em
+`LOGOPNGAA.rar`, aplicado aos cinco quadros sobre branco e conferido nas prévias.
+Não pedir a logo ou nova aprovação dessa linha visual. Os arquivos com logo
+estão no ambiente de trabalho; ainda não foram implantados na hospedagem.
+Quantidade de imagens ainda não equivale a quantidade de
 modelos distintos. Ver [DRIVE_SETUP.md](DRIVE_SETUP.md).
 
 1. Integrar a pasta de originais do Drive ao fluxo de criação pelo ChatGPT. O

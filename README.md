@@ -45,9 +45,9 @@ O estado confirmado, o teste validado e as melhorias propostas estão em [PENDEN
 O [conector de leitura da pasta de originais](DRIVE_SETUP.md) já foi autorizado e
 consultado no PythonAnywhere pelo proprietário: 84 PNGs, sem subpastas ou atalhos.
 O download de três amostras foi validado e a [primeira proposta de layouts](LAYOUTS.md)
-está preparada com fotos preservadas. O proprietário aprovou o preto e dourado;
-falta aplicar a logo oficial a partir do PNG original, mostrado na conversa mas
-ainda sem arquivo acessível no ambiente de montagem.
+está preparada com fotos preservadas e o preto e dourado aprovado. A logo oficial
+foi recebida em RAR e aplicada nas prévias de feed, Story e carrossel. As imagens
+e a logo permanecem privadas no ambiente de trabalho, sem implantação automática.
 Essa etapa não ativa geração diária, escrita no Drive ou novos formatos de publicação.
 
 A versão 0.3.0 acrescenta cancelamento e reagendamento confirmados pelo plugin,

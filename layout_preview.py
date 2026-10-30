@@ -92,11 +92,15 @@ class Canvas:
 
     def brand(self, logo):
         y = 244 if self.height == 1920 else 56
-        self.draw.rounded_rectangle((64, y, 385, y + 74), radius=10, fill='#fffdf8')
         if logo is not None:
-            mark = ImageOps.contain(logo.convert('RGBA'), (287, 58), Image.Resampling.LANCZOS)
-            self.image.alpha_composite(mark, (64 + (321 - mark.width) // 2, y + (74 - mark.height) // 2))
+            # A logo oficial é mais alta que a identificação tipográfica. Mantém
+            # o PNG inteiro e sua transparência; o branco dá contraste às letras.
+            y -= 28
+            self.draw.rounded_rectangle((64, y, 424, y + 116), radius=10, fill='#fffdf8')
+            mark = ImageOps.contain(logo.convert('RGBA'), (336, 104), Image.Resampling.LANCZOS)
+            self.image.alpha_composite(mark, (64 + (360 - mark.width) // 2, y + (116 - mark.height) // 2))
         else:
+            self.draw.rounded_rectangle((64, y, 385, y + 74), radius=10, fill='#fffdf8')
             self.text('ARTE NO ALTAR', (84, y + 16), 22, '#252522', weight=800, max_width=281, tracking=1.4)
             self.text('IDEIAS QUE EDIFICAM', (85, y + 46), 10, '#7b6b49', max_width=281, tracking=1.7)
 
@@ -218,11 +222,12 @@ def read_samples(path):
     return sources
 
 
-def contact_sheet(layouts):
+def contact_sheet(layouts, official_logo=False):
     sheet = Image.new('RGB', (1660, 1920), '#eeeae2')
     draw = ImageDraw.Draw(sheet)
     draw.text((52, 36), 'PROPOSTA 01 · PRETO E DOURADO', fill='#242721', font=font(32, weight=800))
-    draw.text((52, 84), 'Montagem com originais preservados · identidade tipográfica provisória', fill='#6f705f', font=font(19))
+    identity = 'logo oficial aplicada' if official_logo else 'identidade tipográfica provisória'
+    draw.text((52, 84), 'Montagem com originais preservados · ' + identity, fill='#6f705f', font=font(19))
     for key, title, x, y, size in [('feed', 'FEED · 1080 × 1350', 52, 160, (640, 800)),
                                   ('story', 'STORY · 1080 × 1920', 822, 160, (450, 800))]:
         draw.text((x, y), title, fill='#34372c', font=font(22, weight=800))
@@ -234,7 +239,7 @@ def contact_sheet(layouts):
         x = 52 + (index - 1) * 530
         sheet.paste(image, (x, 1144))
         draw.text((x, 1776), f'{index:02d} / 03', fill='#686b5c', font=font(17))
-    draw.text((52, 1850), 'Prévia para aprovação. Nenhuma arte foi agendada ou publicada.', fill='#686b5c', font=font(20))
+    draw.text((52, 1850), 'Prévia dos layouts. Nenhuma arte foi agendada ou publicada.', fill='#686b5c', font=font(20))
     return sheet
 
 
@@ -245,12 +250,20 @@ def build_review(archive_path, directory, logo_path=None):
         raise ValueError('A proposta não pode sobrescrever o pacote de originais.')
     sources = read_samples(archive_path)
     logo = None
+    logo_metadata = None
     if logo_path:
-        with Image.open(logo_path) as original:
-            if original.width * original.height > MAX_PIXELS:
-                raise ValueError('Logo excedeu o limite de pixels.')
-            original.load()
-            logo = original.convert('RGBA')
+        logo_data = Path(logo_path).read_bytes()
+        if len(logo_data) > 20 * 1024 * 1024:
+            raise ValueError('Logo excedeu o limite de tamanho.')
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(logo_data)) as original:
+                if original.format not in ('PNG', 'JPEG') or original.width * original.height > MAX_PIXELS:
+                    raise ValueError('Use uma logo PNG/JPEG de até 20 milhões de pixels.')
+                original.load()
+                logo = ImageOps.exif_transpose(original).convert('RGBA')
+        logo_metadata = {'sha256': hashlib.sha256(logo_data).hexdigest(), 'size': list(logo.size),
+                         'placement': 'inteira, proporcional, sobre base branca'}
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     layouts = {'feed': feed(sources[0]['image'], logo), 'story': story(sources[1]['image'], logo)}
     layouts.update({f'carousel-{i:02d}': layout for i, layout in enumerate(carousel(sources[2]['image'], logo), 1)})
@@ -264,10 +277,11 @@ def build_review(archive_path, directory, logo_path=None):
             files.append(path)
         details[name] = {'size': list(layout.image.size), 'photo_box': layout.photo_box}
     preview = directory / 'preview.png'
-    contact_sheet(layouts).save(preview)
+    contact_sheet(layouts, official_logo=logo is not None).save(preview)
     preview.chmod(0o600)
     files.append(preview)
     manifest = {'layout': 'black-gold-v1', 'approved': False, 'official_logo_supplied': logo is not None,
+                'logo': logo_metadata,
                 'sources': [{k: value for k, value in source.items() if k != 'image'} for source in sources],
                 'canvases': details, 'phone': PHONE,
                 'note': 'Proposta local. Não ativa agendamento, publicação, sorteio ou geração diária.'}

@@ -23,17 +23,26 @@ imagem final e os códigos antes de liberar uma rotina de publicação.
 ## Situação da aprovação
 
 Em 30/10/2026, o proprietário aprovou expressamente a linha visual: “Aprovo em
-preto e dourado”, e enviou a logo como imagem na conversa. A imagem foi visualizada,
-mas seu arquivo original não ficou disponível no ambiente de execução. Falta
-receber o PNG como arquivo para aplicar a marca fielmente e conferir sua
-legibilidade nos cinco quadros. Não recriar a logo com IA nem redesenhá-la.
+preto e dourado”. Depois de duas imagens inline sem arquivo disponível, o envio
+de `LOGOPNGAA.rar` disponibilizou o PNG original: `LOGOPNGAA.png`, 575 × 230 px,
+RGBA com transparência. A logo foi extraída e aplicada nos cinco quadros; as
+prévias resultantes foram abertas e conferidas. Não pedir o arquivo novamente.
 
-As prévias já renderizadas ainda usam identificação tipográfica provisória e seu
-manifesto mantém `approved=false`: a aprovação da linha visual não transforma os
-arquivos antigos em artes finais com logo nem autoriza publicações. A inclusão
-da logo e a definição do calendário/autorizações da rotina permanecem pendentes.
-Não solicitar novamente aprovação do preto e dourado. As fotos e as propostas
-ficam em `.local`, sem entrar no repositório.
+A aplicação mantém o PNG inteiro, suas cores e transparência, redimensionando-o
+proporcionalmente sobre uma base branca para dar contraste às letras pretas.
+A base foi ampliada em relação à identificação provisória, sem deslocar as fotos
+ou encobrir as chamadas. Não houve recriação por IA, redesenho ou alteração do
+arquivo original. O manifesto registra as dimensões e o SHA-256 da logo usada.
+
+O PNG fica em `.local/brand/logo.png`, e a revisão com logo em
+`.local/design-review/branded/output/`; seu ZIP fica na pasta superior. São
+arquivos privados deste ambiente de trabalho, ainda não implantados na hospedagem.
+As fotos, a logo e as propostas não entram no repositório público.
+
+O manifesto mantém `approved=false` para as artes individuais: esse campo não é
+o registro da aprovação da linha visual e não autoriza publicações. A escolha
+do preto e dourado está registrada acima; não pedir sua aprovação novamente.
+A definição do calendário e das autorizações da rotina permanece pendente.
 
 O manifesto registra os IDs e hashes dos três modelos usados nas montagens. Ao
 implementar o ciclo sem repetição, considerar também essas referências já usadas
@@ -51,8 +60,10 @@ python3.12 -m pip install --user -r requirements.txt
 python3.12 layout_preview.py --samples .local/modelos-amostra.zip
 ```
 
-Se a instalação usa virtualenv, use seu Python em vez de `--user`. Quando houver
-uma logo PNG/JPEG aprovada disponível localmente, acrescente `--logo CAMINHO_DA_LOGO`.
+Se a instalação usa virtualenv, use seu Python em vez de `--user`. Para reproduzir
+a versão com logo, coloque o PNG original na pasta privada da hospedagem e acrescente
+`--logo .local/brand/logo.png`. O `git pull` não transfere esse arquivo privado.
+Sem `--logo`, o comando ainda produz a identificação tipográfica provisória.
 
 O comando cria PNGs e JPEGs em `.local/layout-review/`, uma folha `preview.png`,
 `proposta.json` e `.local/proposta-layouts.zip`. O ZIP contém somente os arquivos
