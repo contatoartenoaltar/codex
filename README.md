@@ -37,3 +37,5 @@ A fila persistente, o formulário de horário de São Paulo, o cancelamento e o 
 ## Rotina editorial e conexão com ChatGPT
 
 [CONTENT_WORKFLOW.md](CONTENT_WORKFLOW.md) registra a rotina aprovada de Stories e carrosséis, a preservação das artes originais, o armazenamento no Drive e o fluxo anterior via conector Metricool. Esse documento distingue os requisitos futuros das funcionalidades já validadas. O objetivo é transferir conteúdo criado no ChatGPT para o sistema próprio; registrar o fluxo não ativa a conexão ou a automação.
+
+[MCP_INTEGRATION.md](MCP_INTEGRATION.md) documenta a inspeção das rotas, autenticação, mídia e agenda para a primeira versão do plugin. Não existe ainda um endpoint MCP funcional; autenticação do cliente, transporte e entrega dos arquivos precisam ser confirmados antes da implementação da conexão.
