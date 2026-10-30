@@ -11,7 +11,7 @@ O servidor atende em `127.0.0.1:8000`. Os dados ficam em `.local/arte-no-altar.d
 
 Antes do primeiro acesso, cadastre sua senha com `python app.py set-password` no terminal seguro. A senha deve ter pelo menos 12 caracteres; não envie pelo chat. Não existe senha padrão. Para backup durante o uso, execute `python backup.py /caminho-seguro/backup.db`.
 
-Para hospedagem HTTPS, consulte [DEPLOY.md](DEPLOY.md). A opção prioritária é tentar o plano gratuito do PythonAnywhere com o adaptador WSGI; confirme a disponibilidade e os limites antes de criar a conta. Para um servidor próprio, instale `requirements.txt` e use `python serve.py`, com endereço público e banco persistente configurados. Ainda não foi implantado.
+Para hospedagem HTTPS, consulte [DEPLOY.md](DEPLOY.md). A opção prioritária é tentar o plano gratuito do PythonAnywhere com o adaptador WSGI; confirme a disponibilidade e os limites antes de criar a conta. Para um servidor próprio, instale `requirements.txt` e use `python serve.py`, com endereço público e banco persistente configurados. A instalação pública está em https://artenoaltar.pythonanywhere.com; confira as instruções antes de alterar a hospedagem.
 
 Validação: `python -m unittest discover -s tests -v`.
 
@@ -26,10 +26,14 @@ Validação: `python -m unittest discover -s tests -v`.
 
 ## Limites desta versão
 
-O login oficial da Meta, a consulta de contas e o envio manual de publicações estão implementados. Leia [META.md](META.md) para configurar a autorização e [PUBLISHING.md](PUBLISHING.md) para configurar a rota estática de imagens e revisar o fluxo de envio. A primeira publicação real ainda precisa de validação na conta do proprietário. O botão de criar conteúdo prepara um rascunho; o envio exige revisão e confirmação separadas. Agendamento, WhatsApp e recebimento automático de mensagens não estão implementados. O assistente comercial local segue regras e não é um chat de IA. Ele pede confirmação humana para preços não cadastrados, frete, estoque, prazos e exceções.
+O login oficial da Meta, a consulta de contas e o envio manual de publicações estão implementados. Leia [META.md](META.md) para configurar a autorização e [PUBLISHING.md](PUBLISHING.md) para configurar a rota estática de imagens e revisar o fluxo de envio. O proprietário confirmou publicações reais nos feeds do Instagram e Facebook. O botão de criar conteúdo prepara um rascunho; o envio exige revisão e confirmação separadas. A fila de agendamento está implementada, com execução em produção ainda pendente. WhatsApp e recebimento automático de mensagens não estão implementados. O assistente comercial local segue regras e não é um chat de IA. Ele pede confirmação humana para preços não cadastrados, frete, estoque, prazos e exceções.
 
-O acesso tem login individual, sessões de 12 horas, limitação de tentativas e proteção contra submissões de outros sites. `python app.py` é um servidor local de desenvolvimento; use o servidor de produção com HTTPS conforme DEPLOY.md para acesso público. A hospedagem real, o domínio, o agendamento de backups externos e a integração oficial com a Meta ainda não foram configurados. Não é um sistema contábil ou fiscal.
+O acesso tem login individual, sessões de 12 horas, limitação de tentativas e proteção contra submissões de outros sites. `python app.py` é um servidor local de desenvolvimento; use o servidor de produção com HTTPS conforme DEPLOY.md para acesso público. A hospedagem no subdomínio gratuito do PythonAnywhere e o envio pela Meta foram validados pelo proprietário. Backups externos automáticos e execução contínua de agendamentos continuam pendentes. Não é um sistema contábil ou fiscal.
 
 ## Agendamento
 
 A fila persistente, o formulário de horário de São Paulo, o cancelamento e o executor estão implementados; consulte [SCHEDULING.md](SCHEDULING.md). A execução automática exige um processo contínuo supervisionado ou uma tarefa a cada minuto, ainda pendente de configuração na hospedagem. O sistema bloqueia novos agendamentos sem sinal recente do executor. Não confunda a implementação da fila com disponibilidade do serviço de execução no plano gratuito.
+
+## Rotina editorial e conexão com ChatGPT
+
+[CONTENT_WORKFLOW.md](CONTENT_WORKFLOW.md) registra a rotina aprovada de Stories e carrosséis, a preservação das artes originais, o armazenamento no Drive e o fluxo anterior via conector Metricool. Esse documento distingue os requisitos futuros das funcionalidades já validadas. O objetivo é transferir conteúdo criado no ChatGPT para o sistema próprio; registrar o fluxo não ativa a conexão ou a automação.
