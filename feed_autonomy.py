@@ -135,7 +135,7 @@ def policy(directory):
     if not (directory / SETTINGS).exists():
         return None
     result = drive.read_json(directory / SETTINGS)
-    if result.get('enabled') is not True:
+    if result.get('enabled') is not True or result.get('layout_review_required'):
         return None
     if (result.get('rules_hash') != rules_hash() or result.get('username') != ACCOUNT or
             not isinstance(result.get('account_id'), str) or not result['account_id'].isdecimal() or
