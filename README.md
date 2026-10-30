@@ -26,6 +26,6 @@ Validação: `python -m unittest discover -s tests -v`.
 
 ## Limites desta versão
 
-Instagram, Facebook, WhatsApp, publicação, agendamento automático e recebimento de mensagens **não estão conectados**. A área de conteúdo guarda rascunhos para revisão e cópia manual. O assistente comercial local segue regras e não é um chat de IA. Ele pede confirmação humana para preços não cadastrados, frete, estoque, prazos e exceções.
+Instagram, Facebook, WhatsApp, publicação, agendamento automático e recebimento de mensagens **não estão conectados**. O login oficial inicial da Meta e o endereço de retorno estão implementados; leia [META.md](META.md) para configurar as credenciais no servidor e validar a autorização real. Uma autorização recebida ainda não confirma contas ou poderes de publicação. A área de conteúdo guarda rascunhos para revisão e cópia manual. O assistente comercial local segue regras e não é um chat de IA. Ele pede confirmação humana para preços não cadastrados, frete, estoque, prazos e exceções.
 
 O acesso tem login individual, sessões de 12 horas, limitação de tentativas e proteção contra submissões de outros sites. `python app.py` é um servidor local de desenvolvimento; use o servidor de produção com HTTPS conforme DEPLOY.md para acesso público. A hospedagem real, o domínio, o agendamento de backups externos e a integração oficial com a Meta ainda não foram configurados. Não é um sistema contábil ou fiscal.

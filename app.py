@@ -4,12 +4,15 @@ import os
 import re
 import sqlite3
 import auth
+import meta
+import html
 import urllib.error
 import urllib.request
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
+from http.cookies import SimpleCookie, CookieError
 
 ROOT = Path(__file__).parent
 DB = Path(os.environ.get('ARTENOALTAR_DB', ROOT / '.local/arte-no-altar.db'))
@@ -37,6 +40,7 @@ def connect():
 def initialize():
     with connect() as c:
         auth.initialize(c)
+        meta.initialize(c)
         c.executescript('''
         CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, description TEXT NOT NULL, kind TEXT NOT NULL, amount INTEGER NOT NULL, date TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, quantity REAL NOT NULL, minimum REAL NOT NULL);
@@ -113,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
     def security_headers(self):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('X-Frame-Options', 'DENY')
-        self.send_header('Referrer-Policy', 'same-origin')
+        self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         if os.environ.get('ARTENOALTAR_ORIGIN', '').startswith('https://'):
             self.send_header('Strict-Transport-Security', 'max-age=31536000')
@@ -158,6 +162,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if urlsplit(self.path).path == meta.CALLBACK:
+            return self.meta_callback()
         if self.path == '/healthz':
             with connect() as c:
                 c.execute('SELECT 1').fetchone()
@@ -170,7 +176,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/state':
             with connect() as c:
                 result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
-            result.update(products=PRODUCTS, stages=STAGES, ai_configured=bool(os.environ.get('ARTENOALTAR_AI_KEY')))
+            try:
+                social = meta.status(DB.parent)
+            except ValueError as error:
+                social = {'configured': False, 'authorized': False, 'accounts_verified': False, 'callback_url': None, 'message': str(error)}
+            result.update(products=PRODUCTS, stages=STAGES, ai_configured=bool(os.environ.get('ARTENOALTAR_AI_KEY')), meta=social)
             return self.send_json(result)
         files = {'/': ('index.html' if self.signed_in() else 'login.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'), '/login.js': ('login.js', 'text/javascript')}
         if self.path not in files:
@@ -207,6 +217,14 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as c:
                     c.execute('DELETE FROM sessions WHERE token_hash=?', (auth.token_hash(self.headers.get('Cookie')),))
                 return self.send_json({'ok': True}, cookie=self.session_cookie(clear=True))
+            if self.path == '/api/meta/start':
+                with connect() as c:
+                    url, browser = meta.start(c, DB.parent, auth.token_hash(self.headers.get('Cookie')))
+                return self.send_json({'url': url}, cookie=f'arte_meta={browser}; Path={meta.CALLBACK}; HttpOnly; Secure; SameSite=Lax; Max-Age=600')
+            if self.path == '/api/meta/disconnect':
+                with connect() as c:
+                    meta.disconnect(c, DB.parent)
+                return self.send_json({'ok': True})
             with connect() as c:
                 if self.path == '/api/transactions':
                     kind = required(d, 'kind')
@@ -256,6 +274,40 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({'error': str(error) if isinstance(error, ValueError) else 'Dados inválidos.'}, 400)
         except sqlite3.Error:
             self.send_json({'error': 'Não foi possível salvar os dados.'}, 500)
+
+    def meta_callback(self):
+        query = parse_qs(urlsplit(self.path).query)
+        message = 'O endereço de retorno está pronto. Entre no sistema e use Conectar à Meta para iniciar a autorização.'
+        status = 200
+        if query:
+            try:
+                cookie = SimpleCookie()
+                cookie.load(self.headers.get('Cookie', ''))
+                browser = cookie.get('arte_meta')
+                with connect() as c:
+                    valid = meta.consume(c, query, browser.value if browser else '')
+                if not valid:
+                    raise ValueError('A solicitação expirou ou não corresponde a este navegador. Entre novamente no sistema e reinicie a conexão.')
+                if query.get('error'):
+                    raise ValueError('A autorização foi cancelada ou recusada na Meta. Você pode tentar novamente pelo sistema.')
+                meta.exchange(DB.parent, query.get('code',[''])[0])
+                message = 'Autorização recebida. A identificação das contas e as permissões de publicação ainda precisam ser verificadas. Nenhum conteúdo foi publicado.'
+            except (ValueError, CookieError) as error:
+                message = str(error) if isinstance(error, ValueError) else 'Não foi possível validar este navegador. Reinicie a conexão pelo sistema.'
+                status = 400
+            except sqlite3.Error:
+                message = 'Não foi possível concluir a conexão. Entre no sistema e tente novamente.'
+                status = 503
+        # Sem scripts ou dados da Meta no HTML. O clique retorna à mesma origem e
+        # permite que o navegador envie novamente a sessão SameSite=Strict.
+        payload = ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conexão Meta · Arte no Altar</title><link rel="stylesheet" href="/style.css"></head><body><div class="login-form-area"><section class="card"><h1>Conexão com a Meta</h1><p class="help">'+html.escape(message)+'</p><a class="button" href="/#conteudo">Continuar no sistema</a></section></div></body></html>').encode()
+        self.send_response(status)
+        self.send_header('Set-Cookie',f'arte_meta=; Path={meta.CALLBACK}; HttpOnly; Secure; SameSite=Lax; Max-Age=0')
+        self.send_header('Content-Type','text/html; charset=utf-8')
+        self.send_header('Content-Length',str(len(payload)))
+        self.send_header('Cache-Control','no-store')
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 if __name__ == '__main__':

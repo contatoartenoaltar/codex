@@ -8,6 +8,8 @@ import app
 class Request(app.Handler):
     def __init__(self, environ):
         self.path = environ['PATH_INFO']
+        if environ.get('QUERY_STRING'):
+            self.path += '?' + environ['QUERY_STRING']
         self.headers = Message()
         for name, value in environ.items():
             if name.startswith('HTTP_'):
