@@ -7,6 +7,7 @@ import auth
 import meta
 import publishing
 import scheduling
+import scheduler_http
 import social_mcp
 import html
 import urllib.error
@@ -52,6 +53,7 @@ def initialize():
         ''')
         publishing.initialize(c)
         scheduling.initialize(c)
+        scheduler_http.initialize(c)
         social_mcp.initialize(c)
 
 
@@ -168,6 +170,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if urlsplit(self.path).path == scheduler_http.PATH:
+            return scheduler_http.handle(self, 'GET', connect, DB.parent)
         if urlsplit(self.path).path == '/mcp':
             return social_mcp.handle(self, 'GET', connect, DB.parent)
         if self.path.startswith('/media/'):
@@ -221,6 +225,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self):
+        if urlsplit(self.path).path == scheduler_http.PATH:
+            return scheduler_http.handle(self, 'POST', connect, DB.parent)
         if urlsplit(self.path).path == '/mcp':
             return social_mcp.handle(self, 'POST', connect, DB.parent)
         # Origem explícita obrigatória também para login (proteção CSRF).

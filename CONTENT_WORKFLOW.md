@@ -4,20 +4,28 @@ Referência fornecida pelo proprietário para o projeto próprio. Distinguir o f
 
 ## Objetivo e arquitetura desejada
 
-O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. A pasta de origem ainda precisa ser identificada e ter o acesso autorizado validado.
+O objetivo atualizado é usar imagens originais de uma pasta do Google Drive como fonte para montar novas artes e legendas e realizar as postagens automaticamente, substituindo o Metricool. O fluxo não deve depender de o proprietário anexar cada imagem individualmente ao chat. O proprietário forneceu o link da pasta de origem; o acesso autorizado e seu conteúdo ainda precisam ser validados.
 
 Uma importação de imagem e legenda pelo MCP, seguida de recibo e visualização no sistema, foi confirmada pelo proprietário. Isso valida aquele teste, não a seleção e criação automática a partir do Drive. Não prometer acesso a arquivos só por conhecer seus nomes ou links internos. O proprietário utiliza ChatGPT Plus: não presumir autorização para contratar API de geração. A criação autônoma fora da conversa precisa de mecanismo de geração e execução especificamente definido e testado; o Plus e o conector de consultas não comprovam essa capacidade por si sós.
 
 ## Fluxo automático a implementar
 
 1. Ler a pasta privada de originais autorizada no Drive, usando IDs estáveis dos arquivos. Não exigir que a pasta inteira se torne pública e não substituir a autorização da API por scraping de links de compartilhamento.
-2. Escolher modelos variados a partir do histórico de uso, consultando a agenda antes de preencher os próximos três dias. O proprietário informou que cancelou manualmente todos os agendamentos no Metricool.
+2. Escolher um modelo ainda não utilizado no ciclo atual, respeitando a regra de rotação abaixo e consultando a agenda antes de preencher os próximos três dias. O proprietário informou que cancelou manualmente todos os agendamentos no Metricool.
 3. Montar artes com templates e as fotos originais preservadas, criando cenários e chamadas fora da impressão do envelope. Não reconstruir textos, logos ou QR Codes com geração de imagem.
 4. Gerar legendas a partir do catálogo e das respostas comerciais aprovadas. A rotina de aprovação dos templates/lotes e a autorização de publicação automática precisam ficar explícitas; não usar um simples pedido de resumo como autorização de envio.
 5. Guardar versões finais em pasta de saída separada dos originais, conferindo os arquivos e mantendo a ligação entre origem, template, legenda, formato e horário.
 6. Enviar pelos canais da Meta e acompanhar o resultado. Stories, carrosséis, executor e geração autônoma ainda precisam de implementação/ativação e testes próprios.
 
-A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Solicitar seu link ou ID sem pedir senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o objetivo foi atualizado.
+A pasta de origem não é necessariamente a pasta de saída “03-Artes para postagens”. Usar o link já fornecido sem pedir novamente, nem solicitar senhas, tokens ou compartilhamento público. Nesta conversa, as ferramentas de Drive ainda não estavam disponíveis quando o link foi fornecido.
+
+## Rotação obrigatória dos modelos
+
+Cada nova arte que utilizar um modelo de envelope como referência deve escolher um modelo diferente dos já usados no ciclo atual. Só permitir repetição depois que todos os modelos da pasta tiverem sido utilizados; então iniciar um novo ciclo. A regra vale entre dias, lotes e formatos, não apenas dentro de um mesmo lote.
+
+O controle deve identificar o modelo, e não apenas o arquivo: fotografias, recortes ou versões diferentes do mesmo envelope não contam como modelos novos. Registrar de forma persistente o ciclo, o modelo e a arte criada, para não reiniciar a rotação ao fechar o chat ou reiniciar o sistema. Artes já criadas contam como uso mesmo antes da publicação; reservar modelos durante a criação para evitar escolhas duplicadas simultâneas.
+
+Ao incluir novos modelos na pasta, utilizá-los antes de permitir a repetição de modelos já usados. Consultar e conferir o catálogo da pasta antes de afirmar que o ciclo terminou. Essa seleção e seu controle persistente ainda precisam ser implementados e validados na integração com o Drive.
 
 ## Planejamento aprovado
 
@@ -73,7 +81,7 @@ Esses são parâmetros do Metricool, não nomes de campos da API Meta. Não copi
 
 - O proprietário validou publicações reais de uma foto no feed do Instagram e na página Facebook.
 - O Instagram funcionou preparando o arquivo pela foto não publicada na página vinculada da Meta; buscar a imagem diretamente no PythonAnywhere havia falhado.
-- A fila de agendamento, horário de São Paulo, cancelamento e executor estão implementados. O plano gratuito do PythonAnywhere não disponibiliza Scheduled tasks nem Always-on tasks. A execução automática em produção ainda não foi ativada.
+- A fila de agendamento, horário de São Paulo, cancelamento e executor estão implementados. O proprietário confirmou uma publicação real agendada com o executor rodando no console. O plano gratuito do PythonAnywhere não disponibiliza Scheduled tasks nem Always-on tasks. O acionamento HTTP protegido está implementado como alternativa, mas ainda precisa de implantação, configuração externa e teste real com o console parado; consulte SCHEDULER_HTTP.md.
 - A conexão MCP própria já fez consultas, e o proprietário confirmou um teste de importação de rascunho com imagem e legenda. Integração com Drive, Stories, carrosséis e rotina automática de três dias continuam pendentes.
 - A transferência por conexão deve admitir envio dos arquivos, formatos distintos, slides ordenados, consulta de horários existentes e retorno de IDs/status verificáveis. Nunca expor credenciais da Meta ao chat.
 - Planejar Stories e carrosséis como novos formatos; não apresentar o envio atual de uma única foto como se já cobrisse a rotina inteira.

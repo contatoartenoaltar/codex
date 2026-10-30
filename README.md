@@ -32,7 +32,7 @@ O acesso tem login individual, sessões de 12 horas, limitação de tentativas e
 
 ## Agendamento
 
-A fila persistente, o formulário de horário de São Paulo, o cancelamento e o executor estão implementados; consulte [SCHEDULING.md](SCHEDULING.md). A execução automática exige um processo contínuo supervisionado ou uma tarefa a cada minuto, ainda pendente de configuração na hospedagem. O sistema bloqueia novos agendamentos sem sinal recente do executor. Não confunda a implementação da fila com disponibilidade do serviço de execução no plano gratuito.
+A fila persistente, o formulário de horário de São Paulo, o cancelamento e o executor estão implementados; consulte [SCHEDULING.md](SCHEDULING.md). O proprietário confirmou um teste real com o executor no console. Para operar sem console, a alternativa de [acionamento HTTP protegido](SCHEDULER_HTTP.md) precisa ser instalada e conectada a um serviço externo a cada minuto; sua validação real ainda está pendente. O sistema bloqueia novos agendamentos sem sinal recente do executor. Não confunda a implementação da fila com disponibilidade permanente no plano gratuito.
 
 ## Rotina editorial e conexão com ChatGPT
 

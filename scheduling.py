@@ -21,7 +21,7 @@ def initialize(conn):
 
 def runtime(conn):
     row=conn.execute('SELECT * FROM scheduler_runtime WHERE id=1').fetchone()
-    active=bool(row and row['mode'] in ['loop','cron'] and time.time()-row['last_tick']<150)
+    active=bool(row and row['mode'] in ['loop','cron','http'] and time.time()-row['last_tick']<150)
     return {'active':active,'timezone':'America/Sao_Paulo','last_tick':row['last_tick'] if row else None}
 
 

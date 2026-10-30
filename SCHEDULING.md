@@ -1,6 +1,8 @@
 # Agendamento de postagens
 
-A fila e o executor estão implementados. A hospedagem ainda precisa de um processo automático efetivamente configurado: salvar o código e manter o site aberto não executa a fila. Os testes usam Meta simulada; nenhum agendamento real foi criado durante o desenvolvimento.
+A fila e o executor estão implementados. O proprietário confirmou uma publicação real agendada com o executor rodando no console. A execução permanente na hospedagem ainda precisa ser configurada: salvar o código e manter o site aberto não executa a fila. Os testes locais usam Meta simulada.
+
+Para o plano gratuito, há uma alternativa implementada de acionamento por HTTP com chave exclusiva e serviço externo a cada minuto; consulte [SCHEDULER_HTTP.md](SCHEDULER_HTTP.md). A configuração externa e o teste real com o console parado ainda estão pendentes.
 
 ## Revisão e autorização
 
@@ -29,7 +31,7 @@ Se o provedor permitir tarefas a cada minuto, configure o comando:
 cd /home/artenoaltar/arte-no-altar && ARTENOALTAR_ORIGIN=https://artenoaltar.pythonanywhere.com python3.12 scheduling.py --cron
 ```
 
-Uma tarefa diária não atende a essa frequência. Confirme as opções reais na aba Tasks antes de habilitar; o usuário solicitou custo zero. Não contrate plano pago nem um intermediário sem autorização. O modo `--cron` declara que esse comando será chamado pelo agendador externo a cada minuto; executá-lo manualmente uma vez não configura o agendador. Não há endpoint HTTP público de execução ou serviço externo de cron configurado.
+Uma tarefa diária não atende a essa frequência. O proprietário verificou a aba Tasks: o plano gratuito não oferece Scheduled tasks nem Always-on tasks. Não contrate plano pago. O modo `--cron` declara que esse comando será chamado pelo agendador externo a cada minuto; executá-lo manualmente uma vez não configura o agendador. O endpoint HTTP de execução exige uma chave exclusiva; não há serviço externo de cron configurado ainda.
 
 Para diagnóstico local, uma execução isolada de `python3.12 scheduling.py` processa no máximo um item vencido e não anuncia um executor contínuo ativo. Ela pode publicar conteúdos já autorizados e vencidos no banco indicado: use banco temporário nos testes.
 
