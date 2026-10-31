@@ -64,7 +64,9 @@ class WorkflowTests(unittest.TestCase):
         order = self.state()['orders'][0]
         self.post('orders/status', {'id':order['id'],'status':'Em produção'})
         self.assertEqual(self.state()['orders'][0]['status'], 'Em produção')
-        self.assertEqual(self.state()['transactions'], [])
+        income = self.state()['transactions']
+        self.assertEqual(len(income), 1)
+        self.assertEqual((income[0]['order_id'], income[0]['amount']), (order['id'], 22900))
         self.post('orders/status', {'id':order['id'],'status':'Inválido'}, 400)
 
     def test_commercial_rules_and_drafts(self):

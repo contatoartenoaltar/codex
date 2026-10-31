@@ -12,6 +12,7 @@ import social_mcp
 import feed_composer
 import feed_autonomy
 import post_ids
+import order_finance
 import html
 import urllib.error
 import urllib.request
@@ -54,6 +55,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, product TEXT NOT NULL, quantity INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL, notes TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
         ''')
+        order_finance.initialize(c)
         publishing.initialize(c)
         scheduling.initialize(c)
         scheduler_http.initialize(c)
@@ -207,6 +209,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/state':
             with connect() as c:
                 result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
+                income_ids = {r['order_id']: r['id'] for r in result['transactions'] if r['order_id'] is not None}
+                for order in result['orders']:
+                    order['transaction_id'] = income_ids.get(order['id'])
+                result['business_date'] = order_finance.today()
                 schedules={r['post_id']:dict(r) for r in c.execute('SELECT * FROM post_schedule')}
                 for post in result['posts']:
                     schedule=schedules.get(post['id'])
@@ -319,14 +325,27 @@ class Handler(BaseHTTPRequestHandler):
                     notes = d.get('notes', '')
                     if not isinstance(notes, str) or len(notes) > 3000:
                         raise ValueError('Observações inválidas.')
-                    c.execute('INSERT INTO orders(customer,product,quantity,total,status,notes) VALUES(?,?,?,?,?,?)', (required(d, 'customer'), p['name'], number(d, 'quantity', True, True), number(d, 'total', True), 'Novo', notes))
+                    c.execute('BEGIN IMMEDIATE')
+                    cursor = c.execute('INSERT INTO orders(customer,product,quantity,total,status,notes) VALUES(?,?,?,?,?,?)', (required(d, 'customer'), p['name'], number(d, 'quantity', True, True), number(d, 'total', True), 'Novo', notes))
+                    income = order_finance.register_income(c, cursor.lastrowid)
+                    c.commit()
+                    return self.send_json({'ok': True, 'id': cursor.lastrowid, 'income': income}, 201)
                 elif self.path == '/api/orders/status':
                     status = required(d, 'status')
                     if status not in STAGES:
                         raise ValueError('Etapa inválida.')
-                    cursor = c.execute('UPDATE orders SET status=? WHERE id=?', (status, number(d, 'id', True, True)))
+                    order_id = number(d, 'id', True, True)
+                    c.execute('BEGIN IMMEDIATE')
+                    cursor = c.execute('UPDATE orders SET status=? WHERE id=?', (status, order_id))
                     if cursor.rowcount != 1:
                         raise ValueError('Pedido não encontrado.')
+                elif self.path == '/api/orders/income':
+                    order_id = number(d, 'id', True, True)
+                    day = date.fromisoformat(required(d, 'date')).isoformat()
+                    c.execute('BEGIN IMMEDIATE')
+                    income = order_finance.register_income(c, order_id, day)
+                    c.commit()
+                    return self.send_json({'ok': True, 'income': income}, 201)
                 elif self.path == '/api/posts':
                     p = catalog_product(d)
                     channel = required(d, 'channel')
@@ -340,11 +359,15 @@ class Handler(BaseHTTPRequestHandler):
                     table = required(d, 'table')
                     if table not in ['transactions', 'inventory', 'orders', 'posts']:
                         raise ValueError('Registro inválido.')
+                    record_id = number(d, 'id', True, True)
+                    if table == 'orders':
+                        c.execute('BEGIN IMMEDIATE')
+                        order_finance.check_delete_order(c, record_id)
                     if table=='posts':
                         row=c.execute('SELECT publish_status FROM posts WHERE id=?',(d.get('id'),)).fetchone()
                         if row and row[0] in ['sending','processing','review','scheduled']:
                             raise ValueError('Confira o resultado do envio antes de excluir este registro.')
-                    c.execute(f'DELETE FROM {table} WHERE id=?', (number(d, 'id', True, True),))
+                    c.execute(f'DELETE FROM {table} WHERE id=?', (record_id,))
                 else:
                     return self.send_json({'error': 'Operação não encontrada.'}, 404)
             self.send_json({'ok': True}, 201)

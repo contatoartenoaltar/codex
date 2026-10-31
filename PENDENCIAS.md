@@ -1,5 +1,14 @@
 # Situação e próximos passos — Arte no Altar
 
+**Integração pedidos → financeiro — 30/10/2026:** o proprietário esclareceu que
+o total deve entrar como receita recebida **ao cadastrar o pedido**, ainda na
+etapa Novo. Implementado vínculo único e gravação atômica; concluir ou reabrir
+não duplica a receita. Pedidos anteriores sem vínculo têm **Lançar receita**,
+com data do recebimento. A aplicação não lança histórico automaticamente.
+**191 testes locais passaram**, incluindo concorrência e migração do banco antigo.
+Faltam atualizar a hospedagem, usar Web → Reload e lançar uma vez a receita do
+pedido já concluído relatado pelo proprietário. Ver [ORDER_FINANCE.md](ORDER_FINANCE.md).
+
 **Legenda autorizada — 30/10/2026:** o proprietário forneceu o texto fixo completo
 para os feeds. O padrão está implementado para novas composições e foi preparado
 um comando para atualizar somente as legendas originais dos três agendados, sem

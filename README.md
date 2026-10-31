@@ -34,7 +34,7 @@ Validação: `python -m unittest discover -s tests -v`.
 
 - Receitas, despesas e saldo realizado (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
-- Cadastro de pedidos e acompanhamento de etapas; pedidos não geram lançamentos financeiros automaticamente.
+- Cadastro de pedidos e acompanhamento de etapas; o total é lançado como receita recebida ao cadastrar, uma única vez. Etapas de produção não repetem o lançamento. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
 - Catálogo comercial com os produtos e preços fornecidos pelo proprietário.
 - Rascunhos de publicações e respostas comerciais baseadas no catálogo, disponíveis sem serviço externo. Os rascunhos usam modelos de texto; não são geração por IA.
 - Geração opcional de legendas por IA usando a API da OpenAI: disponibilize `ARTENOALTAR_AI_KEY` de forma segura no processo e, opcionalmente, `ARTENOALTAR_AI_MODEL` (padrão: `gpt-4.1-mini`). O acesso a `api.openai.com` precisa estar permitido. A chave fica exclusivamente no servidor. Não inclua segredos no Git. Custos são cobrados pelo provedor. Apenas o produto selecionado e informações públicas da gráfica são enviados.
