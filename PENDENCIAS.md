@@ -1,5 +1,12 @@
 # Situação e próximos passos — Arte no Altar
 
+**Gráfico na Visão geral — 30/10/2026:** substituído o banner por vendas,
+entradas e saídas, com filtros de 7 dias, 30 dias e ano. Vendas são recebimentos
+vinculados a pedidos, já incluídos nas entradas; o resultado não os duplica.
+Validados 10 testes JavaScript, 4 WSGI e navegação Chromium em desktop/celular,
+incluindo filtros, toque, teclado e dados vazios. Faltam atualizar a hospedagem
+com `git pull --ff-only origin main`, usar Web → Reload e recarregar o navegador.
+
 **Integração pedidos → financeiro — 30/10/2026:** o proprietário esclareceu que
 o total deve entrar como receita recebida **ao cadastrar o pedido**, ainda na
 etapa Novo. Implementado vínculo único e gravação atômica; concluir ou reabrir

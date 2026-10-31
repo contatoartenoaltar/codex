@@ -32,12 +32,35 @@ Validação: `python -m unittest discover -s tests -v`.
 
 ## Recursos
 
+- Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, 30 dias e ano atual, valores por data e consulta por toque ou teclado.
 - Receitas, despesas e saldo realizado (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
 - Cadastro de pedidos e acompanhamento de etapas; o total é lançado como receita recebida ao cadastrar, uma única vez. Etapas de produção não repetem o lançamento. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
 - Catálogo comercial com os produtos e preços fornecidos pelo proprietário.
 - Rascunhos de publicações e respostas comerciais baseadas no catálogo, disponíveis sem serviço externo. Os rascunhos usam modelos de texto; não são geração por IA.
 - Geração opcional de legendas por IA usando a API da OpenAI: disponibilize `ARTENOALTAR_AI_KEY` de forma segura no processo e, opcionalmente, `ARTENOALTAR_AI_MODEL` (padrão: `gpt-4.1-mini`). O acesso a `api.openai.com` precisa estar permitido. A chave fica exclusivamente no servidor. Não inclua segredos no Git. Custos são cobrados pelo provedor. Apenas o produto selecionado e informações públicas da gráfica são enviados.
+
+## Gráfico da Visão geral
+
+Substitui o banner decorativo. Vendas são os recebimentos vinculados aos pedidos;
+entradas são todas as receitas, incluindo essas vendas; saídas são as despesas.
+O resultado do período é entradas menos saídas, sem somar as vendas novamente.
+Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
+com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
+
+O padrão são os últimos 30 dias, incluindo hoje em São Paulo, conforme a data
+informada pelo servidor. A opção anual agrupa janeiro até o mês atual, sem
+incluir lançamentos futuros. O filtro afeta o gráfico; os demais cartões continuam
+mostrando os totais acumulados. Salvar pedidos e lançamentos atualiza o painel.
+Sem registros no período, mostra zeros e uma mensagem, sem dados de demonstração.
+Funciona localmente no navegador, sem biblioteca externa, API paga ou CDN.
+
+As barras mostram valores por mouse/toque. Pelo teclado, Tab entra no gráfico,
+as setas alternam datas e Escape fecha os detalhes. A tabela expansível também
+mostra os valores completos. Validação: `node tests/test_dashboard_chart.js`
+(10 testes), testes WSGI (4) e verificação no Chromium com desktop/celular,
+filtros, tooltip, teclado, toque e estado vazio. As capturas locais de verificação
+usam dados fictícios isolados, que não fazem parte da aplicação.
 
 ## Limites desta versão
 

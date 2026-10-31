@@ -70,6 +70,9 @@ class ProductionTests(unittest.TestCase):
     def test_health_and_method(self):
         self.assertEqual(json.loads(self.call('/healthz')['body']), {'ok':True})
         self.assertEqual(self.call('/api/state','DELETE')['status'],405)
+        chart=self.call('/dashboard-chart.js')
+        self.assertEqual(chart['status'],200)
+        self.assertEqual(chart['headers']['Content-Type'],'text/javascript')
 
     def test_stale_browser_cannot_cancel_a_new_schedule(self):
         login=self.call('/api/login','POST',{'password':'senha-isolada-producao'})
