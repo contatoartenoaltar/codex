@@ -56,6 +56,8 @@ def initialize():
         CREATE TABLE IF NOT EXISTS posts (id INTEGER PRIMARY KEY AUTOINCREMENT, product TEXT NOT NULL, channel TEXT NOT NULL, caption TEXT NOT NULL, source TEXT NOT NULL);
         ''')
         order_finance.initialize(c)
+        if 'notes' not in {row[1] for row in c.execute('PRAGMA table_info(transactions)')}:
+            c.execute("ALTER TABLE transactions ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
         publishing.initialize(c)
         scheduling.initialize(c)
         scheduler_http.initialize(c)
@@ -313,7 +315,10 @@ class Handler(BaseHTTPRequestHandler):
                     if kind not in ['income', 'expense']:
                         raise ValueError('Tipo de lançamento inválido.')
                     day = date.fromisoformat(required(d, 'date')).isoformat()
-                    c.execute('INSERT INTO transactions(description,kind,amount,date) VALUES(?,?,?,?)', (required(d, 'description'), kind, number(d, 'amount', True, True), day))
+                    notes = d.get('notes', '')
+                    if not isinstance(notes, str) or len(notes) > 3000:
+                        raise ValueError('Observações inválidas (até 3000 caracteres).')
+                    c.execute('INSERT INTO transactions(description,kind,amount,date,notes) VALUES(?,?,?,?,?)', (required(d, 'description'), kind, number(d, 'amount', True, True), day, notes))
                 elif self.path == '/api/inventory':
                     c.execute('INSERT INTO inventory(name,unit,quantity,minimum) VALUES(?,?,?,?)', (required(d, 'name'), required(d, 'unit', 30), number(d, 'quantity'), number(d, 'minimum')))
                 elif self.path == '/api/inventory/quantity':

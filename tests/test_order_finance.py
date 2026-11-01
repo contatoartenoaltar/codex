@@ -84,6 +84,37 @@ class OrderFinanceTests(unittest.TestCase):
         app.initialize()
         self.assertEqual(self.state()['transactions'], state['transactions'])
 
+    def test_transaction_notes_survive_reload_without_changing_financial_values(self):
+        notes = 'Fornecedor: Papel & Cia\nReferência: <nota 123> — à vista'
+        for kind in ('income', 'expense'):
+            self.post('transactions', {'description': 'Lançamento', 'kind': kind,
+                                     'amount': 12345, 'date': '2026-10-29', 'notes': notes})
+        before = self.state()['transactions']
+        app.initialize()
+        self.assertEqual(self.state()['transactions'], before)
+        self.assertEqual({r['kind'] for r in before}, {'income', 'expense'})
+        for row in before:
+            self.assertEqual(row['notes'], notes)
+            self.assertEqual(row['amount'], 12345)
+            self.assertEqual(row['description'], 'Lançamento')
+
+    def test_transaction_notes_are_optional_bounded_and_validated_before_writing(self):
+        data = {'description': 'Papel', 'kind': 'expense', 'amount': 5000, 'date': '2026-10-29'}
+        self.post('transactions', data)
+        self.assertEqual(self.state()['transactions'][0]['notes'], '')
+        self.post('transactions', data | {'notes': 'á' * 3000})
+        before = self.state()['transactions']
+        for notes in (None, 42, [], {}, 'a' * 3001):
+            self.post('transactions', data | {'notes': notes}, 400)
+            self.assertEqual(self.state()['transactions'], before)
+
+    def test_transaction_notes_do_not_bypass_authentication_or_origin_checks(self):
+        data = {'description': 'Papel', 'kind': 'expense', 'amount': 5000,
+                'date': '2026-10-29', 'notes': 'Detalhes privados'}
+        self.assertEqual(self.call('/api/transactions', data, cookie='')['status'], 401)
+        self.assertEqual(self.call('/api/transactions', data, origin='https://externo.example')['status'], 403)
+        self.assertEqual(self.state()['transactions'], [])
+
     def test_production_completion_cancellation_and_reopening_never_duplicate_or_refund(self):
         saved = self.create()
         income = self.state()['transactions']
@@ -170,9 +201,10 @@ class OrderFinanceTests(unittest.TestCase):
         app.initialize()
         app.initialize()
         with app.connect() as conn:
-            rows = [tuple(r) for r in conn.execute('SELECT * FROM transactions ORDER BY id')]
+            rows = [tuple(r) for r in conn.execute('SELECT id,description,kind,amount,date,order_id FROM transactions ORDER BY id')]
             self.assertEqual(rows, [(7, 'Entrada anterior', 'income', 22900, '2026-10-29', None),
                                     (8, 'Papel', 'expense', 5000, '2026-10-29', None)])
+            self.assertEqual([r[0] for r in conn.execute('SELECT notes FROM transactions')], ['', ''])
             self.assertEqual(tuple(conn.execute('SELECT * FROM orders').fetchone()),
                              (3, 'Cliente anterior', 'Envelopes', 500, 22900, 'Concluído', 'Original'))
 
