@@ -22,7 +22,7 @@ PAGE_TOKEN = 'synthetic-page-token'
 
 
 def verification(**changes):
-    account = {'id': '123456', 'username': 'arte.no.altar', 'account_type': 'BUSINESS'} | changes
+    account = {'id': '123456', 'username': 'arte.no.altar'} | changes
     return [{'data': [{'permission': p, 'status': 'granted'} for p in SCOPES]}, account,
             {'data': [{'id': '222', 'instagram_business_account': {'id': '123456'}, 'access_token': PAGE_TOKEN}]}]
 
@@ -52,10 +52,11 @@ class StoryMetaTests(unittest.TestCase):
         opener = Opener(responses)
         return MetaClient(SETTINGS, TOKEN, '123456', opener=opener), opener
 
-    def test_verification_requires_exact_business_account_and_permissions(self):
+    def test_verification_requires_exact_linked_business_account_and_permissions(self):
         client, opener = self.client(verification())
         result = client.verify_account('123456')
         self.assertTrue(result['stories_allowed'])
+        self.assertEqual(result['account_type'], 'BUSINESS')
         self.assertEqual(len(opener.requests), 3)
         for request, timeout in opener.requests:
             self.assertEqual(request.get_method(), 'GET')
@@ -63,10 +64,16 @@ class StoryMetaTests(unittest.TestCase):
             self.assertNotIn(TOKEN, request.full_url)
             self.assertEqual(request.get_header('Authorization'), 'Bearer '+TOKEN)
             self.assertEqual(timeout, 5)
+        account_query = urllib.parse.parse_qs(urllib.parse.urlsplit(opener.requests[1][0].full_url).query)
+        self.assertEqual(account_query['fields'], ['id,username'])
+        self.assertNotIn('account_type', opener.requests[1][0].full_url)
 
-    def test_creator_other_username_missing_permission_and_wrong_link_are_rejected(self):
-        cases = [verification(account_type='MEDIA_CREATOR'), verification(username='another.account'),
-                 [{'data': []}], verification()[:2] + [{'data': [{'id': '222', 'instagram_business_account': {'id': '999'}}]}]]
+    def test_other_username_missing_permission_and_invalid_page_links_are_rejected(self):
+        linked = {'id': '222', 'instagram_business_account': {'id': '123456'}, 'access_token': PAGE_TOKEN}
+        cases = [verification(username='another.account'), [{'data': []}],
+                 verification()[:2] + [{'data': [{'id': '222', 'instagram_business_account': {'id': '999'}}]}],
+                 verification()[:2] + [{'data': [linked, linked | {'id': '333'}]}],
+                 verification()[:2] + [{'data': [linked | {'access_token': ''}]}]]
         for responses in cases:
             with self.subTest(responses=responses):
                 client, opener = self.client(responses)
