@@ -129,9 +129,11 @@ class MetaClient:
         granted = {p.get('permission') for p in permissions if isinstance(p, dict) and p.get('status') == 'granted'}
         if not SCOPES.issubset(granted):
             raise ValueError('A autorização não inclui as permissões necessárias para Stories.')
-        account = self._request('GET', self.account_id, {'fields': 'id,username,account_type'})
-        if (str(account.get('id')) != self.account_id or account.get('username') != ACCOUNT or
-                account.get('account_type') != 'BUSINESS'):
+        # Tokens de Página na Graph API v24 identificam a conta profissional
+        # por `instagram_business_account`, mas não expõem `account_type` de
+        # forma consistente. O vínculo único com a Página é conferido abaixo.
+        account = self._request('GET', self.account_id, {'fields': 'id,username'})
+        if str(account.get('id')) != self.account_id or account.get('username') != ACCOUNT:
             raise ValueError('O destino precisa ser a conta empresarial @arte.no.altar.')
         pages = self._request('GET', 'me/accounts',
                               {'fields': 'id,instagram_business_account{id},access_token', 'limit': 50}).get('data', [])
