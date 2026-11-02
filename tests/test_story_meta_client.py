@@ -67,12 +67,24 @@ class StoryMetaTests(unittest.TestCase):
         account_query = urllib.parse.parse_qs(urllib.parse.urlsplit(opener.requests[1][0].full_url).query)
         self.assertEqual(account_query['fields'], ['id,username'])
         self.assertNotIn('account_type', opener.requests[1][0].full_url)
+        page_query = urllib.parse.parse_qs(urllib.parse.urlsplit(opener.requests[2][0].full_url).query)
+        self.assertEqual(page_query['fields'],
+                         ['id,instagram_business_account{id},connected_instagram_account{id},access_token'])
+
+    def test_current_connected_instagram_account_field_is_accepted(self):
+        responses = verification()
+        page = responses[2]['data'][0]
+        page['connected_instagram_account'] = page.pop('instagram_business_account')
+        client, _ = self.client(responses)
+        self.assertEqual(client.verify_account('123456')['username'], 'arte.no.altar')
 
     def test_other_username_missing_permission_and_invalid_page_links_are_rejected(self):
         linked = {'id': '222', 'instagram_business_account': {'id': '123456'}, 'access_token': PAGE_TOKEN}
         cases = [verification(username='another.account'), [{'data': []}],
                  verification()[:2] + [{'data': [{'id': '222', 'instagram_business_account': {'id': '999'}}]}],
                  verification()[:2] + [{'data': [linked, linked | {'id': '333'}]}],
+                 verification()[:2] + [{'data': [linked | {
+                     'connected_instagram_account': {'id': '999'}}]}],
                  verification()[:2] + [{'data': [linked | {'access_token': ''}]}]]
         for responses in cases:
             with self.subTest(responses=responses):

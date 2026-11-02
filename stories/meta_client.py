@@ -136,12 +136,20 @@ class MetaClient:
         if str(account.get('id')) != self.account_id or account.get('username') != ACCOUNT:
             raise ValueError('O destino precisa ser a conta empresarial @arte.no.altar.')
         pages = self._request('GET', 'me/accounts',
-                              {'fields': 'id,instagram_business_account{id},access_token', 'limit': 50}).get('data', [])
+                              {'fields': ('id,instagram_business_account{id},'
+                                          'connected_instagram_account{id},access_token'),
+                               'limit': 50}).get('data', [])
         if not isinstance(pages, list):
             raise ValueError('Não foi possível conferir as páginas concedidas.')
-        matches = [p for p in pages if isinstance(p, dict) and
-                   isinstance(p.get('instagram_business_account'), dict) and
-                   str(p['instagram_business_account'].get('id')) == self.account_id]
+        matches = []
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            linked = {str(value.get('id')) for field in
+                      ('instagram_business_account', 'connected_instagram_account')
+                      if isinstance((value := page.get(field)), dict) and value.get('id') is not None}
+            if linked == {self.account_id}:
+                matches.append(page)
         if len(matches) != 1:
             raise ValueError('A página vinculada ao Instagram não foi identificada sem ambiguidade.')
         page = matches[0]
