@@ -1,0 +1,13 @@
+{
+  "layout": "story-morning-reference-v2",
+  "layout_sha256": "1cbcfa826519abbfbb40634debed766a26ee6e4754ca52d3a5cea840a822a198",
+  "files": {
+    "assets/morning-template.jpg": "63c13cbaabb2ed9d7f859d69bbf1b3d505d224549b0cee3d17c682f140528002",
+    "fonts/playfairdisplay.ttf": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+    "fonts/greatvibes.ttf": "8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15",
+    "fonts/manrope.ttf": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6"
+  },
+  "sample_image_sha256": "012b0f37f5c1fa131a0c4b8992b0f0c6de9ca4346754ea2fa34d016b2cdf5c63",
+  "approved_on": "2026-11-02",
+  "basis": "Owner approved the final local JPEG with verse, after opening it in Drive."
+}

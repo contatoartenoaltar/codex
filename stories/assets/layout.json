@@ -1,0 +1,38 @@
+{
+  "layout": "story-morning-reference-v2",
+  "size": [
+    1080,
+    1920
+  ],
+  "reference_sha256": "da38546d8369e81217b1e5b069a9a53daf5d039516875391c617b1ae0f92422a",
+  "files": {
+    "assets/morning-template.jpg": "63c13cbaabb2ed9d7f859d69bbf1b3d505d224549b0cee3d17c682f140528002",
+    "fonts/playfairdisplay.ttf": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+    "fonts/greatvibes.ttf": "8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15",
+    "fonts/manrope.ttf": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6"
+  },
+  "black_box": [
+    210,
+    520,
+    935,
+    820
+  ],
+  "gold_box": [
+    205,
+    815,
+    945,
+    1015
+  ],
+  "reference_box": [
+    300,
+    1045,
+    875,
+    1098
+  ],
+  "translation_box": [
+    450,
+    1102,
+    715,
+    1130
+  ]
+}

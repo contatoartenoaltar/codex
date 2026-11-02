@@ -1,0 +1,61 @@
+[
+  {
+    "id": "php-4-13",
+    "reference": "Filipenses 4:13",
+    "translation": "ARC",
+    "text": "Posso todas as coisas naquele que me fortalece.",
+    "source": "https://www.bible.com/pt/bible/212/PHP.4.13.ARC",
+    "verified_on": "2026-11-02",
+    "highlight": "fortalece.",
+    "lines": [
+      "Posso todas",
+      "as coisas naquele",
+      "que me"
+    ]
+  },
+  {
+    "id": "psa-118-24",
+    "reference": "Salmos 118:24",
+    "translation": "ARC",
+    "text": "Este é o dia que fez o SENHOR; regozijemo-nos e alegremo-nos nele.",
+    "source": "https://www.bible.com/pt/bible/212/PSA.118.24",
+    "verified_on": "2026-11-02",
+    "highlight": "alegremo-nos nele."
+  },
+  {
+    "id": "psa-23-1",
+    "reference": "Salmos 23:1",
+    "translation": "ARC",
+    "text": "O SENHOR é o meu pastor; nada me faltará.",
+    "source": "https://www.bible.com/pt/bible/212/PSA.23.1.ARC",
+    "verified_on": "2026-11-02",
+    "highlight": "nada me faltará."
+  },
+  {
+    "id": "psa-46-1",
+    "reference": "Salmos 46:1",
+    "translation": "ARC",
+    "text": "Deus é o nosso refúgio e fortaleza, socorro bem-presente na angústia.",
+    "source": "https://www.bible.com/pt/bible/212/PSA.46.1.ARC",
+    "verified_on": "2026-11-02",
+    "highlight": "na angústia."
+  },
+  {
+    "id": "pro-3-5",
+    "reference": "Provérbios 3:5",
+    "translation": "ARC",
+    "text": "Confia no SENHOR de todo o teu coração e não te estribes no teu próprio entendimento.",
+    "source": "https://www.bible.com/pt/bible/212/PRO.3.5.ARC",
+    "verified_on": "2026-11-02",
+    "highlight": "entendimento."
+  },
+  {
+    "id": "psa-37-5",
+    "reference": "Salmos 37:5",
+    "translation": "ARC",
+    "text": "Entrega o teu caminho ao SENHOR; confia nele, e ele tudo fará.",
+    "source": "https://www.bible.com/pt/bible/212/PSA.37.5.ARC",
+    "verified_on": "2026-11-02",
+    "highlight": "tudo fará."
+  }
+]
