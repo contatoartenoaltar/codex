@@ -12,7 +12,7 @@ from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 from promotional_stories.queue import APPLICATION_ID as PROMOTIONAL_APPLICATION_ID
 
 
-ACTIVE_STATES = ("queued", "staged", "processing", "sending", "review")
+ACTIVE_STATES = ("queued", "staged", "processing", "sending")
 SOURCES = {
     "verse": {
         "environment": "ARTENOALTAR_STORIES_DIR",

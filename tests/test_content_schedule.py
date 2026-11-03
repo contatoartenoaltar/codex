@@ -68,9 +68,9 @@ class ContentScheduleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             content_schedule.image("unknown", self.promotional_name)
 
-    def test_draft_expired_and_unverified_databases_are_not_exposed(self):
+    def test_review_items_and_unverified_databases_are_not_exposed(self):
         with sqlite3.connect(self.verse / "story-queue.sqlite3") as connection:
-            connection.execute("UPDATE slots SET state='draft'")
+            connection.execute("UPDATE slots SET state='review'")
         with sqlite3.connect(self.promotional / "promotional-story-queue.sqlite3") as connection:
             connection.execute("PRAGMA application_id=1")
         self.assertEqual(content_schedule.agenda(now=self.now), [])
