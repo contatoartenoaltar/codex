@@ -127,3 +127,41 @@ def image(kind, name):
     if not (payload.startswith(b"\xff\xd8") and payload.endswith(b"\xff\xd9")):
         raise ValueError("Miniatura inválida.")
     return payload
+
+
+def cancel(item_id, expected_due_at, *, confirmed=False):
+    """Cancela atomicamente um Story que ainda não começou a ser processado."""
+    if confirmed is not True or type(expected_due_at) is not int or not isinstance(item_id, str):
+        raise ValueError("Confirme o agendamento exibido antes de cancelar.")
+    kind, separator, slot_id = item_id.partition("-")
+    if not separator or kind not in SOURCES or not re.fullmatch(r"[a-f0-9]{32}", slot_id):
+        raise ValueError("Agendamento automático inválido.")
+    config, _, database, _ = _directory(kind)
+    connection = sqlite3.connect(database, timeout=30)
+    connection.row_factory = sqlite3.Row
+    try:
+        if connection.execute("PRAGMA application_id").fetchone()[0] != config["application_id"]:
+            raise ValueError("Agenda automática inválida.")
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT due_at,state FROM slots WHERE id=?", (slot_id,)).fetchone()
+        if row is None or row["due_at"] != expected_due_at:
+            raise ValueError("O agendamento mudou. Atualize a página antes de cancelar.")
+        if row["state"] != "queued":
+            raise ValueError("O envio já começou e não pode mais ser cancelado por esta tela.")
+        changed = connection.execute(
+            "UPDATE slots SET state='cancelled',error='Cancelado pelo Estúdio de conteúdo.' "
+            "WHERE id=? AND due_at=? AND state='queued'", (slot_id, expected_due_at))
+        if changed.rowcount != 1:
+            raise ValueError("O envio começou antes do cancelamento. Atualize a página.")
+        connection.execute(
+            "INSERT INTO policy_events(action,account_id,created_at) "
+            "SELECT ?,account_id,? FROM policy WHERE id=1",
+            ("cancel_slot:" + slot_id, int(time.time())))
+        connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+    return {"id": item_id, "cancelled": True}

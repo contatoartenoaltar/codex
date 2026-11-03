@@ -314,6 +314,10 @@ class Handler(BaseHTTPRequestHandler):
                 with connect() as c:
                     scheduling.cancel(c,d)
                 return self.send_json({'ok':True})
+            if self.path == '/api/automated-content/cancel':
+                result=content_schedule.cancel(
+                    d.get('id'),d.get('expected_due_at'),confirmed=d.get('confirmed'))
+                return self.send_json(result)
             if self.path in ['/api/posts/publish','/api/posts/finish']:
                 result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
                 return self.send_json(result,202 if result['status']=='processing' else 200)

@@ -23,11 +23,11 @@ class ContentScheduleTests(unittest.TestCase):
         self.promotional_name = "2" * 32 + ".jpg"
         self._queue(self.verse, "story-queue.sqlite3", content_schedule.VERSE_APPLICATION_ID,
                     "verse_json TEXT NOT NULL",
-                    ("verse-1", self.now + 600, json.dumps({"reference": "Filipenses 4:13"}),
+                    ("1" * 32, self.now + 600, json.dumps({"reference": "Filipenses 4:13"}),
                      self.verse_name, "queued"))
         self._queue(self.promotional, "promotional-story-queue.sqlite3",
                     content_schedule.PROMOTIONAL_APPLICATION_ID, "model_name TEXT NOT NULL",
-                    ("promo-1", self.now + 300, "Modelo 12.png", self.promotional_name, "queued"))
+                    ("2" * 32, self.now + 300, "Modelo 12.png", self.promotional_name, "queued"))
         (self.promotional / "media" / self.promotional_name).with_suffix(".json").write_text(
             json.dumps({"title": "Envelopes com propósito"}), encoding="utf-8")
         self.environment = patch.dict(os.environ, {
@@ -44,8 +44,12 @@ class ContentScheduleTests(unittest.TestCase):
         connection.execute(f"PRAGMA application_id={application_id}")
         connection.execute(f"""CREATE TABLE slots(
             id TEXT PRIMARY KEY,due_at INTEGER NOT NULL,{extra_column},
-            filename TEXT NOT NULL,state TEXT NOT NULL)""")
-        connection.execute("INSERT INTO slots VALUES(?,?,?,?,?)", row)
+            filename TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL DEFAULT '')""")
+        connection.execute("CREATE TABLE policy(id INTEGER PRIMARY KEY,account_id TEXT NOT NULL)")
+        connection.execute("INSERT INTO policy VALUES(1,'17841436823298466')")
+        connection.execute("CREATE TABLE policy_events(action TEXT,account_id TEXT,created_at INTEGER)")
+        connection.execute(
+            f"INSERT INTO slots(id,due_at,{extra_column.split()[0]},filename,state) VALUES(?,?,?,?,?)", row)
         connection.commit()
         connection.close()
         image = Image.new("RGB", (40, 60), "white")
@@ -67,6 +71,17 @@ class ContentScheduleTests(unittest.TestCase):
             content_schedule.image("promotional", "3" * 32 + ".jpg")
         with self.assertRaises(ValueError):
             content_schedule.image("unknown", self.promotional_name)
+
+    def test_confirmed_cancel_only_removes_the_selected_queued_item_from_the_agenda(self):
+        item = content_schedule.agenda(now=self.now)[0]
+        with self.assertRaises(ValueError):
+            content_schedule.cancel(item["id"], item["due_at"], confirmed=False)
+        result = content_schedule.cancel(item["id"], item["due_at"], confirmed=True)
+        self.assertTrue(result["cancelled"])
+        self.assertEqual([entry["kind"] for entry in content_schedule.agenda(now=self.now)], ["verse"])
+        with sqlite3.connect(self.promotional / "promotional-story-queue.sqlite3") as connection:
+            self.assertEqual(connection.execute("SELECT state FROM slots").fetchone()[0], "cancelled")
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM policy_events").fetchone()[0], 1)
 
     def test_review_items_and_unverified_databases_are_not_exposed(self):
         with sqlite3.connect(self.verse / "story-queue.sqlite3") as connection:
