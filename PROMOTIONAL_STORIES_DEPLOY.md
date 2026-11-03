@@ -19,10 +19,12 @@ diretório de mídia, chave HTTP, rota e variáveis de ambiente.
    `ARTENOALTAR_PROMOTIONAL_STORIES_DIR` e `ARTENOALTAR_PROMOTIONAL_STORIES_META_DIR`.
 8. A ativação final usa `enable-live --confirm` e deve ocorrer apenas após nova aprovação.
 9. Após a aprovação do padrão recorrente, `enable-daily --confirm` fixa o hash do
-   layout, títulos, horários e recorte autorizados. Uma tarefa diária executa
-   `run-daily`; qualquer mudança nesse conjunto desliga a geração e pede revisão.
+   layout, títulos, horários e recorte autorizados. O acionamento HTTP existente
+   prepara uma arte por chamada ociosa e enfileira o lote ao completar as dez;
+   qualquer mudança no padrão desliga a geração e pede revisão.
 
-O executor nunca prepara, aprova ou coloca um lote na fila. Ele processa somente artes
-já revisadas e falha para o estado `review` quando a confirmação da Meta é incerta.
+O acionamento só prepara lotes quando a automação diária está vinculada ao hash do
+padrão aprovado. O executor de publicação processa somente artes verificadas e falha
+para o estado `review` quando a confirmação da Meta é incerta.
 Os arquivos de lotes publicados são removidos após 30 dias; o histórico de modelos e
 publicações permanece no banco promocional para impedir repetições indevidas.

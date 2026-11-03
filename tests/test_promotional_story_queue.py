@@ -17,7 +17,7 @@ from promotional_stories import http
 from promotional_stories import wsgi as promo_wsgi
 from promotional_stories.queue import (APPLICATION_ID, Store, ZONE, configure_live,
     cleanup_media, enable_daily, enable_live, prepare_batch, queue_batch, reject_batch,
-    run_daily, tick)
+    run_daily, run_daily_step, tick)
 from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 
 
@@ -176,6 +176,34 @@ class PromotionalQueueTests(unittest.TestCase):
         with self.store.connect() as connection:
             automation = connection.execute("SELECT * FROM daily_automation").fetchone()
         self.assertFalse(automation["enabled"])
+
+    def test_daily_steps_use_existing_external_trigger_and_queue_tenth_art(self):
+        self.activate_daily()
+        batch_id = None
+        for completed in range(1, 10):
+            result = run_daily_step(self.store, client=self.drive, now=self.now)
+            batch_id = batch_id or result["batch_id"]
+            self.assertEqual(result, {"status": "preparing", "batch_id": batch_id,
+                                      "completed": completed, "total": 10})
+            with self.store.connect() as connection:
+                drafts = connection.execute(
+                    "SELECT COUNT(*) FROM slots WHERE state='draft'").fetchone()[0]
+            self.assertEqual(drafts, completed)
+        result = run_daily_step(self.store, client=self.drive, now=self.now)
+        self.assertEqual(result, {"status": "queued", "batch_id": batch_id})
+        self.assertEqual(len(self.store.agenda()), 20)
+        self.assertEqual({row["state"] for row in self.store.agenda()}, {"queued"})
+        self.assertEqual(run_daily_step(self.store, client=self.drive, now=self.now)["status"], "idle")
+
+    def test_daily_step_resumes_after_temporary_drive_failure(self):
+        self.activate_daily()
+        failing = Mock()
+        failing.catalog.side_effect = ValueError("temporary")
+        with self.assertRaises(ValueError):
+            run_daily_step(self.store, client=failing, now=self.now)
+        result = run_daily_step(self.store, client=self.drive, now=self.now)
+        self.assertEqual(result["status"], "preparing")
+        self.assertEqual(result["completed"], 1)
 
     def test_prepare_creates_ten_unique_models_titles_and_exact_times_as_drafts(self):
         drive_config = (self.drive_directory / drive_source.CONFIG_FILE).read_bytes()
@@ -349,6 +377,31 @@ class PromotionalHTTPTests(unittest.TestCase):
         self.assertEqual(runner.call_count, 1)
         with store.connect() as conn:
             self.assertEqual(conn.execute("SELECT lease_until FROM http_runtime").fetchone()[0], 0)
+
+    def test_idle_publish_tick_advances_daily_generation_without_another_scheduler(self):
+        store = Store(self.directory)
+        with store.connect() as conn:
+            conn.execute("UPDATE policy SET enabled=1,account_id='123456' WHERE id=1")
+        factory = Mock(return_value=Transport())
+        now = datetime(2026, 11, 3, 1, 0, tzinfo=ZONE)
+        with patch("promotional_stories.http.tick", return_value={"status": "idle"}), \
+             patch("promotional_stories.http.run_daily_step",
+                   return_value={"status": "preparing", "completed": 1, "total": 10}) as daily:
+            self.assertEqual(http.handle(self.env, self.directory, factory, now=now),
+                             (200, {"status": "preparing"}))
+        daily.assert_called_once_with(unittest.mock.ANY, now=now)
+
+    def test_due_publication_takes_priority_over_daily_generation(self):
+        store = Store(self.directory)
+        with store.connect() as conn:
+            conn.execute("UPDATE policy SET enabled=1,account_id='123456' WHERE id=1")
+        factory = Mock(return_value=Transport())
+        now = datetime(2026, 11, 3, 1, 0, tzinfo=ZONE)
+        with patch("promotional_stories.http.tick", return_value={"status": "staged"}), \
+             patch("promotional_stories.http.run_daily_step") as daily:
+            self.assertEqual(http.handle(self.env, self.directory, factory, now=now),
+                             (200, {"status": "staged"}))
+        daily.assert_not_called()
 
     def test_wsgi_delegates_every_existing_route_unchanged(self):
         for path in ("/", "/healthz", "/internal/stories/tick", "/internal/scheduler/tick", "/mcp"):
