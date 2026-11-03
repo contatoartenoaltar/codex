@@ -508,6 +508,115 @@ def run_daily(store, *, client=None, now=None):
     return {"status": "queued", "batch_id": batch_id}
 
 
+def run_daily_step(store, *, client=None, now=None):
+    """Monta uma única arte do próximo lote em cada acionamento externo."""
+    now = local_now(now)
+    today = now.date().isoformat()
+    current_hash = promotional_story.rules_hash()
+    with store.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        automation = conn.execute("SELECT * FROM daily_automation WHERE id=1").fetchone()
+        policy = conn.execute("SELECT * FROM policy WHERE id=1").fetchone()
+        if not automation["enabled"]:
+            return {"status": "disabled"}
+        if not policy["enabled"] or automation["rules_hash"] != current_hash:
+            conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+            conn.execute("INSERT INTO policy_events(action,account_id,created_at) VALUES(?,?,?)",
+                         ("daily_rules_changed", policy["account_id"], stamp(now)))
+            return {"status": "review"}
+        if automation["last_completed_day"] == today:
+            return {"status": "idle"}
+        manual = conn.execute("""SELECT 1 FROM batches b JOIN slots s ON s.batch_id=b.id
+            WHERE s.state='draft' AND b.automatic=0 LIMIT 1""").fetchone()
+        if manual:
+            return {"status": "review"}
+        batch = conn.execute("""SELECT b.*,COUNT(s.id) AS total
+            FROM batches b LEFT JOIN slots s ON s.batch_id=b.id
+            WHERE b.automatic=1 GROUP BY b.id
+            HAVING total<10 ORDER BY b.day LIMIT 1""").fetchone()
+        if batch is None:
+            batch_id = secrets.token_hex(16)
+            day = _next_day(conn, now)
+            conn.execute("""INSERT INTO batches(id,day,cycle,created_at,automatic)
+                VALUES(?,?,?,?,1)""", (batch_id, day.isoformat(), 1, stamp(now)))
+            total = 0
+        else:
+            batch_id, day, total = batch["id"], date.fromisoformat(batch["day"]), batch["total"]
+        conn.execute("UPDATE daily_automation SET last_started_day=? WHERE id=1", (today,))
+        drive_directory = automation["drive_directory"]
+
+    media = store.directory / "media"
+    if media.is_symlink():
+        raise ValueError("A mídia promocional precisa estar em diretório local.")
+    media.mkdir(parents=True, exist_ok=True)
+    cleanup_media(store, now=now)
+    files, client = drive_catalog(drive_directory, client)
+    created = []
+    try:
+        with store.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            batch = conn.execute("SELECT * FROM batches WHERE id=? AND automatic=1",
+                                 (batch_id,)).fetchone()
+            rows = conn.execute("SELECT * FROM slots WHERE batch_id=? ORDER BY position",
+                                (batch_id,)).fetchall()
+            if batch is None or len(rows) != total or any(row["state"] != "draft" for row in rows):
+                raise ValueError("O lote automático mudou durante a preparação.")
+            position = total + 1
+            phrase_index = promotional_story.daily_phrase_indices(day.toordinal())[position - 1]
+            history = []
+            generated = None
+            for cycle, source in _candidates(conn, files):
+                history.append((cycle, source["id"], batch_id))
+                raw = client.download_image(source)
+                ident = secrets.token_hex(16)
+                try:
+                    target, image_hash, manifest_hash = _write_art(
+                        media, ident, raw, phrase_index, source)
+                except promotional_story.PreviewError:
+                    continue
+                created.extend((target, target.with_suffix(".json")))
+                generated = (ident, batch_id, day.isoformat(), position,
+                             stamp(_due(day, promotional_story.TIMES[position - 1])),
+                             source["id"], source["name"], phrase_index, target.name,
+                             image_hash, manifest_hash, "draft")
+                batch_cycle = cycle
+                break
+            if generated is None:
+                conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+                conn.execute("INSERT INTO policy_events(action,account_id,created_at) "
+                             "SELECT ?,account_id,? FROM policy WHERE id=1",
+                             ("daily_catalog_review", stamp(now)))
+                return {"status": "review"}
+            if sum(path.stat().st_size for path in media.iterdir() if path.is_file()) > MEDIA_LIMIT:
+                raise ValueError("O armazenamento promocional atingiu o limite; revise a retenção.")
+            conn.execute("""INSERT INTO slots(id,batch_id,day,position,due_at,model_id,model_name,
+                phrase_index,filename,image_hash,manifest_hash,state)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", generated)
+            conn.executemany(
+                "INSERT INTO model_history(cycle,model_id,batch_id) VALUES(?,?,?)", history)
+            conn.execute("UPDATE batches SET cycle=? WHERE id=?", (batch_cycle, batch_id))
+    except Exception:
+        for path in created:
+            path.unlink(missing_ok=True)
+        raise
+
+    if position < len(promotional_story.TIMES):
+        return {"status": "preparing", "batch_id": batch_id, "completed": position,
+                "total": len(promotional_story.TIMES)}
+    try:
+        queue_batch(store, batch_id, confirmed=True, now=now)
+    except Exception:
+        with store.connect() as conn:
+            conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+            conn.execute("INSERT INTO policy_events(action,account_id,created_at) "
+                         "SELECT ?,account_id,? FROM policy WHERE id=1",
+                         ("daily_generation_failed", stamp(now)))
+        return {"status": "review"}
+    with store.connect() as conn:
+        conn.execute("UPDATE daily_automation SET last_completed_day=? WHERE id=1", (today,))
+    return {"status": "queued", "batch_id": batch_id}
+
+
 def tick(store, transport=None, *, now=None):
     """Processa somente itens já revisados; nunca cria ou aprova um lote."""
     now = local_now(now)

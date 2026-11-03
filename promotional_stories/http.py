@@ -10,7 +10,7 @@ import secrets
 import sqlite3
 from urllib.parse import urlsplit
 
-from .queue import Store, tick, local_now, stamp, LEASE
+from .queue import Store, tick, run_daily_step, local_now, stamp, LEASE
 
 
 PATH = "/internal/promotional-stories/tick"
@@ -80,7 +80,12 @@ def run(store, factory, *, now=None):
             return {"status": "throttled"}
         conn.execute("INSERT OR REPLACE INTO http_runtime VALUES(1,?,?,?)", (stamp(now), lease, stamp(now)+LEASE))
     try:
-        return tick(store, factory(policy["account_id"]), now=now)
+        result = tick(store, factory(policy["account_id"]), now=now)
+        if result["status"] == "idle":
+            daily = run_daily_step(store, now=now)
+            if daily["status"] not in ("disabled", "idle"):
+                return daily
+        return result
     finally:
         with store.connect() as conn:
             conn.execute("UPDATE http_runtime SET lease='',lease_until=0 WHERE id=1 AND lease=?", (lease,))
