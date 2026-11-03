@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "approved_on": "2026-11-03",
+  "language": "pt-BR",
+  "owner": "Arte no Altar",
+  "usage": "Fonte oficial para carrosséis de perguntas e respostas. Não ampliar respostas com fatos não presentes neste catálogo.",
+  "items": [
+    {
+      "id": "formas-de-envio",
+      "question": "Quais são as formas de envio?",
+      "answer": "Enviamos pelos Correios e por transportadora."
+    },
+    {
+      "id": "localizacao",
+      "question": "Onde vocês estão localizados?",
+      "answer": "Estamos em Poços de Caldas – MG e enviamos para todo o Brasil."
+    },
+    {
+      "id": "valores-envelopes",
+      "question": "Quais são os valores dos envelopes personalizados?",
+      "answer": "100 unidades: R$ 99,00\n200 unidades: R$ 149,00\n500 unidades: R$ 229,00\n1.000 unidades: R$ 399,00",
+      "price_rows": [
+        {"quantity": 100, "price_brl": "R$ 99,00", "price_cents": 9900},
+        {"quantity": 200, "price_brl": "R$ 149,00", "price_cents": 14900},
+        {"quantity": 500, "price_brl": "R$ 229,00", "price_cents": 22900},
+        {"quantity": 1000, "price_brl": "R$ 399,00", "price_cents": 39900}
+      ]
+    },
+    {
+      "id": "personalizacao-envelopes",
+      "question": "Como os envelopes são personalizados?",
+      "answer": "Com a logo da sua igreja e o QR Code Pix."
+    },
+    {
+      "id": "formas-de-pagamento",
+      "question": "Quais são as formas de pagamento?",
+      "answer": "Pix ou cartão de crédito, em até 12 vezes com juros pelo site."
+    },
+    {
+      "id": "quantidade-minima",
+      "question": "Qual é a quantidade mínima?",
+      "answer": "O pedido mínimo é de 100 unidades."
+    },
+    {
+      "id": "outros-produtos",
+      "question": "Vocês fazem apenas envelopes?",
+      "answer": "Não! Somos uma gráfica cristã. Também produzimos calendários, marca-páginas, adesivos, folhetos, cartões e outros materiais."
+    },
+    {
+      "id": "tamanho-e-fechamento",
+      "question": "Qual é o tamanho dos envelopes? Eles vão fechados?",
+      "answer": "São envelopes C6, de 16,2 × 11,4 cm, modelo carta, e vão fechados."
+    },
+    {
+      "id": "simulacao-com-logo",
+      "question": "Posso ver como o envelope fica com a logo da minha igreja?",
+      "answer": "Sim! Escolha um modelo e envie a logo da igreja para fazermos uma simulação."
+    },
+    {
+      "id": "modelos-disponiveis",
+      "question": "Vocês têm modelos para escolher?",
+      "answer": "Sim! Temos mais de 70 modelos de envelopes para diferentes temas e momentos da sua igreja."
+    },
+    {
+      "id": "outras-denominacoes",
+      "question": "Vocês atendem igrejas de outras denominações?",
+      "answer": "Sim! Personalizamos os materiais com a identidade da sua igreja."
+    },
+    {
+      "id": "projeto-de-vida",
+      "question": "Vocês produzem materiais para o Projeto de Vida?",
+      "answer": "Sim! Fazemos cartilhas, marca-páginas, calendários e envelopes personalizados. Os itens variam conforme o kit escolhido."
+    },
+    {
+      "id": "onde-comprar",
+      "question": "Onde posso comprar?",
+      "answer": "Pelo site artenoaltar.com.br ou entrando em contato pelo WhatsApp 35 9 8442-8442.",
+      "website": "https://artenoaltar.com.br",
+      "whatsapp_display": "35 9 8442-8442",
+      "whatsapp_e164": "+5535984428442"
+    },
+    {
+      "id": "instagram",
+      "question": "Qual é o Instagram da gráfica?",
+      "answer": "Nosso perfil é @arte.no.altar. Lá você encontra modelos, novidades e trabalhos realizados.",
+      "instagram": "@arte.no.altar"
+    }
+  ]
+}
