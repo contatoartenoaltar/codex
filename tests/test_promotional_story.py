@@ -12,9 +12,11 @@ import promotional_story as story
 
 class PromotionalStoryTests(unittest.TestCase):
     def source(self, color="#2b5f91"):
-        image = Image.new("RGB", (700, 500), color)
+        image = Image.new("RGB", (700, 500), "#5b3020")
         draw = ImageDraw.Draw(image)
-        draw.rectangle((18, 18, 682, 482), outline="white", width=8)
+        draw.rectangle((75, 90, 625, 430), fill="white")
+        draw.rectangle((90, 105, 610, 415), fill=color)
+        draw.rectangle((130, 150, 260, 280), fill="#ffd200")
         output = io.BytesIO()
         image.save(output, "PNG")
         return output.getvalue()
@@ -29,6 +31,20 @@ class PromotionalStoryTests(unittest.TestCase):
         self.assertEqual(manifest["title"], "Envelopes com a sua IDENTIDADE")
         self.assertEqual(manifest["title_lines"], ["Envelopes", "com a sua", "IDENTIDADE"])
         self.assertNotIn("schedule", manifest)
+
+    def test_only_envelope_face_is_projected_without_source_scene(self):
+        raw = self.source()
+        face = story.envelope_face(raw).convert("RGB")
+        self.assertEqual(face.size, (940, 606))
+        pixels = set(face.resize((94, 61)).get_flattened_data())
+        self.assertFalse(any(red > 70 and 30 < green < 80 and blue < 60
+                             for red, green, blue in pixels))
+
+    def test_source_without_detectable_envelope_is_refused(self):
+        output = io.BytesIO()
+        Image.new("RGB", (700, 500), "white").save(output, "PNG")
+        with self.assertRaises(story.PreviewError):
+            story.render(output.getvalue())
 
     def test_daily_batch_has_ten_unique_drafts_and_approved_times(self):
         with tempfile.TemporaryDirectory() as directory:

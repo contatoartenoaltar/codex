@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -15,7 +16,7 @@ import promotional_story
 from promotional_stories import http
 from promotional_stories import wsgi as promo_wsgi
 from promotional_stories.queue import (APPLICATION_ID, Store, ZONE, configure_live,
-    cleanup_media, enable_live, prepare_batch, queue_batch, tick)
+    cleanup_media, enable_live, prepare_batch, queue_batch, reject_batch, tick)
 from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 
 
@@ -40,7 +41,8 @@ class Drive:
 def fake_render(raw, phrase_index):
     lines = promotional_story.PHRASES[phrase_index]
     image = Image.new("RGB", promotional_story.SIZE, (phrase_index * 20, 30, 40))
-    return image, {"version": "promotional-story-reference-titles-v4",
+    return image, {"version": "promotional-story-envelope-face-v5",
+                   "cutout_version": "paper-quad-v2",
                    "size": list(promotional_story.SIZE), "title": " ".join(lines),
                    "title_lines": list(lines), "phrase_index": phrase_index,
                    "cta": promotional_story.CTA, "phone": promotional_story.PHONE,
@@ -87,7 +89,7 @@ class PromotionalQueueTests(unittest.TestCase):
         self.drive = Drive()
         self.now = datetime(2026, 11, 3, 1, 0, tzinfo=ZONE)
         self.render = patch("promotional_stories.queue.promotional_story.render", side_effect=fake_render)
-        self.render.start()
+        self.render_mock = self.render.start()
         self.addCleanup(self.render.stop)
 
     def prepare(self):
@@ -100,6 +102,28 @@ class PromotionalQueueTests(unittest.TestCase):
             self.assertEqual(conn.execute("PRAGMA application_id").fetchone()[0], APPLICATION_ID)
             policy = conn.execute("SELECT * FROM policy").fetchone()
         self.assertEqual((policy["mode"], policy["enabled"], policy["account_id"]), ("live", 0, ""))
+
+    def test_previous_schema_adds_batch_tracking_without_enabling(self):
+        directory = Path(self.temp.name) / "previous-promotional"
+        directory.mkdir()
+        path = directory / "promotional-story-queue.sqlite3"
+        connection = sqlite3.connect(path)
+        connection.execute(f"PRAGMA application_id={APPLICATION_ID}")
+        connection.execute("""CREATE TABLE model_history(
+            cycle INTEGER NOT NULL, model_id TEXT NOT NULL, PRIMARY KEY(cycle,model_id))""")
+        connection.execute("INSERT INTO model_history VALUES(1,'existing-model')")
+        connection.commit()
+        connection.close()
+        previous = Store(directory)
+        previous.initialize()
+        with previous.connect() as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(model_history)")}
+            policy = connection.execute("SELECT * FROM policy WHERE id=1").fetchone()
+            history = connection.execute(
+                "SELECT cycle,model_id,batch_id FROM model_history").fetchone()
+        self.assertIn("batch_id", columns)
+        self.assertEqual(tuple(history), (1, "existing-model", ""))
+        self.assertFalse(policy["enabled"])
 
     def test_prepare_creates_ten_unique_models_titles_and_exact_times_as_drafts(self):
         drive_config = (self.drive_directory / drive_source.CONFIG_FILE).read_bytes()
@@ -145,6 +169,34 @@ class PromotionalQueueTests(unittest.TestCase):
         first.write_bytes(original)
         queue_batch(self.store, batch, confirmed=True, now=self.now)
         self.assertEqual({row["state"] for row in self.store.agenda()}, {"queued"})
+
+    def test_prepare_skips_model_whose_envelope_face_cannot_be_detected(self):
+        calls = 0
+        def render(raw, phrase_index):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise promotional_story.PreviewError("modelo sem face detectável")
+            return fake_render(raw, phrase_index)
+        self.render_mock.side_effect = render
+        self.prepare()
+        rows = self.store.agenda()
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(self.drive.downloads, 11)
+        self.assertNotIn("model_0000", {row["model_id"] for row in rows})
+
+    def test_rejected_draft_is_removed_and_same_day_can_be_regenerated(self):
+        batch = self.prepare()["batch_id"]
+        with self.assertRaises(ValueError):
+            reject_batch(self.store, batch)
+        self.assertTrue(reject_batch(self.store, batch, confirmed=True)["rejected"])
+        self.assertEqual(self.store.agenda(), [])
+        self.assertFalse(any((self.directory / "media").glob("*.jpg")))
+        with self.store.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM model_history").fetchone()[0], 0)
+        replacement = self.prepare()
+        self.assertTrue(replacement["created"])
+        self.assertEqual(replacement["day"], "2026-11-03")
 
     def test_live_activation_and_three_phase_publish_are_explicit(self):
         batch = self.prepare()["batch_id"]

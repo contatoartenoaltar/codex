@@ -57,7 +57,9 @@ SCHEMA = [
         remote_id TEXT NOT NULL DEFAULT '', claim TEXT NOT NULL DEFAULT '', claimed_at INTEGER,
         error TEXT NOT NULL DEFAULT '', UNIQUE(batch_id,position), UNIQUE(batch_id,model_id),
         UNIQUE(batch_id,phrase_index))""",
-    "CREATE TABLE IF NOT EXISTS model_history(cycle INTEGER NOT NULL, model_id TEXT NOT NULL, PRIMARY KEY(cycle,model_id))",
+    """CREATE TABLE IF NOT EXISTS model_history(
+        cycle INTEGER NOT NULL, model_id TEXT NOT NULL, batch_id TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY(cycle,model_id))""",
     """CREATE TABLE IF NOT EXISTS attempts(
         id TEXT PRIMARY KEY, slot_id TEXT NOT NULL REFERENCES slots(id), phase TEXT NOT NULL,
         created_at INTEGER NOT NULL, outcome TEXT NOT NULL DEFAULT 'pending')""",
@@ -93,6 +95,8 @@ class Store:
             conn.execute(f"PRAGMA application_id={APPLICATION_ID}")
             for statement in SCHEMA:
                 conn.execute(statement)
+            if "batch_id" not in {row[1] for row in conn.execute("PRAGMA table_info(model_history)")}:
+                conn.execute("ALTER TABLE model_history ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
             conn.execute("INSERT OR IGNORE INTO policy VALUES(1,0,'live','')")
             conn.commit()
         except BaseException:
@@ -139,20 +143,18 @@ def drive_catalog(directory, client=None):
     return files, client
 
 
-def _selection(conn, files):
+def _candidates(conn, files):
     cycle = conn.execute("SELECT COALESCE(MAX(cycle),1) FROM model_history").fetchone()[0]
     used = [row[0] for row in conn.execute(
         "SELECT model_id FROM model_history WHERE cycle=? ORDER BY rowid", (cycle,))]
-    ids = [item["id"] for item in files]
-    active_used = [ident for ident in used if ident in set(ids)]
-    selected_ids, new_used = promotional_story.daily_selection(ids, active_used)
-    if len(new_used) < len(active_used):
-        cycle += 1
-        inserted = new_used
-    else:
-        inserted = [ident for ident in new_used if ident not in set(active_used)]
-    by_id = {item["id"]: item for item in files}
-    return cycle, [by_id[ident] for ident in selected_ids], inserted
+    active = {item["id"] for item in files}
+    active_used = {ident for ident in used if ident in active}
+    remaining = [item for item in files if item["id"] not in active_used]
+    previous = [item for item in files if item["id"] in active_used]
+    # Tenta cada modelo no máximo uma vez no lote. Se os remanescentes não
+    # renderizarem dez faces, atravessa o fim do ciclo sem repetir no dia.
+    return ([(cycle, item) for item in remaining] +
+            [(cycle + 1, item) for item in previous])
 
 
 def _next_day(conn, now):
@@ -241,25 +243,41 @@ def prepare_batch(store, drive_directory, *, client=None, now=None):
             if conn.execute("SELECT 1 FROM batches WHERE day=?", (day.isoformat(),)).fetchone():
                 row = conn.execute("SELECT id FROM batches WHERE day=?", (day.isoformat(),)).fetchone()
                 return {"batch_id": row[0], "created": False}
-            cycle, chosen, inserted = _selection(conn, files)
             batch = secrets.token_hex(16)
             phrase_indices = promotional_story.daily_phrase_indices(day.toordinal())
             rows = []
-            for position, (source, time_value, phrase_index) in enumerate(
-                    zip(chosen, promotional_story.TIMES, phrase_indices), 1):
+            history = []
+            batch_cycle = 1
+            for cycle, source in _candidates(conn, files):
+                if len(rows) == len(promotional_story.TIMES):
+                    break
+                history.append((cycle, source["id"], batch))
                 raw = client.download_image(source)
                 ident = secrets.token_hex(16)
-                target, image_hash, manifest_hash = _write_art(media, ident, raw, phrase_index, source)
+                position = len(rows) + 1
+                time_value = promotional_story.TIMES[position - 1]
+                phrase_index = phrase_indices[position - 1]
+                try:
+                    target, image_hash, manifest_hash = _write_art(
+                        media, ident, raw, phrase_index, source)
+                except promotional_story.PreviewError:
+                    continue
                 created.extend((target, target.with_suffix(".json")))
                 rows.append((ident, batch, day.isoformat(), position, stamp(_due(day, time_value)),
                              source["id"], source["name"], phrase_index, target.name,
                              image_hash, manifest_hash, "draft"))
+                batch_cycle = cycle
+            if len(rows) != len(promotional_story.TIMES):
+                raise ValueError(
+                    "O catálogo não contém 10 faces de envelope identificáveis para este lote.")
             if sum(path.stat().st_size for path in media.iterdir() if path.is_file()) > MEDIA_LIMIT:
                 raise ValueError("O armazenamento promocional atingiu o limite; revise a retenção.")
-            conn.execute("INSERT INTO batches VALUES(?,?,?,?)", (batch, day.isoformat(), cycle, stamp(now)))
+            conn.execute("INSERT INTO batches VALUES(?,?,?,?)",
+                         (batch, day.isoformat(), batch_cycle, stamp(now)))
             conn.executemany("""INSERT INTO slots(id,batch_id,day,position,due_at,model_id,model_name,
                 phrase_index,filename,image_hash,manifest_hash,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
-            conn.executemany("INSERT INTO model_history VALUES(?,?)", ((cycle, ident) for ident in inserted))
+            conn.executemany(
+                "INSERT INTO model_history(cycle,model_id,batch_id) VALUES(?,?,?)", history)
             return {"batch_id": batch, "created": True, "day": day.isoformat()}
     except BaseException:
         for path in created:
@@ -288,7 +306,8 @@ def verify_image(store, row):
         raise ValueError("A arte promocional não é um JPEG válido.") from None
     data = json.loads(manifest.read_text(encoding="utf-8"))
     expected = promotional_story.PHRASES[row["phrase_index"]]
-    if (data.get("version") != "promotional-story-reference-titles-v4" or
+    if (data.get("version") != "promotional-story-envelope-face-v5" or
+            data.get("cutout_version") != "paper-quad-v2" or
             data.get("size") != list(promotional_story.SIZE) or
             data.get("model_id") != row["model_id"] or
             data.get("model_name") != row["model_name"] or
@@ -297,6 +316,36 @@ def verify_image(store, row):
             data.get("image_sha256") != row["image_hash"]):
         raise ValueError("Modelo, título ou cenário promocional mudou.")
     return image
+
+
+def reject_batch(store, batch_id, *, confirmed=False):
+    """Descarta um lote ainda não aprovado e libera seus modelos para nova arte."""
+    if confirmed is not True:
+        raise ValueError("Confirme o descarte do lote promocional reprovado.")
+    with store.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        batch = conn.execute("SELECT * FROM batches WHERE id=?", (batch_id,)).fetchone()
+        rows = conn.execute(
+            "SELECT * FROM slots WHERE batch_id=? ORDER BY position", (batch_id,)).fetchall()
+        if batch is None or len(rows) != 10 or any(row["state"] != "draft" for row in rows):
+            raise ValueError("Somente um lote completo ainda em rascunho pode ser descartado.")
+        model_ids = [row["model_id"] for row in rows]
+        placeholders = ",".join("?" for _ in model_ids)
+        conn.execute("DELETE FROM model_history WHERE batch_id=? OR (cycle=? AND model_id IN (" +
+                     placeholders + "))", (batch_id, batch["cycle"], *model_ids))
+        conn.execute("DELETE FROM slots WHERE batch_id=?", (batch_id,))
+        conn.execute("DELETE FROM batches WHERE id=?", (batch_id,))
+        conn.execute("INSERT INTO policy_events(action,account_id,created_at) "
+                     "SELECT ?,account_id,? FROM policy WHERE id=1",
+                     ("reject_batch:" + batch_id, stamp(local_now())))
+    media = store.directory / "media"
+    for row in rows:
+        image = media / row["filename"]
+        for path in (image, image.with_suffix(".json")):
+            if path.is_symlink():
+                raise ValueError("O descarte não remove links simbólicos.")
+            path.unlink(missing_ok=True)
+    return {"batch_id": batch_id, "rejected": True}
 
 
 def queue_batch(store, batch_id, *, confirmed=False, now=None):
@@ -432,7 +481,8 @@ def main():
     parser.add_argument("--account")
     parser.add_argument("--batch")
     parser.add_argument("--confirm", action="store_true")
-    parser.add_argument("action", choices=["prepare", "agenda", "configure-live", "queue", "enable-live", "pause"])
+    parser.add_argument("action", choices=[
+        "prepare", "agenda", "configure-live", "queue", "reject", "enable-live", "pause"])
     args = parser.parse_args()
     store = Store(args.directory)
     store.initialize()
@@ -444,6 +494,8 @@ def main():
         configure_live(store, args.account, confirmed=args.confirm)
     elif args.action == "queue":
         queue_batch(store, args.batch, confirmed=args.confirm)
+    elif args.action == "reject":
+        reject_batch(store, args.batch, confirmed=args.confirm)
     elif args.action == "enable-live":
         enable_live(store, confirmed=args.confirm)
     elif args.action == "pause":

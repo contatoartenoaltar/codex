@@ -6,10 +6,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from PIL import Image, ImageChops
+from PIL import Image
 
 from layout_preview import decode
-from product_scene import project
+from product_scene import CUTOUT_VERSION, CutoutError, detect_quad, project
 
 
 SIZE = (1080, 1920)
@@ -89,30 +89,22 @@ def _master(phrase_index: int) -> tuple[Image.Image, dict]:
         return image.convert("RGBA"), spec
 
 
-def _ink_bbox(image: Image.Image) -> tuple[int, int, int, int]:
-    """Remove somente a margem branca externa, mantendo a arte completa."""
-    rgb = image.convert("RGB")
-    white = Image.new("RGB", rgb.size, "white")
-    mask = ImageChops.difference(rgb, white).convert("L").point(
-        lambda value: 255 if value > 18 else 0)
-    bbox = mask.getbbox()
-    if bbox is None:
-        raise PreviewError("O modelo enviado está vazio.")
-    left, top, right, bottom = bbox
-    width, height = right - left, bottom - top
-    if width * height < rgb.width * rgb.height * 0.18:
-        raise PreviewError("Não foi possível identificar o modelo completo com segurança.")
-    margin = max(8, round(min(width, height) * 0.018))
-    return (max(0, left - margin), max(0, top - margin),
-            min(rgb.width, right + margin), min(rgb.height, bottom + margin))
-
-
-def upright_model(raw: bytes) -> Image.Image:
-    image = decode(raw)
-    model = image.crop(_ink_bbox(image))
-    if model.height > model.width:
-        model = model.transpose(Image.Transpose.ROTATE_90)
-    return model
+def envelope_face(raw: bytes) -> Image.Image:
+    """Retifica somente a face impressa; cenário, mesa e pilha não acompanham a arte."""
+    source = decode(raw).convert("RGBA")
+    try:
+        quad = detect_quad(raw)
+    except CutoutError:
+        raise PreviewError(
+            "Não foi possível separar a face do envelope; o modelo ficou fora do lote.") from None
+    center = [sum(point[axis] for point in quad) / 4 for axis in range(2)]
+    inner = [[value * .994 + center[axis] * .006
+              for axis, value in enumerate(point)] for point in quad]
+    # QUAD recebe UL, LL, LR, UR; detect_quad entrega UL, UR, LR, LL.
+    return source.transform(
+        (940, 606), Image.Transform.QUAD,
+        tuple(value for index in (0, 3, 2, 1) for value in inner[index]),
+        Image.Resampling.BICUBIC)
 
 
 def render(raw: bytes, phrase_index: int = 0) -> tuple[Image.Image, dict]:
@@ -120,12 +112,13 @@ def render(raw: bytes, phrase_index: int = 0) -> tuple[Image.Image, dict]:
     if type(phrase_index) is not int or not 0 <= phrase_index < len(PHRASES):
         raise PreviewError("Escolha uma das 10 frases comerciais aprovadas.")
     canvas, spec = _master(phrase_index)
-    model = upright_model(raw).convert("RGBA")
+    model = envelope_face(raw)
     canvas.alpha_composite(project(model, spec["back"], SIZE))
     canvas.alpha_composite(project(model, spec["front"], SIZE))
     lines = PHRASES[phrase_index]
     return canvas.convert("RGB"), {
-        "version": "promotional-story-reference-titles-v4",
+        "version": "promotional-story-envelope-face-v5",
+        "cutout_version": CUTOUT_VERSION,
         "size": list(SIZE),
         "title": " ".join(lines),
         "title_lines": list(lines),
