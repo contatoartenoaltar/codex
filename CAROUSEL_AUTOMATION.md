@@ -56,5 +56,10 @@ os arquivos são isolados das filas de Feed e Stories.
    da etapa confirmada sem duplicar uma publicação.
 7. Interromper a fila para revisão quando a Meta não confirmar o resultado.
 
+O acionamento externo usa `POST /internal/carousels/tick`, autenticação Bearer e
+corpo vazio. Cada chamada executa no máximo uma transição remota confirmada. A
+configuração guarda somente o hash da chave; o segredo permanece em arquivo
+privado para ser copiado ao cron-job.org.
+
 O código permanece desativado por padrão até a implantação e a ativação única na
 hospedagem.

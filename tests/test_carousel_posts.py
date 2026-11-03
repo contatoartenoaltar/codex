@@ -4,10 +4,44 @@ from pathlib import Path
 import unittest
 
 from PIL import Image
+from unittest.mock import patch
 
 from carousel_posts import composer
+from carousel_posts import http
 from carousel_posts.queue import (APPLICATION_ID, Store, ZONE, cancel,
-                                  enable_automatic, ensure_horizon, verify_files)
+                                  enable_automatic, ensure_horizon, tick, verify_files)
+
+
+class Transport:
+    def __init__(self, account_id):
+        self.account_id = account_id
+        self.staged = 0
+        self.children = 0
+        self.parents = 0
+        self.published = 0
+
+    def verify_account(self, account_id):
+        if account_id != self.account_id:
+            raise ValueError("wrong account")
+
+    def stage_image(self, image):
+        self.staged += 1
+        return {"id": str(100 + self.staged)}
+
+    def create_carousel_child(self, image, *, staged_photo):
+        self.children += 1
+        return {"id": str(200 + self.children)}
+
+    def container_status(self, container):
+        return "FINISHED"
+
+    def create_carousel(self, children, caption):
+        self.parents += 1
+        return {"id": "301"}
+
+    def publish(self, container):
+        self.published += 1
+        return {"id": "401"}
 
 
 class CarouselComposerTests(unittest.TestCase):
@@ -74,6 +108,59 @@ class CarouselQueueTests(unittest.TestCase):
         self.assertEqual(ensure_horizon(self.store, now=self.now)["status"], "review")
         with self.store.connect() as connection:
             self.assertFalse(connection.execute("SELECT enabled FROM policy WHERE id=1").fetchone()[0])
+
+    def test_tick_persists_each_remote_step_and_publishes_once(self):
+        enable_automatic(self.store, "17841436823298466", confirmed=True)
+        ensure_horizon(self.store, now=self.now)
+        due = datetime.fromtimestamp(self.store.agenda()[0]["due_at"], ZONE)
+        transport = Transport("17841436823298466")
+        factory = lambda account_id: transport
+        statuses = [tick(self.store, factory, now=due)["status"] for _ in range(8)]
+        self.assertEqual(statuses, ["staging"] * 3 + ["processing"] * 3 +
+                         ["publishing", "published"])
+        row = self.store.agenda()[0]
+        self.assertEqual((row["state"], row["remote_id"]), ("published", "401"))
+        self.assertEqual((transport.staged, transport.children, transport.parents, transport.published),
+                         (3, 3, 1, 1))
+        self.assertEqual(tick(self.store, factory, now=due)["status"], "idle")
+        self.assertEqual(transport.published, 1)
+
+    def test_uncertain_remote_step_stops_for_review(self):
+        enable_automatic(self.store, "17841436823298466", confirmed=True)
+        ensure_horizon(self.store, now=self.now)
+        due = datetime.fromtimestamp(self.store.agenda()[0]["due_at"], ZONE)
+        transport = Transport("17841436823298466")
+        transport.stage_image = lambda image: (_ for _ in ()).throw(ValueError("timeout"))
+        result = tick(self.store, lambda account_id: transport, now=due)
+        self.assertEqual(result["status"], "review")
+        self.assertEqual(self.store.agenda()[0]["state"], "review")
+
+
+class CarouselHttpTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name) / "carousel-http"
+        self.origin = "https://artenoaltar.pythonanywhere.com"
+        http.configure(self.directory, self.origin)
+        self.key = (self.directory / http.KEY_FILE).read_text()
+        self.environ = {
+            "REQUEST_METHOD": "POST", "QUERY_STRING": "", "CONTENT_LENGTH": "0",
+            "HTTP_HOST": "artenoaltar.pythonanywhere.com",
+            "HTTP_AUTHORIZATION": "Bearer " + self.key,
+        }
+
+    def test_authenticated_empty_post_runs_tick(self):
+        with patch("carousel_posts.http.tick", return_value={"status": "disabled"}) as execute:
+            status, payload = http.handle(self.environ, self.directory, self.directory)
+        self.assertEqual((status, payload), (200, {"status": "disabled"}))
+        execute.assert_called_once()
+
+    def test_wrong_key_and_request_body_are_rejected(self):
+        wrong = dict(self.environ, HTTP_AUTHORIZATION="Bearer " + "x" * 48)
+        self.assertEqual(http.handle(wrong, self.directory, self.directory)[0], 401)
+        body = dict(self.environ, CONTENT_LENGTH="1")
+        self.assertEqual(http.handle(body, self.directory, self.directory)[0], 400)
 
 
 if __name__ == "__main__":

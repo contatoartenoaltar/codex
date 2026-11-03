@@ -18,6 +18,7 @@ APPLICATION_ID = 0x41414352
 PUBLICATION_TIME = time(12, 0)
 WEEKDAYS = (0, 2, 4)  # segunda, quarta e sexta
 HORIZON = 3
+MAX_LATENESS = 1800
 
 SCHEMA = (
     "CREATE TABLE IF NOT EXISTS policy(id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL, mode TEXT NOT NULL, account_id TEXT NOT NULL, rules_hash TEXT NOT NULL)",
@@ -213,3 +214,83 @@ def verify_files(store: Store, carousel_id: str) -> list[Path]:
             raise ValueError("Arquivo de carrossel ausente ou alterado.")
         result.append(path)
     return result
+
+
+def _review(store: Store, ident: str, message: str) -> None:
+    with store.connect() as connection:
+        connection.execute("UPDATE carousels SET state='review',error=? WHERE id=?", (message, ident))
+
+
+def tick(store: Store, factory, *, now=None) -> dict:
+    """Executa no máximo uma transição remota confirmada por chamada do cron."""
+    now = local_now(now)
+    with store.connect() as connection:
+        policy = connection.execute("SELECT * FROM policy WHERE id=1").fetchone()
+        if not policy["enabled"]:
+            return {"status": "disabled"}
+        row = connection.execute(
+            "SELECT * FROM carousels WHERE state IN ('queued','staging','processing','publishing') "
+            "AND due_at<=? ORDER BY due_at LIMIT 1", (_stamp(now),)).fetchone()
+    if row is None:
+        result = ensure_horizon(store, now=now)
+        return {"status": "idle"} if result["status"] in ("idle", "queued") else result
+    carousel = dict(row)
+    ident = carousel["id"]
+    if _stamp(now) - carousel["due_at"] > MAX_LATENESS and carousel["state"] == "queued":
+        _review(store, ident, "Horário excedido; confira a agenda antes de publicar.")
+        return {"status": "review", "id": ident}
+    try:
+        client = factory(policy["account_id"])
+        client.verify_account(policy["account_id"])
+        files = verify_files(store, ident)
+        with store.connect() as connection:
+            slides = [dict(slide) for slide in connection.execute(
+                "SELECT * FROM slides WHERE carousel_id=? ORDER BY position", (ident,))]
+
+        unstaged = next((slide for slide in slides if not slide["staged_photo"]), None)
+        if unstaged:
+            staged = client.stage_image(store.directory / unstaged["filename"])
+            with store.connect() as connection:
+                connection.execute("UPDATE slides SET staged_photo=? WHERE carousel_id=? AND position=?",
+                                   (staged["id"], ident, unstaged["position"]))
+                connection.execute("UPDATE carousels SET state='staging',error='' WHERE id=?", (ident,))
+            return {"status": "staging", "id": ident, "position": unstaged["position"]}
+
+        missing_child = next((slide for slide in slides if not slide["child_container"]), None)
+        if missing_child:
+            child = client.create_carousel_child(
+                store.directory / missing_child["filename"], staged_photo=missing_child["staged_photo"])
+            with store.connect() as connection:
+                connection.execute("UPDATE slides SET child_container=? WHERE carousel_id=? AND position=?",
+                                   (child["id"], ident, missing_child["position"]))
+                connection.execute("UPDATE carousels SET state='processing',error='' WHERE id=?", (ident,))
+            return {"status": "processing", "id": ident, "position": missing_child["position"]}
+
+        for slide in slides:
+            status = client.container_status(slide["child_container"])
+            if status == "IN_PROGRESS":
+                return {"status": "processing", "id": ident}
+            if status != "FINISHED":
+                raise ValueError("A Meta não confirmou um dos slides do carrossel.")
+
+        if not carousel["parent_container"]:
+            parent = client.create_carousel([slide["child_container"] for slide in slides], carousel["caption"])
+            with store.connect() as connection:
+                connection.execute("UPDATE carousels SET parent_container=?,state='publishing',error='' WHERE id=?",
+                                   (parent["id"], ident))
+            return {"status": "publishing", "id": ident}
+
+        status = client.container_status(carousel["parent_container"])
+        if status == "IN_PROGRESS":
+            return {"status": "publishing", "id": ident}
+        if status != "FINISHED":
+            raise ValueError("A Meta não confirmou o carrossel final.")
+        published = client.publish(carousel["parent_container"])
+        with store.connect() as connection:
+            connection.execute("UPDATE carousels SET state='published',remote_id=?,error='' WHERE id=?",
+                               (published["id"], ident))
+        ensure_horizon(store, now=now)
+        return {"status": "published", "id": ident, "remote_id": published["id"]}
+    except (OSError, ValueError, sqlite3.Error, KeyError, TypeError):
+        _review(store, ident, "A Meta não confirmou a etapa; revise antes de qualquer repetição.")
+        return {"status": "review", "id": ident}
