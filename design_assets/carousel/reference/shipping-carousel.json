@@ -41,5 +41,6 @@
     "artenoaltar.com.br",
     "WhatsApp 35 9 8442-8442"
   ],
-  "status": "visual-pilot; not scheduled or published"
+  "status": "approved; not scheduled or published",
+  "approved": true
 }
