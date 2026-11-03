@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "approved_on": "2026-11-03",
+  "approved": true,
+  "reference_file": "shipping-cover-approved.png",
+  "reference_size": [1122, 1402],
+  "production_size": [1080, 1350],
+  "sha256": "4041d919fd796be307010885a2ce1d4c01da00beeaebc65882a60f467255accb",
+  "layout": {
+    "background": "preto texturizado",
+    "logo": "oficial, colorida, centralizada no topo e sem placa clara",
+    "headline": "branco com palavra principal dourada",
+    "middle": "mapa do Brasil, rotas e icones em amarelo, ciano e magenta",
+    "product": "envelope e caixa sobre base clara",
+    "footer": "botao preto com borda colorida e texto Deslize para descobrir"
+  },
+  "instruction": "Usar esta imagem exata como referencia visual. Nao substituir a logo por placa, marca-d'agua ou texto simples e nao remover o botao inferior."
+}

@@ -14,6 +14,14 @@ aprovação e uma nova versão do catálogo.
 
 ## Estrutura visual proposta
 
+A capa de referência foi aprovada em 03/11/2026 e está em
+`design_assets/carousel/reference/shipping-cover-approved.png`. O manifesto
+`design_assets/carousel/reference/manifest.json` registra o arquivo e seu hash.
+Ela define a logo oficial colorida no topo sobre preto, sem placa clara; título
+branco e dourado; mapa, rotas e ícones nas cores da marca; produto sobre base
+clara; e o botão **Deslize para descobrir** no rodapé. Não reinterpretar essas
+posições nos demais slides. A produção deve exportar em 1080 × 1350 px.
+
 O primeiro piloto deve usar entre três e cinco slides em 1080 × 1350 px:
 
 1. pergunta em destaque;
