@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import argparse
 from datetime import date, datetime, time, timedelta
 import hashlib
 import json
@@ -294,3 +295,36 @@ def tick(store: Store, factory, *, now=None) -> dict:
     except (OSError, ValueError, sqlite3.Error, KeyError, TypeError):
         _review(store, ident, "A Meta não confirmou a etapa; revise antes de qualquer repetição.")
         return {"status": "review", "id": ident}
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Administrar a fila automática de carrosséis.")
+    parser.add_argument("--directory", required=True, type=Path)
+    sub = parser.add_subparsers(dest="action", required=True)
+    sub.add_parser("initialize")
+    enable = sub.add_parser("enable")
+    enable.add_argument("--account", required=True)
+    enable.add_argument("--confirm", action="store_true")
+    sub.add_parser("disable")
+    sub.add_parser("status")
+    args = parser.parse_args()
+    store = Store(args.directory)
+    store.initialize()
+    if args.action == "enable":
+        enable_automatic(store, args.account, confirmed=args.confirm)
+        result = ensure_horizon(store)
+    elif args.action == "disable":
+        disable(store)
+        result = {"status": "disabled"}
+    elif args.action == "status":
+        with store.connect() as connection:
+            policy = dict(connection.execute("SELECT * FROM policy WHERE id=1").fetchone())
+        result = {"enabled": bool(policy["enabled"]), "mode": policy["mode"],
+                  "account_id": policy["account_id"], "items": store.agenda()}
+    else:
+        result = {"status": "initialized"}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

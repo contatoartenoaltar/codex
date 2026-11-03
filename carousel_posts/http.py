@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import argparse
 from pathlib import Path
 import re
 import secrets
@@ -81,4 +82,17 @@ def handle(environ, directory, meta_directory, *, now=None):
         return 200, {"status": result["status"]}
     except (OSError, ValueError, sqlite3.Error, KeyError, TypeError):
         return 503, {"error": "O executor de carrosséis não concluiu o acionamento."}
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Configurar a chave privada do cron de carrosséis.")
+    parser.add_argument("--directory", required=True, type=Path)
+    parser.add_argument("--origin", required=True)
+    args = parser.parse_args()
+    configure(args.directory, args.origin)
+    print("Acionamento de carrosséis configurado. A chave ficou no arquivo privado; publicação desativada.")
+
+
+if __name__ == "__main__":
+    main()
 
