@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "approved_on": "2026-11-03",
+  "faq_id": "formas-de-envio",
+  "format": "carousel",
+  "production_size": [
+    1080,
+    1350
+  ],
+  "slides": [
+    {
+      "position": 1,
+      "file": "shipping-cover-approved.png",
+      "size": [
+        1122,
+        1402
+      ],
+      "sha256": "4041d919fd796be307010885a2ce1d4c01da00beeaebc65882a60f467255accb"
+    },
+    {
+      "position": 2,
+      "file": "shipping-answer-approved.png",
+      "size": [
+        1122,
+        1402
+      ],
+      "sha256": "8046555ad844d5970dbc9158c42ace41c9f281c7cbbf3a8060dc2d4db0313999"
+    },
+    {
+      "position": 3,
+      "file": "shipping-cta-approved.png",
+      "size": [
+        1122,
+        1402
+      ],
+      "sha256": "6e27daf5c8af2e4d5d102e8760a413744a80ad8e1475dfef1d853fb8e8e53ff5"
+    }
+  ],
+  "caption_facts": [
+    "Enviamos pelos Correios e por transportadora.",
+    "artenoaltar.com.br",
+    "WhatsApp 35 9 8442-8442"
+  ],
+  "status": "visual-pilot; not scheduled or published"
+}
