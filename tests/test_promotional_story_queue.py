@@ -27,12 +27,14 @@ class Drive:
                        "mimeType": "image/png", "path": ["Artes", f"Modelo {index}.png"]}
                       for index in range(count)]
         self.downloads = 0
+        self.downloaded_ids = []
 
     def catalog(self, folder):
         return {"complete": True, "folder_id": folder, "files": list(self.items)}
 
     def download_image(self, item):
         self.downloads += 1
+        self.downloaded_ids.append(item["id"])
         image = Image.new("RGB", (100, 60), (self.downloads % 255, 20, 30))
         output = io.BytesIO()
         image.save(output, "PNG")
@@ -237,6 +239,16 @@ class PromotionalQueueTests(unittest.TestCase):
         self.assertEqual(len(set(days[2])), 10)
         self.assertEqual(len((set(days[0]) | set(days[1]) | set(days[2]))), 23)
 
+    def test_available_models_are_shuffled_before_a_new_batch_is_composed(self):
+        randomizer = Mock()
+        randomizer.shuffle.side_effect = lambda values: values.reverse()
+        expected = sorted(
+            self.drive.items, key=lambda item: (tuple(item["path"]), item["id"]))[-1]["id"]
+        with patch("promotional_stories.queue.secrets.SystemRandom", return_value=randomizer):
+            self.prepare()
+        self.assertEqual(self.store.agenda()[0]["model_id"], expected)
+        self.assertEqual(randomizer.shuffle.call_count, 2)
+
     def test_queue_requires_confirmation_and_detects_tampering(self):
         batch = self.prepare()["batch_id"]
         with self.assertRaises(ValueError):
@@ -276,7 +288,7 @@ class PromotionalQueueTests(unittest.TestCase):
         rows = self.store.agenda()
         self.assertEqual(len(rows), 10)
         self.assertEqual(self.drive.downloads, 11)
-        self.assertNotIn("model_0000", {row["model_id"] for row in rows})
+        self.assertNotIn(self.drive.downloaded_ids[0], {row["model_id"] for row in rows})
 
     def test_rejected_draft_is_removed_and_same_day_can_be_regenerated(self):
         batch = self.prepare()["batch_id"]

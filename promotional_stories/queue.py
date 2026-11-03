@@ -160,6 +160,9 @@ def _candidates(conn, files):
     active_used = {ident for ident in used if ident in active}
     remaining = [item for item in files if item["id"] not in active_used]
     previous = [item for item in files if item["id"] in active_used]
+    randomizer = secrets.SystemRandom()
+    randomizer.shuffle(remaining)
+    randomizer.shuffle(previous)
     # Tenta cada modelo no máximo uma vez no lote. Se os remanescentes não
     # renderizarem dez faces, atravessa o fim do ciclo sem repetir no dia.
     return ([(cycle, item) for item in remaining] +
