@@ -1,0 +1,135 @@
+{
+  "version": "promotional-story-reference-titles-v4",
+  "size": [
+    1080,
+    1920
+  ],
+  "back": [
+    [
+      0,
+      602
+    ],
+    [
+      490,
+      525
+    ],
+    [
+      724,
+      802
+    ],
+    [
+      126,
+      815
+    ]
+  ],
+  "front": [
+    [
+      145,
+      808
+    ],
+    [
+      1021,
+      838
+    ],
+    [
+      976,
+      1452
+    ],
+    [
+      57,
+      1395
+    ]
+  ],
+  "titles": [
+    {
+      "filename": "00.jpg",
+      "sha256": "606ded22824c1c0a79892558b3db4ead204a503b76cc1ed5bcead07aef125cc2",
+      "lines": [
+        "Envelopes",
+        "com a sua",
+        "IDENTIDADE"
+      ]
+    },
+    {
+      "filename": "01.jpg",
+      "sha256": "d870179835ba32cd83d6cfbc6a19a6138fdb3e06eb247769ff15d3f7436a70d9",
+      "lines": [
+        "Sua igreja",
+        "em cada",
+        "DETALHE"
+      ]
+    },
+    {
+      "filename": "02.jpg",
+      "sha256": "ac3ac71f6efc0abb478cd9a03d0a7355f436f83b1c470aa606bb3a7280ba1b3e",
+      "lines": [
+        "Personalização",
+        "que faz a",
+        "DIFERENÇA"
+      ]
+    },
+    {
+      "filename": "03.jpg",
+      "sha256": "b489c85a0cb2db6e62145f0d63bc1c6da1dc58e85f7fe05037c3ea51ae9959b1",
+      "lines": [
+        "Feitos para",
+        "a sua",
+        "IGREJA"
+      ]
+    },
+    {
+      "filename": "04.jpg",
+      "sha256": "c90cf7aced708404944a7613f0e735d42fd1e2c96ec5af6375e01bf7abbdf114",
+      "lines": [
+        "Seu modelo,",
+        "sua",
+        "IDENTIDADE"
+      ]
+    },
+    {
+      "filename": "05.jpg",
+      "sha256": "3d08cceb7b157f967c17b9bff1f43ea8561b32c6bb4d4bae0df1d2cd1fa8c1d1",
+      "lines": [
+        "Envelopes que",
+        "levam",
+        "PROPÓSITO"
+      ]
+    },
+    {
+      "filename": "06.jpg",
+      "sha256": "0237567a3de9f8437acf022c9f02caf85f2b406bc70b766d8ce20bc6ac05be5c",
+      "lines": [
+        "Cada detalhe",
+        "comunica",
+        "CUIDADO"
+      ]
+    },
+    {
+      "filename": "07.jpg",
+      "sha256": "fa5d25c8cc2151de0856b4e58477d049a91db423dbe978167bad2eb4fb4541a0",
+      "lines": [
+        "A marca",
+        "da sua",
+        "IGREJA"
+      ]
+    },
+    {
+      "filename": "08.jpg",
+      "sha256": "d1613fe959d65b6b436c8572cb93f03dabc45c5b00091185cfcde2c11e645eed",
+      "lines": [
+        "Sua identidade",
+        "merece",
+        "DESTAQUE"
+      ]
+    },
+    {
+      "filename": "09.jpg",
+      "sha256": "3a08feba5e58785c4795cc5d80f6b1b0e734bb7ce494f2e1f086214562e77db5",
+      "lines": [
+        "Pequenos detalhes,",
+        "grande",
+        "SIGNIFICADO"
+      ]
+    }
+  ]
+}
