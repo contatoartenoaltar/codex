@@ -11,6 +11,7 @@ import scheduler_http
 import social_mcp
 import feed_composer
 import feed_autonomy
+import content_schedule
 import post_ids
 import order_finance
 import html
@@ -208,6 +209,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({'authenticated': auth.authenticated(c, self.headers.get('Cookie')), 'configured': auth.configured(c)})
         if self.path.startswith('/api/') and not self.signed_in():
             return self.send_json({'error': 'Entre para acessar o sistema.'}, 401)
+        if self.path.startswith('/api/content-media/'):
+            parts=urlsplit(self.path).path.split('/')
+            try:
+                if len(parts)!=5:
+                    raise ValueError('Miniatura inválida.')
+                payload=content_schedule.image(parts[3],parts[4])
+            except (ValueError,OSError,sqlite3.Error):
+                return self.send_json({'error':'Miniatura não encontrada.'},404)
+            self.send_response(200)
+            self.send_header('Content-Type','image/jpeg')
+            self.send_header('Content-Length',str(len(payload)))
+            self.send_header('Cache-Control','private, max-age=300')
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if self.path == '/api/state':
             with connect() as c:
                 result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
@@ -221,6 +237,7 @@ class Handler(BaseHTTPRequestHandler):
                     post['schedule']={k:schedule[k] for k in ['due_at','state','error']} if schedule else None
                 result['scheduler']=scheduling.runtime(c)
                 result['feed_automation']=feed_autonomy.status(c, DB.parent)
+            result['automated_content']=content_schedule.agenda()
             try:
                 social = meta.status(DB.parent)
             except ValueError as error:
