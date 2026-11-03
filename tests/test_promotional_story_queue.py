@@ -16,7 +16,8 @@ import promotional_story
 from promotional_stories import http
 from promotional_stories import wsgi as promo_wsgi
 from promotional_stories.queue import (APPLICATION_ID, Store, ZONE, configure_live,
-    cleanup_media, enable_live, prepare_batch, queue_batch, reject_batch, tick)
+    cleanup_media, enable_daily, enable_live, prepare_batch, queue_batch, reject_batch,
+    run_daily, tick)
 from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 
 
@@ -43,6 +44,7 @@ def fake_render(raw, phrase_index):
     image = Image.new("RGB", promotional_story.SIZE, (phrase_index * 20, 30, 40))
     return image, {"version": "promotional-story-envelope-face-v5",
                    "cutout_version": "paper-quad-v2",
+                   "rules_hash": promotional_story.rules_hash(),
                    "size": list(promotional_story.SIZE), "title": " ".join(lines),
                    "title_lines": list(lines), "phrase_index": phrase_index,
                    "cta": promotional_story.CTA, "phone": promotional_story.PHONE,
@@ -111,6 +113,9 @@ class PromotionalQueueTests(unittest.TestCase):
         connection.execute(f"PRAGMA application_id={APPLICATION_ID}")
         connection.execute("""CREATE TABLE model_history(
             cycle INTEGER NOT NULL, model_id TEXT NOT NULL, PRIMARY KEY(cycle,model_id))""")
+        connection.execute("""CREATE TABLE batches(
+            id TEXT PRIMARY KEY, day TEXT NOT NULL UNIQUE, cycle INTEGER NOT NULL,
+            created_at INTEGER NOT NULL)""")
         connection.execute("INSERT INTO model_history VALUES(1,'existing-model')")
         connection.commit()
         connection.close()
@@ -118,12 +123,59 @@ class PromotionalQueueTests(unittest.TestCase):
         previous.initialize()
         with previous.connect() as connection:
             columns = {row[1] for row in connection.execute("PRAGMA table_info(model_history)")}
+            batch_columns = {row[1] for row in connection.execute("PRAGMA table_info(batches)")}
             policy = connection.execute("SELECT * FROM policy WHERE id=1").fetchone()
             history = connection.execute(
                 "SELECT cycle,model_id,batch_id FROM model_history").fetchone()
         self.assertIn("batch_id", columns)
+        self.assertIn("automatic", batch_columns)
         self.assertEqual(tuple(history), (1, "existing-model", ""))
         self.assertFalse(policy["enabled"])
+
+    def activate_daily(self):
+        batch = self.prepare()["batch_id"]
+        queue_batch(self.store, batch, confirmed=True, now=self.now)
+        configure_live(self.store, "123456", confirmed=True)
+        enable_live(self.store, confirmed=True, now=self.now)
+        enable_daily(self.store, self.drive_directory, confirmed=True, now=self.now)
+        return batch
+
+    def test_daily_generation_requires_reviewed_live_batch_and_confirmation(self):
+        with self.assertRaises(ValueError):
+            enable_daily(self.store, self.drive_directory, confirmed=True, now=self.now)
+        batch = self.prepare()["batch_id"]
+        queue_batch(self.store, batch, confirmed=True, now=self.now)
+        configure_live(self.store, "123456", confirmed=True)
+        enable_live(self.store, confirmed=True, now=self.now)
+        with self.assertRaises(ValueError):
+            enable_daily(self.store, self.drive_directory, now=self.now)
+        enable_daily(self.store, self.drive_directory, confirmed=True, now=self.now)
+        with self.store.connect() as connection:
+            automation = connection.execute("SELECT * FROM daily_automation").fetchone()
+        self.assertTrue(automation["enabled"])
+        self.assertEqual(automation["rules_hash"], promotional_story.rules_hash())
+
+    def test_daily_run_prepares_exactly_one_future_batch_per_local_day(self):
+        self.activate_daily()
+        result = run_daily(self.store, client=self.drive, now=self.now)
+        self.assertEqual(result["status"], "queued")
+        self.assertEqual(len(self.store.agenda()), 20)
+        self.assertEqual({row["state"] for row in self.store.agenda()}, {"queued"})
+        downloads = self.drive.downloads
+        self.assertEqual(run_daily(self.store, client=self.drive, now=self.now)["status"], "idle")
+        self.assertEqual(self.drive.downloads, downloads)
+        self.assertEqual(run_daily(
+            self.store, client=self.drive, now=self.now+timedelta(days=1))["status"], "queued")
+        self.assertEqual(len(self.store.agenda()), 30)
+
+    def test_daily_run_disables_itself_when_approved_rules_change(self):
+        self.activate_daily()
+        with patch("promotional_stories.queue.promotional_story.rules_hash",
+                   return_value="0" * 64):
+            self.assertEqual(run_daily(self.store, client=self.drive, now=self.now)["status"], "review")
+        with self.store.connect() as connection:
+            automation = connection.execute("SELECT * FROM daily_automation").fetchone()
+        self.assertFalse(automation["enabled"])
 
     def test_prepare_creates_ten_unique_models_titles_and_exact_times_as_drafts(self):
         drive_config = (self.drive_directory / drive_source.CONFIG_FILE).read_bytes()
@@ -169,6 +221,19 @@ class PromotionalQueueTests(unittest.TestCase):
         first.write_bytes(original)
         queue_batch(self.store, batch, confirmed=True, now=self.now)
         self.assertEqual({row["state"] for row in self.store.agenda()}, {"queued"})
+
+    def test_reviewed_v5_batch_from_before_rule_binding_remains_valid(self):
+        batch = self.prepare()["batch_id"]
+        row = self.store.agenda()[0]
+        manifest = self.directory / "media" / Path(row["filename"]).with_suffix(".json")
+        data = json.loads(manifest.read_text())
+        data.pop("rules_hash")
+        manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        with self.store.connect() as connection:
+            connection.execute("UPDATE slots SET manifest_hash=? WHERE id=?", (
+                hashlib.sha256(manifest.read_bytes()).hexdigest(), row["id"]))
+        queue_batch(self.store, batch, confirmed=True, now=self.now)
+        self.assertEqual({item["state"] for item in self.store.agenda()}, {"queued"})
 
     def test_prepare_skips_model_whose_envelope_face_cannot_be_detected(self):
         calls = 0

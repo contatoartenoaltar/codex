@@ -31,6 +31,7 @@ class PromotionalStoryTests(unittest.TestCase):
         self.assertEqual(manifest["title"], "Envelopes com a sua IDENTIDADE")
         self.assertEqual(manifest["title_lines"], ["Envelopes", "com a sua", "IDENTIDADE"])
         self.assertNotIn("schedule", manifest)
+        self.assertEqual(manifest["rules_hash"], story.rules_hash())
 
     def test_only_envelope_face_is_projected_without_source_scene(self):
         raw = self.source()

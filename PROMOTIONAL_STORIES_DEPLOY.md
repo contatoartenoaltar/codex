@@ -18,6 +18,9 @@ diretório de mídia, chave HTTP, rota e variáveis de ambiente.
 7. Aponte o WSGI para `promotional_stories.wsgi.application` e defina
    `ARTENOALTAR_PROMOTIONAL_STORIES_DIR` e `ARTENOALTAR_PROMOTIONAL_STORIES_META_DIR`.
 8. A ativação final usa `enable-live --confirm` e deve ocorrer apenas após nova aprovação.
+9. Após a aprovação do padrão recorrente, `enable-daily --confirm` fixa o hash do
+   layout, títulos, horários e recorte autorizados. Uma tarefa diária executa
+   `run-daily`; qualquer mudança nesse conjunto desliga a geração e pede revisão.
 
 O executor nunca prepara, aprova ou coloca um lote na fila. Ele processa somente artes
 já revisadas e falha para o estado `review` quando a confirmação da Meta é incerta.

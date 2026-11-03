@@ -13,6 +13,7 @@ from product_scene import CUTOUT_VERSION, CutoutError, detect_quad, project
 
 
 SIZE = (1080, 1920)
+RENDER_VERSION = "promotional-story-envelope-face-v5"
 ASSETS = Path(__file__).parent / "design_assets" / "promotional_story"
 TITLES = ASSETS / "titles"
 SPEC = ASSETS / "approved-scenes.json"
@@ -36,6 +37,25 @@ PHRASES = (
 
 class PreviewError(ValueError):
     pass
+
+
+def rules_hash() -> str:
+    """Identifica a composição que recebeu autorização para uso recorrente."""
+    payload = {
+        "version": RENDER_VERSION,
+        "cutout_version": CUTOUT_VERSION,
+        "size": SIZE,
+        "times": TIMES,
+        "phrases": PHRASES,
+        "cta": CTA,
+        "phone": PHONE,
+        "spec": hashlib.sha256(SPEC.read_bytes()).hexdigest(),
+        "titles": [hashlib.sha256((TITLES / f"{index:02d}.jpg").read_bytes()).hexdigest()
+                   for index in range(len(PHRASES))],
+    }
+    return hashlib.sha256(json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
 
 
 def daily_selection(catalog: list[str], used_in_cycle: list[str]) -> tuple[list[str], list[str]]:
@@ -117,8 +137,9 @@ def render(raw: bytes, phrase_index: int = 0) -> tuple[Image.Image, dict]:
     canvas.alpha_composite(project(model, spec["front"], SIZE))
     lines = PHRASES[phrase_index]
     return canvas.convert("RGB"), {
-        "version": "promotional-story-envelope-face-v5",
+        "version": RENDER_VERSION,
         "cutout_version": CUTOUT_VERSION,
+        "rules_hash": rules_hash(),
         "size": list(SIZE),
         "title": " ".join(lines),
         "title_lines": list(lines),

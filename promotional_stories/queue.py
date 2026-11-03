@@ -47,7 +47,9 @@ def _due(day: date, value: str):
 
 SCHEMA = [
     "CREATE TABLE IF NOT EXISTS policy(id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL, mode TEXT NOT NULL, account_id TEXT NOT NULL)",
-    "CREATE TABLE IF NOT EXISTS batches(id TEXT PRIMARY KEY, day TEXT NOT NULL UNIQUE, cycle INTEGER NOT NULL, created_at INTEGER NOT NULL)",
+    """CREATE TABLE IF NOT EXISTS batches(
+        id TEXT PRIMARY KEY, day TEXT NOT NULL UNIQUE, cycle INTEGER NOT NULL,
+        created_at INTEGER NOT NULL, automatic INTEGER NOT NULL DEFAULT 0)""",
     """CREATE TABLE IF NOT EXISTS slots(
         id TEXT PRIMARY KEY, batch_id TEXT NOT NULL REFERENCES batches(id), day TEXT NOT NULL,
         position INTEGER NOT NULL, due_at INTEGER NOT NULL UNIQUE, model_id TEXT NOT NULL,
@@ -68,6 +70,10 @@ SCHEMA = [
         lease TEXT NOT NULL, lease_until INTEGER NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS policy_events(
         id INTEGER PRIMARY KEY, action TEXT NOT NULL, account_id TEXT NOT NULL, created_at INTEGER NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS daily_automation(
+        id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL,
+        rules_hash TEXT NOT NULL, drive_directory TEXT NOT NULL,
+        last_started_day TEXT NOT NULL, last_completed_day TEXT NOT NULL)""",
 ]
 
 
@@ -97,7 +103,10 @@ class Store:
                 conn.execute(statement)
             if "batch_id" not in {row[1] for row in conn.execute("PRAGMA table_info(model_history)")}:
                 conn.execute("ALTER TABLE model_history ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
+            if "automatic" not in {row[1] for row in conn.execute("PRAGMA table_info(batches)")}:
+                conn.execute("ALTER TABLE batches ADD COLUMN automatic INTEGER NOT NULL DEFAULT 0")
             conn.execute("INSERT OR IGNORE INTO policy VALUES(1,0,'live','')")
+            conn.execute("INSERT OR IGNORE INTO daily_automation VALUES(1,0,'','','','')")
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -222,9 +231,18 @@ def cleanup_media(store, *, now=None):
     return removed
 
 
-def prepare_batch(store, drive_directory, *, client=None, now=None):
+def prepare_batch(store, drive_directory, *, client=None, now=None,
+                  automatic=False, automation_hash=None):
     """Cria um lote diário em rascunho; nunca o autoriza nem ativa publicação."""
     now = local_now(now)
+    if type(automatic) is not bool:
+        raise ValueError("Modo de preparação inválido.")
+    if automatic:
+        with store.connect() as conn:
+            automation = conn.execute("SELECT * FROM daily_automation WHERE id=1").fetchone()
+        if (not automation["enabled"] or automation_hash != automation["rules_hash"] or
+                automation_hash != promotional_story.rules_hash()):
+            raise ValueError("A preparação automática não corresponde ao layout autorizado.")
     media = store.directory / "media"
     if media.is_symlink():
         raise ValueError("A mídia promocional precisa estar em diretório local.")
@@ -272,8 +290,9 @@ def prepare_batch(store, drive_directory, *, client=None, now=None):
                     "O catálogo não contém 10 faces de envelope identificáveis para este lote.")
             if sum(path.stat().st_size for path in media.iterdir() if path.is_file()) > MEDIA_LIMIT:
                 raise ValueError("O armazenamento promocional atingiu o limite; revise a retenção.")
-            conn.execute("INSERT INTO batches VALUES(?,?,?,?)",
-                         (batch, day.isoformat(), batch_cycle, stamp(now)))
+            conn.execute("""INSERT INTO batches(id,day,cycle,created_at,automatic)
+                VALUES(?,?,?,?,?)""",
+                (batch, day.isoformat(), batch_cycle, stamp(now), int(automatic)))
             conn.executemany("""INSERT INTO slots(id,batch_id,day,position,due_at,model_id,model_name,
                 phrase_index,filename,image_hash,manifest_hash,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
             conn.executemany(
@@ -306,8 +325,10 @@ def verify_image(store, row):
         raise ValueError("A arte promocional não é um JPEG válido.") from None
     data = json.loads(manifest.read_text(encoding="utf-8"))
     expected = promotional_story.PHRASES[row["phrase_index"]]
+    bound_rules = data.get("rules_hash")
     if (data.get("version") != "promotional-story-envelope-face-v5" or
             data.get("cutout_version") != "paper-quad-v2" or
+            bound_rules is not None and bound_rules != promotional_story.rules_hash() or
             data.get("size") != list(promotional_story.SIZE) or
             data.get("model_id") != row["model_id"] or
             data.get("model_name") != row["model_name"] or
@@ -405,6 +426,88 @@ def pause(store):
                      ("pause", stamp(local_now())))
 
 
+def enable_daily(store, drive_directory, *, confirmed=False, now=None):
+    """Autoriza somente o layout atual a preparar e enfileirar um lote por dia."""
+    if confirmed is not True:
+        raise ValueError("Confirme a geração diária com o layout promocional revisado.")
+    now = local_now(now)
+    drive_directory = Path(drive_directory)
+    if not drive_directory.is_absolute() or drive_directory.is_symlink():
+        raise ValueError("Use o diretório privado e absoluto da origem do catálogo.")
+    drive_source.read_json(drive_directory / drive_source.CONFIG_FILE)
+    approved_hash = promotional_story.rules_hash()
+    with store.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        policy = conn.execute("SELECT * FROM policy WHERE id=1").fetchone()
+        rows = conn.execute("""SELECT * FROM slots
+            WHERE batch_id=(SELECT batch_id FROM slots WHERE state='queued' ORDER BY due_at LIMIT 1)
+            ORDER BY position""").fetchall()
+        if not policy["enabled"] or not policy["account_id"] or len(rows) != 10:
+            raise ValueError("Ative primeiro um lote promocional revisado na conta real.")
+        for row in rows:
+            if row["state"] != "queued" or row["due_at"] < stamp(now) + MIN_NOTICE:
+                raise ValueError("O lote de referência precisa estar íntegro e ainda no futuro.")
+            verify_image(store, row)
+        conn.execute("""UPDATE daily_automation SET enabled=1,rules_hash=?,drive_directory=?,
+            last_started_day='',last_completed_day='' WHERE id=1""",
+            (approved_hash, str(drive_directory)))
+        conn.execute("INSERT INTO policy_events(action,account_id,created_at) VALUES(?,?,?)",
+                     ("enable_daily:" + approved_hash, policy["account_id"], stamp(now)))
+
+
+def disable_daily(store):
+    with store.connect() as conn:
+        conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+        conn.execute("INSERT INTO policy_events(action,account_id,created_at) "
+                     "SELECT ?,account_id,? FROM policy WHERE id=1",
+                     ("disable_daily", stamp(local_now())))
+
+
+def run_daily(store, *, client=None, now=None):
+    """Prepara e enfileira no máximo um lote automático por dia local."""
+    now = local_now(now)
+    today = now.date().isoformat()
+    current_hash = promotional_story.rules_hash()
+    with store.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        automation = conn.execute("SELECT * FROM daily_automation WHERE id=1").fetchone()
+        policy = conn.execute("SELECT * FROM policy WHERE id=1").fetchone()
+        if not automation["enabled"]:
+            return {"status": "disabled"}
+        if not policy["enabled"] or automation["rules_hash"] != current_hash:
+            conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+            conn.execute("INSERT INTO policy_events(action,account_id,created_at) VALUES(?,?,?)",
+                         ("daily_rules_changed", policy["account_id"], stamp(now)))
+            return {"status": "review"}
+        if automation["last_started_day"] == today:
+            return {"status": "idle" if automation["last_completed_day"] == today else "review"}
+        manual = conn.execute("""SELECT 1 FROM batches b JOIN slots s ON s.batch_id=b.id
+            WHERE s.state='draft' AND b.automatic=0 LIMIT 1""").fetchone()
+        if manual:
+            return {"status": "review"}
+        conn.execute("UPDATE daily_automation SET last_started_day=? WHERE id=1", (today,))
+        drive_directory = automation["drive_directory"]
+    try:
+        result = prepare_batch(store, drive_directory, client=client, now=now,
+                               automatic=True, automation_hash=current_hash)
+        batch_id = result["batch_id"]
+        with store.connect() as conn:
+            batch = conn.execute("SELECT automatic FROM batches WHERE id=?", (batch_id,)).fetchone()
+        if batch is None or not batch["automatic"]:
+            raise ValueError("Um lote manual aguarda revisão.")
+        queue_batch(store, batch_id, confirmed=True, now=now)
+    except Exception:
+        with store.connect() as conn:
+            conn.execute("UPDATE daily_automation SET enabled=0 WHERE id=1")
+            conn.execute("INSERT INTO policy_events(action,account_id,created_at) "
+                         "SELECT ?,account_id,? FROM policy WHERE id=1",
+                         ("daily_generation_failed", stamp(now)))
+        return {"status": "review"}
+    with store.connect() as conn:
+        conn.execute("UPDATE daily_automation SET last_completed_day=? WHERE id=1", (today,))
+    return {"status": "queued", "batch_id": batch_id}
+
+
 def tick(store, transport=None, *, now=None):
     """Processa somente itens já revisados; nunca cria ou aprova um lote."""
     now = local_now(now)
@@ -482,10 +585,12 @@ def main():
     parser.add_argument("--batch")
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("action", choices=[
-        "prepare", "agenda", "configure-live", "queue", "reject", "enable-live", "pause"])
+        "prepare", "agenda", "configure-live", "queue", "reject", "enable-live", "pause",
+        "enable-daily", "run-daily", "disable-daily"])
     args = parser.parse_args()
     store = Store(args.directory)
     store.initialize()
+    action_result = None
     if args.action == "prepare":
         if not args.drive_directory:
             parser.error("--drive-directory é obrigatório para preparar")
@@ -500,10 +605,26 @@ def main():
         enable_live(store, confirmed=args.confirm)
     elif args.action == "pause":
         pause(store)
+    elif args.action == "enable-daily":
+        if not args.drive_directory:
+            parser.error("--drive-directory é obrigatório para ativar a geração diária")
+        enable_daily(store, args.drive_directory, confirmed=args.confirm)
+    elif args.action == "run-daily":
+        action_result = run_daily(store)
+    elif args.action == "disable-daily":
+        disable_daily(store)
     with store.connect() as conn:
         policy = dict(conn.execute("SELECT * FROM policy WHERE id=1").fetchone())
-    print(json.dumps({"environment": policy["mode"], "publishing_enabled": bool(policy["enabled"]),
-                      "account_id": policy["account_id"], "items": store.agenda()}, ensure_ascii=False, indent=2))
+    with store.connect() as conn:
+        automation = dict(conn.execute("SELECT * FROM daily_automation WHERE id=1").fetchone())
+    output = {"environment": policy["mode"], "publishing_enabled": bool(policy["enabled"]),
+              "daily_generation_enabled": bool(automation["enabled"]),
+              "account_id": policy["account_id"], "items": store.agenda()}
+    if action_result is not None:
+        output["action_result"] = action_result
+    print(json.dumps(output, ensure_ascii=False, indent=2))
+    if action_result is not None and action_result["status"] not in ("queued", "idle"):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
