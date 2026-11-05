@@ -568,7 +568,6 @@ button.schedule-thumb{display:block;width:100%;padding:0;color:inherit;font:inhe
 .results-hero-status strong{margin:15px 0 2px;color:#f3ca64;font-size:39px;line-height:1;font-variant-numeric:tabular-nums}
 .results-hero-status small{color:#9da09a;font-size:9px}
 .insight-periods{display:flex;justify-content:flex-end;gap:6px;margin-bottom:16px}
-.insights-permission-alert{display:flex;align-items:flex-start;gap:13px;margin:-1px 0 16px;padding:15px 17px;border:1px solid #ead6a8;border-radius:11px;background:#fff9e9;color:#6e5318}.insights-permission-alert>span{display:grid;width:35px;height:35px;flex-shrink:0;place-items:center;border-radius:9px;background:#f1c95b2b;color:#a77914}.insights-permission-alert .ui-icon{width:18px;height:18px}.insights-permission-alert b{font-size:11px}.insights-permission-alert p{margin:5px 0 0;color:#89754b;font-size:9px;line-height:1.6}.insights-permission-alert code{padding:2px 4px;border-radius:4px;background:#f0e5c9;color:#69501a;font-size:8px}
 .insight-periods button{padding:8px 12px;border:1px solid #deddd6;border-radius:99px;background:#fff;color:#71736d;font-size:9px;font-weight:700}
 .insight-periods button.active{border-color:#282a28;background:#282a28;color:#f2c961}
 .insight-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
