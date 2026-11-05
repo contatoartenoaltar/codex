@@ -135,7 +135,8 @@ def prepare_batch(store, *, now=None):
         with store.connect() as conn:
             conn.execute('BEGIN IMMEDIATE')
             latest = conn.execute('SELECT * FROM batches ORDER BY first_day DESC LIMIT 1').fetchone()
-            if latest and now.date().isoformat() < latest['last_day']:
+            if (latest and
+                    datetime.fromisoformat(latest['last_day']).date() > now.date() + timedelta(days=1)):
                 return {'batch_id': latest['id'], 'created': False}
             earliest = now.date()
             due = datetime.combine(earliest, time(7, 30), ZONE)

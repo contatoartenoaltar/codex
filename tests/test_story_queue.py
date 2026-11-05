@@ -102,13 +102,13 @@ class StoryQueueTests(unittest.TestCase):
         self.assertEqual(result, {'batch_id': batch, 'created': False})
         self.assertEqual(restarted.agenda(), before)
 
-    def test_third_day_creates_next_three_without_repeating_cycle(self):
+    def test_day_before_last_creates_next_three_without_repeating_cycle(self):
         batch = self.ready()
         before = self.store.agenda()
-        self.assertFalse(prepare_batch(self.store, now=self.due(1))['created'])
-        result = prepare_batch(self.store, now=self.due(2) - timedelta(hours=1))
+        result = prepare_batch(self.store, now=self.due(1))
         self.assertTrue(result['created'])
         self.assertNotEqual(result['batch_id'], batch)
+        self.assertFalse(prepare_batch(self.store, now=self.due(2) - timedelta(hours=1))['created'])
         rows = self.store.agenda()
         self.assertEqual(rows[:3], before)
         self.assertEqual([r['day'] for r in rows[3:]], ['2026-11-06', '2026-11-07', '2026-11-08'])
@@ -219,7 +219,8 @@ class StoryQueueTests(unittest.TestCase):
         tick(self.store, self.transport, now=due)
         with patch.object(self.transport, 'publish', side_effect=TimeoutError('segredo não deve aparecer')):
             self.assertEqual(tick(self.store, self.transport, now=due+timedelta(minutes=1))['status'], 'review')
-        self.assertEqual(tick(self.store, self.transport, now=due+timedelta(minutes=2))['status'], 'idle')
+        self.assertEqual(tick(self.store, self.transport, now=due+timedelta(minutes=2))['status'],
+                         'batch_prepared')
         self.assertNotIn('segredo', str(self.store.agenda()))
         self.assertEqual(self.transport.publishes, [])
 
