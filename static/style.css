@@ -441,6 +441,20 @@ dialog{padding:23px}
 .schedule-track{display:grid;grid-auto-flow:column;grid-auto-columns:148px;gap:13px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity;scrollbar-color:#cfbd94 transparent}
 .schedule-tile{display:block;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;scroll-snap-align:start}
 .schedule-thumb{position:relative;overflow:hidden;aspect-ratio:4/5;margin-bottom:11px;border:1px solid #dddcd4;border-radius:9px;background:#ebe9e2;box-shadow:0 5px 15px #29231512;transition:transform .18s,box-shadow .18s}
+button.schedule-thumb{display:block;width:100%;padding:0;color:inherit;font:inherit;text-align:initial;cursor:zoom-in}
+.schedule-zoom{position:absolute;right:7px;bottom:7px;padding:4px 7px;border-radius:999px;background:#111c;color:#fff;font-size:8px;font-weight:800;letter-spacing:.04em;opacity:0;transform:translateY(3px);transition:.18s}
+.schedule-thumb:hover .schedule-zoom,.schedule-thumb:focus-visible .schedule-zoom{opacity:1;transform:none}
+.schedule-preview-modal{width:min(1050px,calc(100vw - 32px));max-height:92vh;padding:24px;border:0;border-radius:16px;background:#f7f6f1;color:var(--ink)}
+.schedule-preview-modal::backdrop{background:#111b;backdrop-filter:blur(4px)}
+.schedule-preview-modal .dialog-head{margin-bottom:15px}
+.schedule-preview-modal .dialog-head h2{margin:4px 0 0;font-size:24px}
+.schedule-preview-meta{margin:0 0 16px;color:var(--muted);font-size:12px}
+.schedule-preview-images{display:flex;justify-content:center;overflow:auto;padding:4px 2px 12px}
+.schedule-preview-images.multiple{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:16px;justify-content:initial}
+.schedule-preview-images figure{min-width:0;margin:0;text-align:center}
+.schedule-preview-images img{display:block;width:auto;max-width:100%;max-height:70vh;margin:auto;object-fit:contain;border-radius:11px;background:#111;box-shadow:0 12px 30px #1b171329}
+.schedule-preview-images.multiple img{width:100%;max-height:none;aspect-ratio:4/5}
+.schedule-preview-images figcaption{margin-top:8px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
 .schedule-tile.kind-story .schedule-thumb{aspect-ratio:9/16}
 .schedule-tile.kind-feed .schedule-thumb,.schedule-tile.kind-carousel .schedule-thumb{aspect-ratio:4/5}
 .schedule-tile:hover .schedule-thumb{transform:translateY(-2px);box-shadow:0 9px 22px #2923151b}

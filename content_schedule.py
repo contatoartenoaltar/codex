@@ -10,6 +10,8 @@ import time
 
 from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 from promotional_stories.queue import APPLICATION_ID as PROMOTIONAL_APPLICATION_ID
+from carousel_posts.queue import APPLICATION_ID as CAROUSEL_APPLICATION_ID
+from carousel_posts.composer import item as carousel_item
 
 
 ACTIVE_STATES = ("queued", "staged", "processing", "sending")
@@ -26,8 +28,15 @@ SOURCES = {
         "application_id": PROMOTIONAL_APPLICATION_ID,
         "source": "Story promocional",
     },
+    "carousel": {
+        "environment": "ARTENOALTAR_CAROUSELS_DIR",
+        "database": "carousel-queue.sqlite3",
+        "application_id": CAROUSEL_APPLICATION_ID,
+        "source": "Carrossel automático",
+    },
 }
 NAME = re.compile(r"[a-f0-9]{32}\.jpg")
+CAROUSEL_NAME = re.compile(r"([a-f0-9]{32})-0([1-3])\.jpg")
 
 
 def _directory(kind):
@@ -83,8 +92,39 @@ def agenda(*, now=None):
     items = []
     for kind in SOURCES:
         try:
-            config, _, media, connection = _connect(kind)
+            config, directory, media, connection = _connect(kind)
             try:
+                if kind == "carousel":
+                    rows = connection.execute(
+                        "SELECT c.id,c.faq_id,c.due_at,c.state,s.filename "
+                        "FROM carousels c JOIN slides s ON s.carousel_id=c.id AND s.position=1 "
+                        "WHERE c.state IN ('queued','staging','processing','publishing') "
+                        "AND c.due_at>=? ORDER BY c.due_at LIMIT 60", (cutoff,)).fetchall()
+                    for row in rows:
+                        try:
+                            product = carousel_item(row["faq_id"])["question"]
+                        except (ValueError, KeyError, TypeError):
+                            product = "Carrossel de perguntas e respostas"
+                        slides = connection.execute(
+                            "SELECT position,filename FROM slides WHERE carousel_id=? ORDER BY position",
+                            (row["id"],)).fetchall()
+                        if [slide["position"] for slide in slides] != [1, 2, 3]:
+                            continue
+                        images = [directory / slide["filename"] for slide in slides]
+                        if any(image.parent != media / row["id"] or image.is_symlink() or
+                               not image.is_file() or image.stat().st_size > 8 * 1024 * 1024
+                               for image in images):
+                            continue
+                        urls = [f"/api/content-media/carousel/{row['id']}-0{position}.jpg"
+                                for position in (1, 2, 3)]
+                        items.append({
+                            "id": f"carousel-{row['id']}", "kind": "carousel",
+                            "product": product, "channel": "Instagram Carrossel",
+                            "source": config["source"],
+                            "image_url": urls[0], "image_urls": urls,
+                            "due_at": row["due_at"], "state": row["state"],
+                        })
+                    continue
                 columns = ("id,due_at,verse_json,filename,state" if kind == "verse" else
                            "id,due_at,model_name,filename,state")
                 placeholders = ",".join("?" for _ in ACTIVE_STATES)
@@ -112,6 +152,29 @@ def agenda(*, now=None):
 
 def image(kind, name):
     """Lê uma miniatura somente quando seu nome ainda pertence à fila informada."""
+    if kind == "carousel":
+        match = CAROUSEL_NAME.fullmatch(name) if isinstance(name, str) else None
+        if not match:
+            raise ValueError("Miniatura inválida.")
+        carousel_id, position = match.group(1), int(match.group(2))
+        _, directory, _, connection = _connect(kind)
+        try:
+            row = connection.execute(
+                "SELECT filename FROM slides WHERE carousel_id=? AND position=?",
+                (carousel_id, position)).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise ValueError("Miniatura não encontrada.")
+        path = directory / row["filename"]
+        expected_parent = directory / "media" / carousel_id
+        if (path.parent != expected_parent or path.is_symlink() or not path.is_file() or
+                path.stat().st_size > 8 * 1024 * 1024):
+            raise ValueError("Miniatura não encontrada.")
+        payload = path.read_bytes()
+        if not (payload.startswith(b"\xff\xd8") and payload.endswith(b"\xff\xd9")):
+            raise ValueError("Miniatura inválida.")
+        return payload
     if not isinstance(name, str) or not NAME.fullmatch(name):
         raise ValueError("Miniatura inválida.")
     _, _, media, connection = _connect(kind)
@@ -143,21 +206,23 @@ def cancel(item_id, expected_due_at, *, confirmed=False):
         if connection.execute("PRAGMA application_id").fetchone()[0] != config["application_id"]:
             raise ValueError("Agenda automática inválida.")
         connection.execute("BEGIN IMMEDIATE")
+        table = "carousels" if kind == "carousel" else "slots"
         row = connection.execute(
-            "SELECT due_at,state FROM slots WHERE id=?", (slot_id,)).fetchone()
+            f"SELECT due_at,state FROM {table} WHERE id=?", (slot_id,)).fetchone()
         if row is None or row["due_at"] != expected_due_at:
             raise ValueError("O agendamento mudou. Atualize a página antes de cancelar.")
         if row["state"] != "queued":
             raise ValueError("O envio já começou e não pode mais ser cancelado por esta tela.")
         changed = connection.execute(
-            "UPDATE slots SET state='cancelled',error='Cancelado pelo Estúdio de conteúdo.' "
+            f"UPDATE {table} SET state='cancelled',error='Cancelado pelo Estúdio de conteúdo.' "
             "WHERE id=? AND due_at=? AND state='queued'", (slot_id, expected_due_at))
         if changed.rowcount != 1:
             raise ValueError("O envio começou antes do cancelamento. Atualize a página.")
-        connection.execute(
-            "INSERT INTO policy_events(action,account_id,created_at) "
-            "SELECT ?,account_id,? FROM policy WHERE id=1",
-            ("cancel_slot:" + slot_id, int(time.time())))
+        if kind != "carousel":
+            connection.execute(
+                "INSERT INTO policy_events(action,account_id,created_at) "
+                "SELECT ?,account_id,? FROM policy WHERE id=1",
+                ("cancel_slot:" + slot_id, int(time.time())))
         connection.commit()
     except BaseException:
         connection.rollback()
