@@ -51,6 +51,7 @@ def initialize(conn):
         saves INTEGER,
         shares INTEGER,
         replies INTEGER,
+        refresh_count INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY(publication_id, checkpoint)
     );
     CREATE INDEX IF NOT EXISTS social_publications_due
@@ -68,6 +69,9 @@ def initialize(conn):
     columns = {row[1] for row in conn.execute("PRAGMA table_info(social_publications)")}
     if "image_url" not in columns:
         conn.execute("ALTER TABLE social_publications ADD COLUMN image_url TEXT NOT NULL DEFAULT ''")
+    metric_columns = {row[1] for row in conn.execute("PRAGMA table_info(social_metric_snapshots)")}
+    if "refresh_count" not in metric_columns:
+        conn.execute("ALTER TABLE social_metric_snapshots ADD COLUMN refresh_count INTEGER NOT NULL DEFAULT 0")
 
 
 def _safe_title(value, fallback):
@@ -196,31 +200,43 @@ class MetaReader:
         return result
 
 
-def _next_due(conn, now):
+def _next_due(conn, now, *, refresh_missing=False):
     rows = conn.execute("""SELECT * FROM social_publications
-        WHERE collection_state IN ('pending','collecting') ORDER BY published_at""").fetchall()
+        WHERE collection_state IN ('pending','collecting','complete') ORDER BY published_at""").fetchall()
     for row in rows:
         if row["error"] and row["last_collected_at"] and row["last_collected_at"] > now - 60 * 60:
             continue
-        sampled = {item[0] for item in conn.execute(
-            "SELECT checkpoint FROM social_metric_snapshots WHERE publication_id=?", (row["id"],))}
+        samples = {item["checkpoint"]: item for item in conn.execute(
+            "SELECT * FROM social_metric_snapshots WHERE publication_id=?", (row["id"],))}
+        if refresh_missing and not (row["format"] == "story" and now - row["published_at"] > DAY):
+            for checkpoint in WINDOWS[row["format"]]:
+                sample = samples.get(checkpoint)
+                if (sample and sample["reach"] is None and sample["views"] is None and
+                        sample["refresh_count"] < 3 and
+                        (sample["refresh_count"] == 0 or sample["collected_at"] <= now - 60 * 60)):
+                    return dict(row), checkpoint, True
+        sampled = set(samples)
         remaining = [value for value in WINDOWS[row["format"]] if value not in sampled]
         if not remaining:
             conn.execute("UPDATE social_publications SET collection_state='complete' WHERE id=?", (row["id"],))
             continue
         due = row["published_at"] + remaining[0]
         if due <= now:
-            return dict(row), remaining[0]
-    return None, None
+            return dict(row), remaining[0], False
+    return None, None, False
 
 
 def tick(connect, directory, *, now=None, reader=None):
     """Descobre tudo e coleta no máximo um checkpoint por chamada do cron."""
     now = int(time.time() if now is None else now)
     discover(connect, now=now)
+    verification = meta.read_private(directory / "meta-verification.json")
+    refresh_missing = "instagram_manage_insights" in verification.get("permissions", [])
+    if reader is not None and hasattr(reader, "insights"):
+        refresh_missing = bool(reader.insights)
     with connect() as conn:
         initialize(conn)
-        publication, checkpoint = _next_due(conn, now)
+        publication, checkpoint, refreshing = _next_due(conn, now, refresh_missing=refresh_missing)
     if publication is None:
         with connect() as conn:
             decisions = analyze(conn, now=now)
@@ -231,16 +247,22 @@ def tick(connect, directory, *, now=None, reader=None):
         with connect() as conn:
             columns = (publication["id"], checkpoint, now, values.get("likes"), values.get("comments"),
                        values.get("reach"), values.get("views"), values.get("saves"),
-                       values.get("shares"), values.get("replies"))
-            conn.execute("""INSERT OR REPLACE INTO social_metric_snapshots
-                (publication_id,checkpoint,collected_at,likes,comments,reach,views,saves,shares,replies)
-                VALUES(?,?,?,?,?,?,?,?,?,?)""", columns)
+                       values.get("shares"), values.get("replies"), 0)
+            conn.execute("""INSERT INTO social_metric_snapshots
+                (publication_id,checkpoint,collected_at,likes,comments,reach,views,saves,shares,replies,refresh_count)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(publication_id,checkpoint) DO UPDATE SET
+                    collected_at=excluded.collected_at,likes=excluded.likes,comments=excluded.comments,
+                    reach=excluded.reach,views=excluded.views,saves=excluded.saves,
+                    shares=excluded.shares,replies=excluded.replies,
+                    refresh_count=social_metric_snapshots.refresh_count+1""", columns)
             conn.execute("""UPDATE social_publications SET last_collected_at=?,collection_state='collecting',error=''
                 WHERE id=?""", (now, publication["id"]))
             _next_due(conn, now)
             decisions = analyze(conn, now=now)
         social_schedule.save(directory, decisions, generated_at=now)
-        return {"status": "collected", "format": publication["format"], "checkpoint": checkpoint}
+        return {"status": "refreshed" if refreshing else "collected",
+                "format": publication["format"], "checkpoint": checkpoint}
     except (OSError, ValueError, sqlite3.Error):
         with connect() as conn:
             conn.execute("""UPDATE social_publications SET last_collected_at=?,error=?,collection_state='pending'

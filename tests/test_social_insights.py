@@ -12,10 +12,11 @@ import social_insights as insights
 
 
 class Reader:
-    def __init__(self, values=None, error=False):
+    def __init__(self, values=None, error=False, insights=False):
         self.values = values or {"likes": 3, "comments": 1, "reach": 20, "views": 24,
                                  "saves": 2, "shares": 1, "replies": None}
         self.error = error
+        self.insights = insights
         self.calls = []
 
     def collect(self, remote_id, format_):
@@ -95,6 +96,21 @@ class SocialInsightsTests(unittest.TestCase):
         with app.connect() as connection:
             error = connection.execute("SELECT error FROM social_publications").fetchone()[0]
         self.assertNotIn("private", error)
+
+    def test_new_insights_permission_refreshes_recent_missing_metrics(self):
+        self.feed(remote="ig-feed-refresh")
+        first = Reader(values={"likes": 2, "comments": 0, "reach": None, "views": None,
+                               "saves": None, "shares": None, "replies": None})
+        self.assertEqual(insights.tick(app.connect, app.DB.parent, now=self.now, reader=first)["status"],
+                         "collected")
+        refreshed = Reader(values={"likes": 2, "comments": 0, "reach": 31, "views": 35,
+                                   "saves": 1, "shares": 2, "replies": None}, insights=True)
+        result = insights.tick(app.connect, app.DB.parent, now=self.now + 60, reader=refreshed)
+        self.assertEqual(result["status"], "refreshed")
+        with app.connect() as connection:
+            sample = connection.execute(
+                "SELECT reach,views,refresh_count FROM social_metric_snapshots").fetchone()
+        self.assertEqual(tuple(sample), (31, 35, 1))
 
     def test_discovers_recent_published_story_from_isolated_queue(self):
         directory = Path(self.temp.name) / "stories"
