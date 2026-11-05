@@ -55,6 +55,14 @@ class WorkflowTests(unittest.TestCase):
         self.post('transactions', {'description':'Inválido','kind':'income','amount':-1,'date':'2026-10-29'}, 400)
         self.assertEqual(len(self.state()['transactions']), 2)
 
+    def test_content_results_start_empty_without_inventing_metrics(self):
+        results = self.state()['insights_collection']
+        self.assertEqual(results['publications'], 0)
+        self.assertEqual(results['snapshots'], 0)
+        self.assertEqual(results['measured_publications'], [])
+        self.assertFalse(results['ready_for_scheduling'])
+        self.assertEqual(set(results['decisions']), {'feed', 'story', 'carousel'})
+
     def test_inventory_and_order_workflow(self):
         self.post('inventory', {'name':'Papel','unit':'folhas','quantity':500,'minimum':100})
         material = self.state()['inventory'][0]

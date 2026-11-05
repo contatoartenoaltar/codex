@@ -65,21 +65,29 @@ def initialize(conn):
         reason TEXT NOT NULL
     );
     """)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(social_publications)")}
+    if "image_url" not in columns:
+        conn.execute("ALTER TABLE social_publications ADD COLUMN image_url TEXT NOT NULL DEFAULT ''")
 
 
 def _safe_title(value, fallback):
     return value.strip()[:160] if isinstance(value, str) and value.strip() else fallback
 
 
-def _register(conn, *, ident, source, source_id, remote_id, format_, title, published_at, now):
+def _register(conn, *, ident, source, source_id, remote_id, format_, title, published_at, now,
+              image_url=""):
     if (not isinstance(remote_id, str) or not remote_id or
             format_ not in WINDOWS or type(published_at) is not int):
         return
-    conn.execute("""INSERT OR IGNORE INTO social_publications
-        (id,source,source_id,remote_id,format,title,published_at,discovered_at)
-        VALUES(?,?,?,?,?,?,?,?)""",
+    conn.execute("""INSERT INTO social_publications
+        (id,source,source_id,remote_id,format,title,published_at,discovered_at,image_url)
+        VALUES(?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+            title=excluded.title,
+            image_url=CASE WHEN excluded.image_url!='' THEN excluded.image_url
+                           ELSE social_publications.image_url END""",
         (ident, source, source_id, remote_id, format_, _safe_title(title, format_.title()),
-         published_at, now))
+         published_at, now, image_url if isinstance(image_url, str) else ""))
 
 
 def discover(connect, *, now=None):
@@ -88,7 +96,7 @@ def discover(connect, *, now=None):
     oldest = now - 28 * DAY
     with connect() as conn:
         initialize(conn)
-        rows = conn.execute("""SELECT p.id,p.product,p.channel,p.remote_id,s.due_at
+        rows = conn.execute("""SELECT p.id,p.product,p.channel,p.remote_id,p.image_name,s.due_at
             FROM posts p JOIN post_schedule s ON s.post_id=p.id
             WHERE p.publish_status='published' AND p.remote_id!='' AND p.channel LIKE 'Instagram%'
               AND s.due_at>=?""",
@@ -96,7 +104,8 @@ def discover(connect, *, now=None):
         for row in rows:
             _register(conn, ident=f"feed:{row['id']}", source="feed", source_id=str(row["id"]),
                       remote_id=row["remote_id"], format_="feed", title=row["product"],
-                      published_at=row["due_at"], now=now)
+                      published_at=row["due_at"], now=now,
+                      image_url=f"/media/{row['image_name']}" if row["image_name"] else "")
 
     for kind in ("verse", "promotional", "carousel"):
         try:
@@ -107,8 +116,8 @@ def discover(connect, *, now=None):
                         FROM carousels WHERE state='published' AND remote_id!='' AND due_at>=?""",
                         (oldest,)).fetchall()
                 else:
-                    columns = "id,due_at,remote_id,verse_json" if kind == "verse" else \
-                              "id,due_at,remote_id,model_name"
+                    columns = "id,due_at,remote_id,verse_json,filename" if kind == "verse" else \
+                              "id,due_at,remote_id,model_name,filename"
                     rows = connection.execute(
                         f"SELECT {columns} FROM slots WHERE state='published' "
                         "AND remote_id!='' AND due_at>=?", (now - DAY,)).fetchall()
@@ -127,7 +136,10 @@ def discover(connect, *, now=None):
                         _register(target, ident=f"{kind}:{row['id']}", source=kind,
                                   source_id=row["id"], remote_id=row["remote_id"],
                                   format_="carousel" if kind == "carousel" else "story",
-                                  title=title, published_at=row["due_at"], now=now)
+                                  title=title, published_at=row["due_at"], now=now,
+                                  image_url=(f"/api/content-media/carousel/{row['id']}-01.jpg"
+                                             if kind == "carousel" else
+                                             f"/api/content-media/{kind}/{row['filename']}"))
             finally:
                 connection.close()
         except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
@@ -290,7 +302,15 @@ def status(conn):
     formats = {row[0]: row[1] for row in conn.execute(
         "SELECT format,COUNT(*) FROM social_publications GROUP BY format")}
     decisions = analyze(conn)
+    latest = conn.execute("""SELECT p.id,p.source,p.format,p.title,p.published_at,p.image_url,
+        s.checkpoint,s.collected_at,s.likes,s.comments,s.reach,s.views,s.saves,s.shares,s.replies
+        FROM social_publications p JOIN social_metric_snapshots s ON s.publication_id=p.id
+        WHERE s.checkpoint=(SELECT MAX(last.checkpoint) FROM social_metric_snapshots last
+                            WHERE last.publication_id=p.id)
+        ORDER BY p.published_at DESC LIMIT 120""").fetchall()
+    measured = [dict(row) for row in latest]
     return {"publications": publications, "snapshots": snapshots, "formats": formats,
             "minimum_comparable": MIN_COMPARABLE,
             "ready_for_scheduling": any(item["state"] == "selected" for item in decisions.values()),
-            "decisions": decisions}
+            "decisions": decisions, "measured_publications": measured,
+            "last_collected_at": max((row["collected_at"] for row in latest), default=None)}

@@ -69,6 +69,18 @@ class SocialInsightsTests(unittest.TestCase):
         self.assertEqual(insights.tick(app.connect, app.DB.parent, now=self.now + 60, reader=reader),
                          {"status": "idle"})
 
+    def test_discovery_fills_image_url_for_a_publication_already_known(self):
+        with app.connect() as connection:
+            insights._register(connection, ident="feed:known", source="feed", source_id="known",
+                remote_id="known-remote", format_="feed", title="Primeiro título",
+                published_at=self.now - insights.DAY, now=self.now)
+            insights._register(connection, ident="feed:known", source="feed", source_id="known",
+                remote_id="known-remote", format_="feed", title="Título atualizado",
+                published_at=self.now - insights.DAY, now=self.now, image_url="/media/known.jpg")
+            row = connection.execute(
+                "SELECT title,image_url FROM social_publications WHERE id='feed:known'").fetchone()
+        self.assertEqual(tuple(row), ("Título atualizado", "/media/known.jpg"))
+
     def test_failure_is_generic_and_retries_only_after_one_hour(self):
         self.feed(remote="ig-feed-private")
         reader = Reader(error=True)
@@ -91,10 +103,10 @@ class SocialInsightsTests(unittest.TestCase):
         connection = sqlite3.connect(database)
         connection.execute(f"PRAGMA application_id={content_schedule.VERSE_APPLICATION_ID}")
         connection.execute("""CREATE TABLE slots(
-            id TEXT PRIMARY KEY,due_at INTEGER,remote_id TEXT,state TEXT,verse_json TEXT)""")
-        connection.execute("INSERT INTO slots VALUES(?,?,?,?,?)", (
+            id TEXT PRIMARY KEY,due_at INTEGER,remote_id TEXT,state TEXT,verse_json TEXT,filename TEXT)""")
+        connection.execute("INSERT INTO slots VALUES(?,?,?,?,?,?)", (
             "a" * 32, self.now - 3 * 60 * 60, "ig-story-1", "published",
-            '{"reference":"Salmos 46:1"}'))
+            '{"reference":"Salmos 46:1"}', "a" * 32 + ".jpg"))
         connection.commit()
         connection.close()
         with patch.dict(os.environ, {"ARTENOALTAR_STORIES_DIR": str(directory)}):
