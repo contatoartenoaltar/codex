@@ -10,7 +10,7 @@ No Bash Console do PythonAnywhere:
 ```bash
 cd /home/artenoaltar/arte-no-altar
 git pull --ff-only origin main
-python3.12 -m unittest tests.test_carousel_posts
+python3.12 -m unittest discover -s tests -p 'test_carousel_posts.py'
 mkdir -m 700 -p /home/artenoaltar/arte-no-altar/.local/carousels-live
 python3.12 -m carousel_posts.queue \
   --directory /home/artenoaltar/arte-no-altar/.local/carousels-live \
@@ -32,9 +32,16 @@ os.environ["ARTENOALTAR_CAROUSELS_DIR"] = "/home/artenoaltar/arte-no-altar/.loca
 os.environ["ARTENOALTAR_CAROUSELS_META_DIR"] = "/home/artenoaltar/arte-no-altar/.local"
 ```
 
-Encaminhe `/internal/carousels/tick` para
-`carousel_posts.wsgi.application`, preservando as rotas atuais do site e de
-Stories. Faça backup do WSGI e valide sua sintaxe antes de substituir o arquivo.
+Como `carousel_posts.wsgi` delega as demais rotas para o despachante promocional,
+substitua somente o import final por:
+
+```python
+from carousel_posts.wsgi import application
+```
+
+Assim, `/internal/carousels/tick` é atendido primeiro e todas as rotas existentes
+continuam no encadeamento atual. Faça backup do WSGI e valide sua sintaxe antes
+de substituir o arquivo.
 
 ## 3. Cron externo
 

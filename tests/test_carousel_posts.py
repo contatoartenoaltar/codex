@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from carousel_posts import composer
 from carousel_posts import http
+from carousel_posts import wsgi as carousel_wsgi
 from carousel_posts.queue import (APPLICATION_ID, Store, ZONE, cancel,
                                   enable_automatic, ensure_horizon, tick, verify_files)
 
@@ -161,6 +162,13 @@ class CarouselHttpTests(unittest.TestCase):
         self.assertEqual(http.handle(wrong, self.directory, self.directory)[0], 401)
         body = dict(self.environ, CONTENT_LENGTH="1")
         self.assertEqual(http.handle(body, self.directory, self.directory)[0], 400)
+
+    def test_wsgi_delegates_existing_routes(self):
+        environ = {"PATH_INFO": "/inicio"}
+        with patch("promotional_stories.wsgi.application", return_value=[b"existing"]) as existing:
+            result = carousel_wsgi.application(environ, lambda status, headers: None)
+        self.assertEqual(result, [b"existing"])
+        existing.assert_called_once()
 
 
 if __name__ == "__main__":
