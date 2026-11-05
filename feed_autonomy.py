@@ -580,9 +580,10 @@ def _batch_days(connect, rules, now):
             reserved = conn.execute("SELECT 1 FROM feed_auto_slots WHERE batch_id=? AND state='reserved'", (latest['id'],)).fetchone()
             if count < 3 or reserved:
                 return dict(latest)
-            if rules.get('mode') == 'preview' or local.date().isoformat() < latest['last_day']:
+            last_day = datetime.fromisoformat(latest['last_day']).date()
+            if rules.get('mode') == 'preview' or last_day > local.date() + timedelta(days=1):
                 return None
-            first = datetime.fromisoformat(latest['last_day']).date()+timedelta(days=1)
+            first = last_day + timedelta(days=1)
         else:
             first = local.date()
         earliest = local.date() + timedelta(days=int(local.hour >= 12 or (local.hour == 11 and local.minute >= 58)))

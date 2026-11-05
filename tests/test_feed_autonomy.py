@@ -241,7 +241,7 @@ class FeedAutonomyTests(unittest.TestCase):
         self.assertEqual(self.tick(), 'indexing')
         self.assertEqual(self.client.downloads, 1)
 
-    def test_batches_prepare_only_three_candidates_and_wait_until_last_day(self):
+    def test_batches_prepare_three_candidates_and_start_next_batch_one_day_early(self):
         self.client = Client(10)
         self.rules |= {'cadence': 'batch3', 'mode': 'publish'}
         drive.write_private(self.directory/auto.SETTINGS, self.rules)
@@ -254,11 +254,8 @@ class FeedAutonomyTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM post_schedule').fetchone()[0], 3)
         self.now += 86400
         self.heartbeat()
-        self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'waiting')
-        self.assertEqual(len(self.client.requested_ids), 3)
-        self.now += 86400
-        self.heartbeat()
         self.assertEqual(auto.tick(app.connect, self.directory, self.client), 'prepared')
+        self.assertEqual(len(self.client.requested_ids), 4)
         with app.connect() as conn:
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM feed_batches').fetchone()[0], 2)
             slots = conn.execute('SELECT * FROM feed_auto_slots ORDER BY rowid').fetchall()
