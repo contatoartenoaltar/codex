@@ -20,6 +20,7 @@ import feed_composer as composer
 import meta
 import scheduling
 import product_scene
+import social_schedule
 import post_ids
 
 SETTINGS = 'feed-automation.json'
@@ -506,16 +507,19 @@ def index_one(connect, files, client, recognizer=None, *, file_id=None):
     return True
 
 
-def _reserve(connect, rules, now):
+def _reserve(connect, rules, now, directory=None):
     local = datetime.fromtimestamp(now, scheduling.ZONE)
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
+        selected_hour, selected_minute = social_schedule.selected(
+            directory, 'feed', (12, 0)) if directory else (12, 0)
         pending = conn.execute("SELECT * FROM feed_auto_slots WHERE state='reserved' ORDER BY due_at LIMIT 1").fetchone()
         if pending:
             return dict(pending)
         for offset in range(4):
             day = local.date() + timedelta(days=offset)
-            due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(hour=12).timestamp())
+            due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(
+                hour=selected_hour, minute=selected_minute).timestamp())
             if due < now + 120 or due > now + 3*86400:
                 continue
             slot = f"{rules['account_id']}:{day.isoformat()}"
@@ -564,10 +568,12 @@ def _reserve(connect, rules, now):
     return None
 
 
-def _batch_days(connect, rules, now):
+def _batch_days(connect, rules, now, directory=None):
     local = datetime.fromtimestamp(now, scheduling.ZONE)
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
+        selected_hour, selected_minute = social_schedule.selected(
+            directory, 'feed', (12, 0)) if directory else (12, 0)
         latest = conn.execute('SELECT * FROM feed_batches WHERE account_id=? AND policy=? ORDER BY rowid DESC LIMIT 1', (rules['account_id'], rules['id'])).fetchone()
         if latest:
             # Uma tentativa sem composição não pode ocupar um dos três dias.
@@ -586,7 +592,8 @@ def _batch_days(connect, rules, now):
             first = last_day + timedelta(days=1)
         else:
             first = local.date()
-        earliest = local.date() + timedelta(days=int(local.hour >= 12 or (local.hour == 11 and local.minute >= 58)))
+        selected_today = local.replace(hour=selected_hour, minute=selected_minute, second=0, microsecond=0)
+        earliest = local.date() + timedelta(days=int(selected_today.timestamp() < now + 120))
         first = max(first, earliest)
         identity = secrets.token_hex(16)
         conn.execute('INSERT INTO feed_batches VALUES(?,?,?,?,?,?)', (identity, rules['account_id'], first.isoformat(),
@@ -594,9 +601,11 @@ def _batch_days(connect, rules, now):
         return dict(conn.execute('SELECT * FROM feed_batches WHERE id=?', (identity,)).fetchone())
 
 
-def _reserve_batch(connect, rules, batch, now):
+def _reserve_batch(connect, rules, batch, now, directory=None):
     with connect() as conn:
         conn.execute('BEGIN IMMEDIATE')
+        selected_hour, selected_minute = social_schedule.selected(
+            directory, 'feed', (12, 0)) if directory else (12, 0)
         pending = conn.execute("SELECT * FROM feed_auto_slots WHERE batch_id=? AND state='reserved' LIMIT 1", (batch['id'],)).fetchone()
         if pending:
             return dict(pending)
@@ -627,7 +636,8 @@ def _reserve_batch(connect, rules, batch, now):
             known = [r for r in candidates if r['sha256'] in hints]
             unique = {r['model_key']: r for r in known or candidates}
             model = unique[secrets.choice(list(unique))]
-            due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(hour=12).timestamp())
+            due = int(datetime.combine(day, datetime.min.time(), scheduling.ZONE).replace(
+                hour=selected_hour, minute=selected_minute).timestamp())
             request = 'auto-feed-'+hashlib.sha256(slot.encode()).hexdigest()
             conn.execute('''INSERT INTO feed_auto_slots
                 (slot,due_at,policy,account_id,file_id,model_key,cycle,theme,request_id,state,post_id,batch_id)
@@ -671,7 +681,7 @@ def _produce(connect, directory, rules, slot, client):
             # Conferir de novo dentro da transação: pode ter entrado outro agendamento.
             for delta in range(0, 121, 15):
                 target = due + delta*60
-                if target > int(datetime.fromtimestamp(due, scheduling.ZONE).replace(hour=14, minute=0, second=0).timestamp()):
+                if target > due + 120 * 60:
                     continue
                 occupied = conn.execute('''SELECT 1 FROM post_schedule s JOIN posts p ON p.id=s.post_id
                     WHERE s.state IN ('queued','running','processing') AND p.account_id=?
@@ -721,14 +731,14 @@ def tick(connect, directory, client=None, recognizer=None):
                 client = client or drive.DriveClient(drive.credentials(directory))
                 state = _produce(connect, directory, rules, dict(draft), client)
                 return state
-        batch = _batch_days(connect, rules, now) if rules.get('cadence') == 'batch3' else None
+        batch = _batch_days(connect, rules, now, directory) if rules.get('cadence') == 'batch3' else None
         if rules.get('cadence') == 'batch3' and batch is None:
             state = 'waiting'
             return state
         client = client or drive.DriveClient(drive.credentials(directory))
         files = sync_catalog(connect, directory, client)
         if batch is not None:
-            slot = _reserve_batch(connect, rules, batch, now)
+            slot = _reserve_batch(connect, rules, batch, now, directory)
             if not slot:
                 with connect() as conn:
                     choices = conn.execute("SELECT file_id FROM feed_models WHERE active=1 AND state='pending'").fetchall()
@@ -736,10 +746,10 @@ def tick(connect, directory, client=None, recognizer=None):
                     # Só conferir a próxima candidata, sem percorrer toda a pasta.
                     selected = secrets.choice(choices)['file_id']
                     index_one(connect, files, client, recognizer, file_id=selected)
-                    slot = _reserve_batch(connect, rules, batch, now)
+                    slot = _reserve_batch(connect, rules, batch, now, directory)
                 elif recheck_one_review(connect, files, client):
                     state = 'reviewing_models'
-                    slot = _reserve_batch(connect, rules, batch, now)
+                    slot = _reserve_batch(connect, rules, batch, now, directory)
             if slot:
                 try:
                     state = _produce(connect, directory, rules, slot, client)
@@ -755,7 +765,7 @@ def tick(connect, directory, client=None, recognizer=None):
         elif index_one(connect, files, client, recognizer):
             state = 'indexing'
         else:
-            slot = _reserve(connect, rules, now)
+            slot = _reserve(connect, rules, now, directory)
             state = _produce(connect, directory, rules, slot, client) if slot else 'waiting'
         return state
     finally:
@@ -773,11 +783,14 @@ def status(conn, directory):
         pass
     counts = {r[0]: r[1] for r in conn.execute('SELECT state,COUNT(*) FROM feed_models WHERE active=1 GROUP BY state')}
     runtime = conn.execute('SELECT state,last_tick FROM feed_auto_runtime WHERE id=1').fetchone()
+    selected_hour, selected_minute = social_schedule.selected(directory, 'feed', (12, 0))
     result = {'enabled': enabled, 'models': counts, 'state': runtime['state'] if runtime else 'disabled',
             'last_tick': runtime['last_tick'] if runtime else None,
             'mode': settings.get('mode', 'publish') if settings else 'disabled',
             'cadence': settings.get('cadence', 'daily') if settings else 'batch3',
-            'account': '@'+ACCOUNT, 'time': '12:00', 'timezone': 'America/Sao_Paulo'}
+            'account': '@'+ACCOUNT, 'time': f'{selected_hour:02d}:{selected_minute:02d}',
+            'adaptive_time': (selected_hour, selected_minute) != (12, 0),
+            'timezone': 'America/Sao_Paulo'}
     result['batch'] = batch_progress(conn, settings) if settings else None
     return result
 

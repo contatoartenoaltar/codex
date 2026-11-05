@@ -12,6 +12,7 @@ import social_mcp
 import feed_composer
 import feed_autonomy
 import content_schedule
+import social_insights
 import post_ids
 import order_finance
 import html
@@ -66,6 +67,7 @@ def initialize():
         feed_composer.initialize(c)
         feed_autonomy.initialize(c)
         post_ids.initialize(c)
+        social_insights.initialize(c)
 
 
 def required(data, key, limit=200):
@@ -237,6 +239,7 @@ class Handler(BaseHTTPRequestHandler):
                     post['schedule']={k:schedule[k] for k in ['due_at','state','error']} if schedule else None
                 result['scheduler']=scheduling.runtime(c)
                 result['feed_automation']=feed_autonomy.status(c, DB.parent)
+                result['insights_collection']=social_insights.status(c)
             result['automated_content']=content_schedule.agenda()
             try:
                 social = meta.status(DB.parent)

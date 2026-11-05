@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import secrets
 import sqlite3
+import social_schedule
 from zoneinfo import ZoneInfo
 
 from . import composer
@@ -54,8 +55,13 @@ def _stamp(value: datetime) -> int:
 def _next_dates(now: datetime, count: int = HORIZON) -> list[datetime]:
     result = []
     day = now.date()
+    meta_directory = os.environ.get("ARTENOALTAR_CAROUSELS_META_DIR", "")
+    selected_hour, selected_minute = social_schedule.selected(
+        meta_directory, "carousel", (PUBLICATION_TIME.hour, PUBLICATION_TIME.minute)
+    ) if meta_directory else (PUBLICATION_TIME.hour, PUBLICATION_TIME.minute)
+    publication_time = time(selected_hour, selected_minute)
     while len(result) < count:
-        due = datetime.combine(day, PUBLICATION_TIME, ZONE)
+        due = datetime.combine(day, publication_time, ZONE)
         if day.weekday() in WEEKDAYS and due > now + timedelta(minutes=10):
             result.append(due)
         day += timedelta(days=1)

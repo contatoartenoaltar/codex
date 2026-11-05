@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import secrets
 import sqlite3
+import social_schedule
 from zoneinfo import ZoneInfo
 
 from . import preview
@@ -131,6 +132,9 @@ def prepare_batch(store, *, now=None):
     if (store.directory / 'media').is_symlink() or not preview.layout_approved(preview.assets()):
         raise ValueError('Use o armazenamento local e o layout aprovado antes de preparar o lote.')
     created = []
+    meta_directory = os.environ.get('ARTENOALTAR_STORIES_META_DIR', '')
+    selected_hour, selected_minute = social_schedule.selected(
+        meta_directory, 'story', (7, 30)) if meta_directory else (7, 30)
     try:
         with store.connect() as conn:
             conn.execute('BEGIN IMMEDIATE')
@@ -139,7 +143,7 @@ def prepare_batch(store, *, now=None):
                     datetime.fromisoformat(latest['last_day']).date() > now.date() + timedelta(days=1)):
                 return {'batch_id': latest['id'], 'created': False}
             earliest = now.date()
-            due = datetime.combine(earliest, time(7, 30), ZONE)
+            due = datetime.combine(earliest, time(selected_hour, selected_minute), ZONE)
             if stamp(due) < stamp(now) + MIN_NOTICE:
                 earliest += timedelta(days=1)
             if latest:
@@ -168,7 +172,7 @@ def prepare_batch(store, *, now=None):
                 conn.execute('INSERT INTO verse_history VALUES(?,?)', (cycle, verse['reference']))
                 conn.execute('''INSERT INTO slots(id,batch_id,day,due_at,verse_id,verse_json,cycle,
                     filename,image_hash,manifest_hash,state) VALUES(?,?,?,?,?,?,?,?,?,?,'draft')''',
-                    (ident, batch, day.isoformat(), stamp(datetime.combine(day, time(7, 30), ZONE)),
+                    (ident, batch, day.isoformat(), stamp(datetime.combine(day, time(selected_hour, selected_minute), ZONE)),
                      verse['id'], json.dumps(verse, ensure_ascii=False), cycle, image.name,
                      metadata['image_sha256'], hashlib.sha256(image.with_suffix('.json').read_bytes()).hexdigest()))
             return {'batch_id': batch, 'created': True}

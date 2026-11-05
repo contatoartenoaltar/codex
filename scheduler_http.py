@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 import meta
 import scheduling
 import feed_autonomy
+import social_insights
 
 PATH = '/internal/scheduler/tick'
 KEY_FILE = 'scheduler-key.txt'
@@ -43,6 +44,11 @@ def run(connect, directory):
         result = scheduling.tick(connect, directory, mode='http')
         # Publicação tem prioridade. A criação só usa chamadas ociosas e política ativa.
         if result.get('status') == 'idle':
+            try:
+                social_insights.tick(connect, directory)
+            except (ValueError, OSError, sqlite3.Error):
+                # A coleta de resultados não pode interromper publicações ou criação.
+                pass
             try:
                 feed_autonomy.tick(connect, directory)
             except (ValueError, OSError, sqlite3.Error):
