@@ -18,7 +18,7 @@ import urllib.request
 
 from PIL import Image
 
-from .queue import ACCOUNT
+from .queue import ACCOUNT, PreparationRetryError
 
 
 MAX_RESPONSE = 262144
@@ -117,7 +117,8 @@ class MetaClient:
             return result
         except (urllib.error.URLError, OSError, TimeoutError, ValueError):
             # Não devolver corpo, URL, cabeçalhos ou mensagem bruta do provedor.
-            raise ValueError('A Meta não confirmou a operação de Story; confira antes de repetir.') from None
+            raise PreparationRetryError(
+                'A Meta não confirmou a preparação do Story; tente novamente.') from None
 
     def verify_account(self, account_id):
         if account_id != self.account_id:

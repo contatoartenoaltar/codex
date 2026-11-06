@@ -327,13 +327,51 @@ class StoryQueueTests(unittest.TestCase):
         self.assertEqual(len(transport.creates), 1)
         self.assertEqual(len(transport.publishes), 1)
 
-    def test_lost_staging_response_is_not_uploaded_again(self):
+    def test_lost_staging_response_retries_twice_then_requires_review(self):
         transport = self.live_ready()
         with patch.object(transport, 'stage_image', side_effect=TimeoutError('synthetic-secret')) as stage:
-            self.assertEqual(tick(self.store, transport, now=self.due())['status'], 'review')
-            self.assertEqual(tick(self.store, transport, now=self.due()+timedelta(minutes=1))['status'], 'idle')
-        self.assertEqual(stage.call_count, 1)
+            self.assertEqual(tick(self.store, transport, now=self.due())['status'], 'queued')
+            self.assertEqual(tick(self.store, transport, now=self.due()+timedelta(minutes=1))['status'], 'queued')
+            self.assertEqual(tick(self.store, transport, now=self.due()+timedelta(minutes=2))['status'], 'review')
+            self.assertEqual(tick(self.store, transport, now=self.due()+timedelta(minutes=3))['status'], 'idle')
+        self.assertEqual(stage.call_count, 3)
+        with self.store.connect() as conn:
+            self.assertEqual([r[0] for r in conn.execute('SELECT outcome FROM attempts ORDER BY created_at')],
+                             ['retry', 'retry', 'review'])
         self.assertNotIn('synthetic-secret', str(self.store.agenda()))
+
+    def test_transient_container_failure_recovers_without_duplicate_publication(self):
+        transport = self.live_ready()
+        due = self.due()
+        self.assertEqual(tick(self.store, transport, now=due)['status'], 'staged')
+        original = transport.create_container
+        calls = 0
+
+        def transient(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise TimeoutError('temporary-container-error')
+            return original(*args, **kwargs)
+
+        with patch.object(transport, 'create_container', side_effect=transient):
+            self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=1))['status'], 'staged')
+            row = self.store.agenda()[0]
+            self.assertIn('nova tentativa 2 de 3', row['error'])
+            self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=2))['status'], 'processing')
+        self.assertEqual(self.store.agenda()[0]['error'], '')
+        self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=3))['status'], 'published')
+        self.assertEqual(len(transport.publishes), 1)
+
+    def test_uncertain_publish_is_never_retried(self):
+        transport = self.live_ready()
+        due = self.due()
+        self.assertEqual(tick(self.store, transport, now=due)['status'], 'staged')
+        self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=1))['status'], 'processing')
+        with patch.object(transport, 'publish', side_effect=TimeoutError('uncertain-publish')) as publish:
+            self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=2))['status'], 'review')
+            self.assertEqual(tick(self.store, transport, now=due+timedelta(minutes=3))['status'], 'idle')
+        self.assertEqual(publish.call_count, 1)
 
     def test_interrupted_process_after_upload_requires_review_without_repeating(self):
         transport = self.live_ready()

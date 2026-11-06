@@ -25,6 +25,11 @@ MIN_NOTICE = 120
 MAX_LATENESS = 1800
 LEASE = 600
 PREPARE_AHEAD = 300
+PREPARE_RETRIES = 3
+
+
+class PreparationRetryError(ValueError):
+    """Falha remota temporária ocorrida antes da publicação do Story."""
 
 
 def local_now(now=None):
@@ -344,13 +349,28 @@ def tick(store, transport=None, *, now=None):
                 state = 'simulated' if simulation else 'published'
             else:
                 raise ValueError('O processamento não foi confirmado.')
-    except Exception:
+    except Exception as exc:
         with store.connect() as conn:
-            conn.execute("UPDATE slots SET state='review',error='Falha ou resultado incerto no Story; conferir antes de repetir.' WHERE id=? AND claim=?", (row['id'], claim))
-            conn.execute("UPDATE attempts SET outcome='review' WHERE id=?", (claim,))
-        return {'status': 'review'}
+            attempts = conn.execute(
+                'SELECT COUNT(*) FROM attempts WHERE slot_id=? AND phase=?',
+                (row['id'], phase)).fetchone()[0]
+            retryable = isinstance(exc, (PreparationRetryError, TimeoutError, ConnectionError))
+            retry = retryable and phase in ('stage', 'create') and attempts < PREPARE_RETRIES
+            state = ('queued' if phase == 'stage' else 'staged') if retry else 'review'
+            outcome = 'retry' if retry else 'review'
+            error = (f'Falha temporária na preparação; nova tentativa {attempts + 1} de {PREPARE_RETRIES}.'
+                     if retry else
+                     'Falha ou resultado incerto no Story; conferir antes de repetir.')
+            changed = conn.execute(
+                """UPDATE slots SET state=?,error=?,claim='',claimed_at=NULL
+                   WHERE id=? AND claim=? AND state='sending'""",
+                (state, error, row['id'], claim))
+            if changed.rowcount != 1:
+                state = outcome = 'review'
+            conn.execute('UPDATE attempts SET outcome=? WHERE id=?', (outcome, claim))
+        return {'status': state}
     with store.connect() as conn:
-        changed = conn.execute("UPDATE slots SET state=?,container=?,remote_id=?,staged_photo=?,claim='',claimed_at=NULL WHERE id=? AND claim=? AND state='sending'", (state, container, remote, photo, row['id'], claim))
+        changed = conn.execute("UPDATE slots SET state=?,container=?,remote_id=?,staged_photo=?,error='',claim='',claimed_at=NULL WHERE id=? AND claim=? AND state='sending'", (state, container, remote, photo, row['id'], claim))
         if changed.rowcount != 1:
             state = 'review'
         conn.execute('UPDATE attempts SET outcome=? WHERE id=?', (state, claim))

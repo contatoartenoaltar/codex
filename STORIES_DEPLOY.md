@@ -38,8 +38,10 @@ nunca é chamada antes do horário reservado. O momento de exibição depende
 da Meta, cron e hospedagem. Cada chamada tem timeout de cinco segundos; uma
 etapa pode fazer até cinco chamadas. Medir duração e pontualidade no teste real.
 
-IDs de apoio e contêiner são preservados entre etapas. Timeout, arte alterada,
-falha ou interrupção exigem conferência, sem repetição automática da escrita.
+IDs de apoio e contêiner são preservados entre etapas. Uma falha temporária de
+comunicação durante o envio da foto de apoio ou a criação do contêiner permite
+até três tentativas no total. Arte alterada, conta divergente, interrupção e
+qualquer falha na publicação exigem conferência, sem repetição automática.
 Fotos de apoio não publicadas permanecem na Meta; sua remoção não foi implementada.
 
 ## Preparação futura no PythonAnywhere
@@ -141,7 +143,8 @@ restaurar o banco comercial para desfazer esta adição.
 ## Evidência e limites
 
 Testes usam credenciais fictícias e HTTP simulado. Cobrem o fluxo completo de
-apoio → contêiner → publicação, separação de modos, concorrência, interrupção,
+apoio → contêiner → publicação, tentativas limitadas na preparação, bloqueio de
+repetição na publicação, separação de modos, concorrência, interrupção,
 integridade, sanitização, preservação da autorização lida e das rotas existentes.
 Não comprovam conectividade, permissões ou publicação na conta real.
 
