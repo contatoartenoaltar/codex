@@ -102,6 +102,36 @@ test('financeiro filtra cartões e lançamentos pelo período escolhido', () => 
   assert.ok(!html.includes('Ano anterior'));
 });
 
+test('financeiro filtra lançamentos por receita, despesa e investimento sem alterar os totais do período', () => {
+  const {context} = app();
+  vm.runInContext(`state.transactions = [
+    {id: 1, date: '2026-10-31', description: 'Venda', kind: 'income', amount: 10000},
+    {id: 2, date: '2026-10-31', description: 'Papel', kind: 'expense', amount: 2000},
+    {id: 3, date: '2026-10-31', description: 'Impressora', kind: 'investment', amount: 3000}
+  ]`, context);
+
+  let html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Todos os tipos'));
+  assert.ok(html.includes('Venda'));
+  assert.ok(html.includes('Papel'));
+  assert.ok(html.includes('Impressora'));
+
+  vm.runInContext("financeKind = 'income'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [1]);
+  html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Venda'));
+  assert.ok(!html.includes('Papel'));
+  assert.ok(!html.includes('Impressora'));
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(stats(periodTransactions(financePeriod)))', context)),
+    {income: 10000, expense: 5000, investment: 3000, balance: 5000, active: 0, low: 0});
+
+  vm.runInContext("financeKind = 'expense'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [2]);
+
+  vm.runInContext("financeKind = 'investment'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [3]);
+});
+
 test('pedidos calcula vendas menos despesas e exclui investimentos do lucro', () => {
   const {context} = app();
   vm.runInContext(`state.stages = ['Novo']; state.orders = [
