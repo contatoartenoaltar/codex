@@ -9,9 +9,9 @@ test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=
   {date:'2026-10-30',kind:'expense',amount:10000,order_id:null}
  ];
  const model=series(rows,'7','2026-10-30');
- assert.deepEqual(model.totals,{sales:39900,income:44900,expense:10000});
+ assert.deepEqual(model.totals,{sales:39900,income:44900,expense:10000,investment:0});
  assert.equal(model.balance,34900);
- assert.deepEqual(model.buckets.at(-1),{...model.buckets.at(-1),sales:39900,income:44900,expense:10000});
+ assert.deepEqual(model.buckets.at(-1),{...model.buckets.at(-1),sales:39900,income:44900,expense:10000,investment:0});
 });
 
 test('sete dias incluem o dia de referência e preenchem dias sem movimento',()=>{
@@ -72,10 +72,25 @@ test('somente despesas mostra resultado negativo e dados vazios não geram valor
  assert.equal(series(rows,'30','2026-10-30').balance,-3500);
  assert.match(render(rows,'30','2026-10-30'),/chart-result negative/);
  const empty=series([],'30','2026-10-30');
- assert.deepEqual(empty.totals,{sales:0,income:0,expense:0});
+ assert.deepEqual(empty.totals,{sales:0,income:0,expense:0,investment:0});
  const html=render([],'30','2026-10-30');
  assert.match(html,/Nenhuma movimentação neste período/);
  assert.doesNotMatch(html,/NaN|Infinity/);
+});
+
+test('investimentos aparecem separados e são descontados do resultado',()=>{
+ const rows=[
+  {date:'2026-10-30',kind:'income',amount:100000},
+  {date:'2026-10-30',kind:'expense',amount:20000},
+  {date:'2026-10-30',kind:'investment',amount:35000}
+ ];
+ const model=series(rows,'7','2026-10-30');
+ assert.deepEqual(model.totals,{sales:0,income:100000,expense:20000,investment:35000});
+ assert.equal(model.balance,45000);
+ assert.equal(model.buckets.at(-1).investment,35000);
+ const html=render(rows,'7','2026-10-30');
+ assert.match(html,/Investimentos/);
+ assert.match(html,/Equipamentos e bens/);
 });
 
 test('dados inválidos são descartados e a agregação preserva os registros originais',()=>{

@@ -14,6 +14,10 @@ def today():
     return datetime.now(ZoneInfo('America/Sao_Paulo')).date().isoformat()
 
 
+def income_description(order_id, customer, product):
+    return f"Pedido #{order_id:04d} — {customer} — {product}"
+
+
 def register_income(conn, order_id, day=None):
     """Chamado sob BEGIN IMMEDIATE, na mesma transação do cadastro/lançamento."""
     order = conn.execute('SELECT * FROM orders WHERE id=?', (order_id,)).fetchone()
@@ -29,7 +33,7 @@ def register_income(conn, order_id, day=None):
     day = date.fromisoformat(day if day is not None else today()).isoformat()
     if day > today():
         raise ValueError('A data do recebimento não pode estar no futuro.')
-    description = f"Pedido #{order_id:04d} — {order['customer']} — {order['product']}"
+    description = income_description(order_id, order['customer'], order['product'])
     cursor = conn.execute('''INSERT INTO transactions(description,kind,amount,date,order_id)
                              VALUES(?,'income',?,?,?)''', (description, order['total'], day, order_id))
     return {'id': cursor.lastrowid, 'amount': order['total'], 'created': True}

@@ -2,8 +2,8 @@
 (function (root) {
  'use strict';
  const periods = {'7':'Últimos 7 dias','30':'Últimos 30 dias',year:'Este ano'};
- const colors = {sales:'#b68a32',income:'#1686a0',expense:'#c7427e'};
- const labels = {sales:'Vendas',income:'Entradas',expense:'Saídas'};
+ const colors = {sales:'#b68a32',income:'#1686a0',expense:'#c7427e',investment:'#e3bb35'};
+ const labels = {sales:'Vendas',income:'Entradas',expense:'Despesas',investment:'Investimentos'};
  const money = value => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
  const escape = text => String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const iso = day => day.toISOString().slice(0,10);
@@ -24,25 +24,25 @@
    const day=iso(date),key=monthly?day.slice(0,7):day;
    buckets.push({key,label:monthly?new Intl.DateTimeFormat('pt-BR',{month:'short',timeZone:'UTC'}).format(date).replace('.',''):formatDay(day),
     title:monthly?new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric',timeZone:'UTC'}).format(date):new Intl.DateTimeFormat('pt-BR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(date),
-    sales:0,income:0,expense:0});
+    sales:0,income:0,expense:0,investment:0});
   }
   const lookup=new Map(buckets.map(bucket=>[bucket.key,bucket]));
   const first=iso(start);
   let count=0;
   for(const transaction of transactions){
-   if(!parse(transaction.date)||transaction.date<first||transaction.date>today||!['income','expense'].includes(transaction.kind)||!Number.isSafeInteger(transaction.amount)||transaction.amount<0)continue;
+   if(!parse(transaction.date)||transaction.date<first||transaction.date>today||!['income','expense','investment'].includes(transaction.kind)||!Number.isSafeInteger(transaction.amount)||transaction.amount<0)continue;
    const bucket=lookup.get(monthly?transaction.date.slice(0,7):transaction.date);
    if(!bucket)continue;
    bucket[transaction.kind]+=transaction.amount;
    if(transaction.kind==='income'&&Number.isSafeInteger(transaction.order_id)&&transaction.order_id>0)bucket.sales+=transaction.amount;
    count++;
   }
-  const totals=buckets.reduce((sum,bucket)=>({sales:sum.sales+bucket.sales,income:sum.income+bucket.income,expense:sum.expense+bucket.expense}),{sales:0,income:0,expense:0});
-  return {period,monthly,buckets,totals,count,first,last:today,balance:totals.income-totals.expense};
+  const totals=buckets.reduce((sum,bucket)=>({sales:sum.sales+bucket.sales,income:sum.income+bucket.income,expense:sum.expense+bucket.expense,investment:sum.investment+bucket.investment}),{sales:0,income:0,expense:0,investment:0});
+  return {period,monthly,buckets,totals,count,first,last:today,balance:totals.income-totals.expense-totals.investment};
  }
 
  function chart(model){
-  const highest=Math.max(100,...model.buckets.flatMap(b=>[b.sales,b.income,b.expense]));
+  const highest=Math.max(100,...model.buckets.flatMap(b=>[b.sales,b.income,b.expense,b.investment]));
   const rough=highest/4,power=10**Math.floor(Math.log10(rough));
   const step=[1,2,5,10].map(n=>n*power).find(n=>n>=rough);
   const maximum=Math.ceil(highest/step)*step;
@@ -53,7 +53,7 @@
   }
   const labelEvery=Math.max(1,Math.ceil(model.buckets.length/6));
   const bars=model.buckets.map((bucket,index)=>{
-   const info=`${bucket.title}. Vendas: ${money(bucket.sales)}. Entradas: ${money(bucket.income)}. Saídas: ${money(bucket.expense)}.`;
+   const info=`${bucket.title}. Vendas: ${money(bucket.sales)}. Entradas: ${money(bucket.income)}. Despesas: ${money(bucket.expense)}. Investimentos: ${money(bucket.investment)}.`;
    const showLabel=(index%labelEvery===0&&index<=model.buckets.length-1-labelEvery/2)||index===model.buckets.length-1;
    return `<div class="chart-column" data-chart-index="${index}" tabindex="${index===0?'0':'-1'}" role="img" aria-label="${escape(info)}"><div class="chart-bars">${Object.keys(colors).map(key=>`<span style="height:${bucket[key]/maximum*100}%;background:${colors[key]}"></span>`).join('')}</div>${showLabel?`<span class="chart-axis">${escape(bucket.label)}</span>`:''}</div>`;
   }).join('');
@@ -62,8 +62,8 @@
 
  function render(transactions,period,today){
   const model=series(transactions,period,today);
-  const totalCards=Object.keys(colors).map(key=>`<div class="chart-total" style="--series-color:${colors[key]}"><span><i aria-hidden="true"></i>${labels[key]}</span><strong>${money(model.totals[key])}</strong><small>${{sales:'Recebimentos de pedidos',income:'Todas as receitas',expense:'Despesas registradas'}[key]}</small></div>`).join('');
-  return `<section class="card business-chart-card" aria-labelledby="business-chart-title"><div class="business-chart-head"><div><span class="eyebrow">SEU NEGÓCIO EM NÚMEROS</span><h2 id="business-chart-title">Vendas, entradas e saídas</h2><p>De ${formatDay(model.first,model.first.slice(0,4)!==model.last.slice(0,4))} a ${formatDay(model.last,true)}</p></div><label class="chart-period" for="chart-period">Período<select id="chart-period">${Object.entries(periods).map(([value,label])=>`<option value="${value}" ${model.period===value?'selected':''}>${label}</option>`).join('')}</select></label></div><div class="chart-totals">${totalCards}</div><div class="business-chart-plot">${chart(model)}${model.count?'':`<div class="chart-empty"><strong>Nenhuma movimentação neste período</strong><span>Seu gráfico aparece conforme você registra pedidos e lançamentos.</span></div>`}<div class="chart-tooltip" role="status" hidden></div></div><div class="chart-foot"><p id="chart-description">Vendas fazem parte das entradas. Valores pela data do recebimento.<span class="chart-keyboard-hint"> Use as setas para consultar as datas no gráfico.</span></p><div class="chart-result ${model.balance<0?'negative':''}"><span>Resultado do período</span><strong>${money(model.balance)}</strong></div></div><details class="chart-data"><summary>Ver valores por ${model.monthly?'mês':'dia'}</summary><div class="table-wrap"><table><caption class="sr-only">Valores do gráfico em reais</caption><thead><tr><th scope="col">${model.monthly?'MÊS':'DIA'}</th><th scope="col">VENDAS</th><th scope="col">ENTRADAS</th><th scope="col">SAÍDAS</th></tr></thead><tbody>${model.buckets.map(b=>`<tr><th scope="row">${escape(b.title)}</th><td>${money(b.sales)}</td><td>${money(b.income)}</td><td>${money(b.expense)}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+  const totalCards=Object.keys(colors).map(key=>`<div class="chart-total" style="--series-color:${colors[key]}"><span><i aria-hidden="true"></i>${labels[key]}</span><strong>${money(model.totals[key])}</strong><small>${{sales:'Recebimentos de pedidos',income:'Todas as receitas',expense:'Despesas registradas',investment:'Equipamentos e bens'}[key]}</small></div>`).join('');
+  return `<section class="card business-chart-card" aria-labelledby="business-chart-title"><div class="business-chart-head"><div><span class="eyebrow">SEU NEGÓCIO EM NÚMEROS</span><h2 id="business-chart-title">Vendas, entradas e saídas</h2><p>De ${formatDay(model.first,model.first.slice(0,4)!==model.last.slice(0,4))} a ${formatDay(model.last,true)}</p></div><label class="chart-period" for="chart-period">Período<select id="chart-period">${Object.entries(periods).map(([value,label])=>`<option value="${value}" ${model.period===value?'selected':''}>${label}</option>`).join('')}</select></label></div><div class="chart-totals">${totalCards}</div><div class="business-chart-plot">${chart(model)}${model.count?'':`<div class="chart-empty"><strong>Nenhuma movimentação neste período</strong><span>Seu gráfico aparece conforme você registra pedidos e lançamentos.</span></div>`}<div class="chart-tooltip" role="status" hidden></div></div><div class="chart-foot"><p id="chart-description">Vendas fazem parte das entradas. Despesas e investimentos são descontados do resultado.<span class="chart-keyboard-hint"> Use as setas para consultar as datas no gráfico.</span></p><div class="chart-result ${model.balance<0?'negative':''}"><span>Resultado do período</span><strong>${money(model.balance)}</strong></div></div><details class="chart-data"><summary>Ver valores por ${model.monthly?'mês':'dia'}</summary><div class="table-wrap"><table><caption class="sr-only">Valores do gráfico em reais</caption><thead><tr><th scope="col">${model.monthly?'MÊS':'DIA'}</th><th scope="col">VENDAS</th><th scope="col">ENTRADAS</th><th scope="col">DESPESAS</th><th scope="col">INVESTIMENTOS</th></tr></thead><tbody>${model.buckets.map(b=>`<tr><th scope="row">${escape(b.title)}</th><td>${money(b.sales)}</td><td>${money(b.income)}</td><td>${money(b.expense)}</td><td>${money(b.investment)}</td></tr>`).join('')}</tbody></table></div></details></section>`;
  }
 
  function bind(root,transactions,period,today,onChange){

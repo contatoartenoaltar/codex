@@ -336,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
             with connect() as c:
                 if self.path == '/api/transactions':
                     kind = required(d, 'kind')
-                    if kind not in ['income', 'expense']:
+                    if kind not in ['income', 'expense', 'investment']:
                         raise ValueError('Tipo de lançamento inválido.')
                     day = date.fromisoformat(required(d, 'date')).isoformat()
                     notes = d.get('notes', '')
@@ -359,6 +359,31 @@ class Handler(BaseHTTPRequestHandler):
                     income = order_finance.register_income(c, cursor.lastrowid)
                     c.commit()
                     return self.send_json({'ok': True, 'id': cursor.lastrowid, 'income': income}, 201)
+                elif self.path == '/api/orders/update':
+                    order_id = number(d, 'id', True, True)
+                    notes = d.get('notes', '')
+                    if not isinstance(notes, str) or len(notes) > 3000:
+                        raise ValueError('Observações inválidas.')
+                    c.execute('BEGIN IMMEDIATE')
+                    order = c.execute('SELECT * FROM orders WHERE id=?', (order_id,)).fetchone()
+                    if order is None:
+                        raise ValueError('Pedido não encontrado.')
+                    product_key = d.get('product')
+                    product_name = order['product'] if product_key == '__current__' else catalog_product(d)['name']
+                    customer = required(d, 'customer')
+                    quantity = number(d, 'quantity', True, True)
+                    total = number(d, 'total', True)
+                    income = c.execute('SELECT id FROM transactions WHERE order_id=?', (order_id,)).fetchone()
+                    if income is not None and total == 0:
+                        raise ValueError('Exclua primeiro a receita vinculada antes de zerar o valor do pedido.')
+                    c.execute('''UPDATE orders SET customer=?,product=?,quantity=?,total=?,notes=?
+                                 WHERE id=?''', (customer, product_name, quantity, total, notes, order_id))
+                    if income is not None:
+                        c.execute('''UPDATE transactions SET description=?,amount=? WHERE id=?''',
+                                  (order_finance.income_description(order_id, customer, product_name),
+                                   total, income['id']))
+                    c.commit()
+                    return self.send_json({'ok': True, 'income_updated': income is not None})
                 elif self.path == '/api/orders/status':
                     status = required(d, 'status')
                     if status not in STAGES:

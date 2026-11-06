@@ -33,9 +33,9 @@ Validação: `python -m unittest discover -s tests -v`.
 ## Recursos
 
 - Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, 30 dias e ano atual, valores por data e consulta por toque ou teclado.
-- Receitas, despesas e saldo realizado (não inclui parcelas futuras ou conciliação bancária).
+- Receitas, despesas, investimentos e saldo realizado (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
-- Cadastro de pedidos e acompanhamento de etapas; o total é lançado como receita recebida ao cadastrar, uma única vez. Etapas de produção não repetem o lançamento. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
+- Cadastro, edição e acompanhamento de pedidos; o total é lançado como receita recebida ao cadastrar, uma única vez. Ao corrigir um pedido, sua receita vinculada é atualizada sem duplicação. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
 - Catálogo comercial com os produtos e preços fornecidos pelo proprietário.
 - Rascunhos de publicações e respostas comerciais baseadas no catálogo, disponíveis sem serviço externo. Os rascunhos usam modelos de texto; não são geração por IA.
 - Geração opcional de legendas por IA usando a API da OpenAI: disponibilize `ARTENOALTAR_AI_KEY` de forma segura no processo e, opcionalmente, `ARTENOALTAR_AI_MODEL` (padrão: `gpt-4.1-mini`). O acesso a `api.openai.com` precisa estar permitido. A chave fica exclusivamente no servidor. Não inclua segredos no Git. Custos são cobrados pelo provedor. Apenas o produto selecionado e informações públicas da gráfica são enviados.
@@ -43,8 +43,9 @@ Validação: `python -m unittest discover -s tests -v`.
 ## Gráfico da Visão geral
 
 Substitui o banner decorativo. Vendas são os recebimentos vinculados aos pedidos;
-entradas são todas as receitas, incluindo essas vendas; saídas são as despesas.
-O resultado do período é entradas menos saídas, sem somar as vendas novamente.
+entradas são todas as receitas, incluindo essas vendas; saídas reúnem despesas e
+investimentos. O resultado do período é entradas menos despesas e investimentos,
+sem somar as vendas novamente.
 Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
 com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
 

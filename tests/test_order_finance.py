@@ -125,6 +125,62 @@ class OrderFinanceTests(unittest.TestCase):
         self.assertFalse(again['income']['created'])
         self.assertEqual(self.state()['transactions'], income)
 
+    def test_editing_order_updates_linked_income_without_creating_another_record(self):
+        saved = self.create()
+        before = self.state()['transactions'][0]
+        result = self.post('orders/update', {
+            'id': saved['id'], 'customer': 'Igreja Corrigida', 'product': 'calendarios',
+            'quantity': 250, 'total': 27500, 'notes': 'Nova observação'
+        }, 200)
+        self.assertTrue(result['ok'])
+        state = self.state()
+        order = state['orders'][0]
+        self.assertEqual((order['customer'], order['product'], order['quantity'], order['total'],
+                          order['status'], order['notes']),
+                         ('Igreja Corrigida', 'Calendários personalizados', 250, 27500,
+                          'Novo', 'Nova observação'))
+        self.assertEqual(len(state['transactions']), 1)
+        income = state['transactions'][0]
+        self.assertEqual((income['id'], income['kind'], income['amount'], income['date'],
+                          income['order_id']),
+                         (before['id'], 'income', 27500, before['date'], saved['id']))
+        self.assertIn('Igreja Corrigida', income['description'])
+        self.assertIn('Calendários personalizados', income['description'])
+
+    def test_editing_order_without_income_preserves_legacy_product_and_creates_no_income(self):
+        old = self.legacy_order(total=14900)
+        self.post('orders/update', {
+            'id': old, 'customer': 'Cliente corrigido', 'product': '__current__',
+            'quantity': 300, 'total': 19900, 'notes': 'Corrigido'
+        }, 200)
+        state = self.state()
+        self.assertEqual(state['transactions'], [])
+        self.assertEqual((state['orders'][0]['product'], state['orders'][0]['total']),
+                         ('Envelopes personalizados', 19900))
+
+    def test_order_edit_is_atomic_and_validated(self):
+        saved = self.create()
+        before = self.state()
+        invalid = [
+            {'id': saved['id'], 'customer': 'Igreja', 'product': 'envelopes',
+             'quantity': 100, 'total': 0, 'notes': ''},
+            {'id': saved['id'], 'customer': '', 'product': 'envelopes',
+             'quantity': 100, 'total': 9900, 'notes': ''},
+            {'id': saved['id'], 'customer': 'Igreja', 'product': 'inexistente',
+             'quantity': 100, 'total': 9900, 'notes': ''},
+            {'id': 9999, 'customer': 'Igreja', 'product': 'envelopes',
+             'quantity': 100, 'total': 9900, 'notes': ''},
+        ]
+        for data in invalid:
+            self.post('orders/update', data, 400)
+            self.assertEqual(self.state(), before)
+        data = {'id': saved['id'], 'customer': 'Igreja', 'product': 'envelopes',
+                'quantity': 100, 'total': 9900, 'notes': ''}
+        self.assertEqual(self.call('/api/orders/update', data, cookie='')['status'], 401)
+        self.assertEqual(self.call('/api/orders/update', data,
+                                   origin='https://externo.example')['status'], 403)
+        self.assertEqual(self.state(), before)
+
     def test_historical_orders_are_not_backfilled_on_reload_or_stage_change(self):
         old = self.legacy_order()
         self.post('transactions', {'description': 'Recebimento manual', 'kind': 'income',

@@ -41,16 +41,22 @@ aceitam novo recebimento.
 
 ## Correções e limites
 
+- O botão de edição permite corrigir cliente, produto, quantidade, total e
+  observações. Se o pedido possui receita vinculada, o valor e a descrição do
+  mesmo lançamento são atualizados na mesma transação, preservando sua data e
+  impedindo duplicação.
+- Para zerar um pedido que já possui recebimento, é necessário excluir primeiro
+  a receita vinculada. Essa confirmação evita apagar do caixa um recebimento por
+  engano.
 - O valor integral é considerado recebido no cadastro, conforme a regra
   solicitada. Parcelas, sinal e contas a receber não estão implementados.
 - A receita identifica número do pedido, cliente e produto. Sua data usa São
   Paulo, mesmo se o servidor estiver em UTC.
 - Cancelar ou reabrir não presume devolução ao cliente. Um reembolso efetivo
   deve ser registrado no Financeiro como despesa.
-- Não é possível excluir um pedido enquanto existir receita vinculada. Para
-  corrigir um cadastro errado, excluir primeiro seu lançamento no Financeiro e
-  depois o pedido. Isso impede que outro cliente herde o vínculo por reutilização
-  do ID. Excluir a receita é uma correção, não um estorno bancário.
+- Não é possível excluir um pedido enquanto existir receita vinculada. Isso
+  impede que outro cliente herde o vínculo por reutilização do ID. Excluir a
+  receita é uma correção, não um estorno bancário.
 - Apagar uma receita não a recria ao recarregar o site ou mudar a etapa. O
   recebimento só é recriado se o proprietário usar **Lançar receita** novamente.
 
@@ -58,6 +64,6 @@ Testes cobrem cadastro, persistência, mudança de etapas, receita retroativa,
 concorrência, falha com rollback, atualização de banco antigo, exclusão,
 autenticação e data de São Paulo. Nada disso movimenta conta bancária.
 
-Validação local: **191 testes passaram** na suíte completa. Sintaxe JavaScript e
-renderização das situações de receita pendente/lançada e dos formulários também
-foram conferidas. Falta validação pelo proprietário na hospedagem.
+Validação local: a suíte completa e os testes de interface cobrem também a edição
+atômica do pedido e da receita vinculada. Falta validação pelo proprietário na
+hospedagem.

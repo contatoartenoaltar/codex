@@ -49,11 +49,13 @@ class WorkflowTests(unittest.TestCase):
     def test_financial_records_survive_database_reopen(self):
         self.post('transactions', {'description':'Envelopes vendidos','kind':'income','amount':22900,'date':'2026-10-29'})
         self.post('transactions', {'description':'Papel','kind':'expense','amount':5000,'date':'2026-10-29'})
+        self.post('transactions', {'description':'Nova impressora','kind':'investment','amount':10000,'date':'2026-10-29'})
         app.initialize()
         rows = self.state()['transactions']
-        self.assertEqual(sum(r['amount']*(1 if r['kind']=='income' else -1) for r in rows), 17900)
+        self.assertEqual(sum(r['amount']*(1 if r['kind']=='income' else -1) for r in rows), 7900)
+        self.assertEqual({r['kind'] for r in rows}, {'income', 'expense', 'investment'})
         self.post('transactions', {'description':'Inválido','kind':'income','amount':-1,'date':'2026-10-29'}, 400)
-        self.assertEqual(len(self.state()['transactions']), 2)
+        self.assertEqual(len(self.state()['transactions']), 3)
 
     def test_content_results_start_empty_without_inventing_metrics(self):
         results = self.state()['insights_collection']
