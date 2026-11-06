@@ -120,10 +120,12 @@ test('pedidos calcula vendas menos despesas e exclui investimentos do lucro', ()
     {id: 17, date: '2026-10-30', kind: 'investment', amount: 8000, order_id: null}
   ]`, context);
 
-  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,profit:r.profit,orders:r.orders.map(o=>o.id)}})())`, context)),
-    {sales: 7000, expenses: 1500, profit: 5500, orders: [3,4,5]});
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,profit:r.profit,cash:r.cash,orders:r.orders.map(o=>o.id)}})())`, context)),
+    {sales: 7000, expenses: 1500, profit: 5500, cash: 9500, orders: [3,4,5]});
   let html = vm.runInContext('orders()', context);
-  assert.ok(html.includes('Investimentos não entram nesse cálculo'));
+  assert.ok(html.includes('sem investimentos'));
+  assert.ok(html.includes('Em caixa'));
+  assert.ok(html.includes('Saldo atual · todos os períodos'));
   assert.ok(html.includes('Venda mensal'));
   assert.ok(html.includes('Pedido pendente'));
   assert.ok(!html.includes('Venda anual'));
