@@ -69,3 +69,35 @@ test('pedido existente oferece edição com os valores atuais', () => {
   assert.ok(html.includes('&lt;revisar&gt;'));
   assert.ok(html.includes('receita vinculada serão corrigidos junto com o pedido'));
 });
+
+test('financeiro filtra cartões e lançamentos pelo período escolhido', () => {
+  const {context} = app();
+  vm.runInContext(`state.transactions = [
+    {id: 1, date: '2025-12-31', description: 'Ano anterior', kind: 'income', amount: 100},
+    {id: 2, date: '2026-01-10', description: 'Receita anual', kind: 'income', amount: 1000},
+    {id: 3, date: '2026-09-30', description: 'Mês anterior', kind: 'expense', amount: 200},
+    {id: 4, date: '2026-10-01', description: 'Início do mês', kind: 'income', amount: 3000},
+    {id: 5, date: '2026-10-24', description: 'Antes de sete dias', kind: 'expense', amount: 400},
+    {id: 6, date: '2026-10-25', description: 'Dentro de sete dias', kind: 'investment', amount: 500},
+    {id: 7, date: '2026-10-31', description: 'Hoje', kind: 'income', amount: 6000}
+  ]`, context);
+
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [4,5,6,7]);
+  let html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Início do mês'));
+  assert.ok(!html.includes('Mês anterior'));
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(stats(financeRows()))', context)),
+    {income: 9000, expense: 900, investment: 500, balance: 8100, active: 0, low: 0});
+
+  vm.runInContext("financePeriod = '7'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [6,7]);
+  html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Dentro de sete dias'));
+  assert.ok(!html.includes('Antes de sete dias'));
+
+  vm.runInContext("financePeriod = 'year'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [2,3,4,5,6,7]);
+  html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Receita anual'));
+  assert.ok(!html.includes('Ano anterior'));
+});
