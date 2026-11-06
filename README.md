@@ -32,7 +32,7 @@ Validação: `python -m unittest discover -s tests -v`.
 
 ## Recursos
 
-- Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, 30 dias e ano atual, valores por data e consulta por toque ou teclado.
+- Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, mês atual e ano atual, valores por data e consulta por toque ou teclado.
 - Receitas, despesas, investimentos e saldo realizado, com filtros de mês atual, últimos 7 dias e ano atual (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
 - Cadastro, edição e acompanhamento de pedidos; o total é lançado como receita recebida ao cadastrar, uma única vez. A aba calcula vendas, despesas e lucro por período, excluindo investimentos do lucro. Ao corrigir um pedido, sua receita vinculada é atualizada sem duplicação. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
@@ -49,7 +49,7 @@ sem somar as vendas novamente.
 Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
 com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
 
-O padrão são os últimos 30 dias, incluindo hoje em São Paulo, conforme a data
+O padrão é o mês atual, do dia 1º até hoje em São Paulo, conforme a data
 informada pelo servidor. A opção anual agrupa janeiro até o mês atual, sem
 incluir lançamentos futuros. O filtro afeta o gráfico; os demais cartões continuam
 mostrando os totais acumulados. Salvar pedidos e lançamentos atualiza o painel.

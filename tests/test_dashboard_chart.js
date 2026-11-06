@@ -29,12 +29,16 @@ test('sete dias incluem o dia de referência e preenchem dias sem movimento',()=
  assert.equal(model.totals.income,14900);
 });
 
-test('trinta dias atravessam mês e ano sem depender do fuso do navegador',()=>{
- const model=series([{date:'2025-12-31',kind:'income',amount:9900,order_id:3}],'30','2026-01-03');
- assert.equal(model.first,'2025-12-05');
- assert.equal(model.buckets.length,30);
- assert.equal(model.buckets.find(b=>b.key==='2025-12-31').sales,9900);
- assert.match(render([],'30','2026-01-03'),/05\/12\/2025 a 03\/01\/2026/);
+test('este mês começa no dia primeiro e não inclui o mês anterior',()=>{
+ const model=series([
+  {date:'2025-12-31',kind:'income',amount:9900,order_id:3},
+  {date:'2026-01-02',kind:'income',amount:14900,order_id:4}
+ ],'month','2026-01-03');
+ assert.equal(model.first,'2026-01-01');
+ assert.equal(model.buckets.length,3);
+ assert.equal(model.totals.sales,14900);
+ assert.equal(model.buckets.find(b=>b.key==='2025-12-31'),undefined);
+ assert.match(render([],'month','2026-01-03'),/01\/01 a 03\/01\/2026/);
 });
 
 test('ano agrupa por mês e exclui ano anterior e lançamentos futuros',()=>{
@@ -69,11 +73,11 @@ test('movimentações manuais sem vínculo não são inventadas como vendas',()=
 
 test('somente despesas mostra resultado negativo e dados vazios não geram valores fictícios',()=>{
  const rows=[{date:'2026-10-30',kind:'expense',amount:3500}];
- assert.equal(series(rows,'30','2026-10-30').balance,-3500);
- assert.match(render(rows,'30','2026-10-30'),/chart-result negative/);
- const empty=series([],'30','2026-10-30');
+ assert.equal(series(rows,'month','2026-10-30').balance,-3500);
+ assert.match(render(rows,'month','2026-10-30'),/chart-result negative/);
+ const empty=series([],'month','2026-10-30');
  assert.deepEqual(empty.totals,{sales:0,income:0,expense:0,investment:0});
- const html=render([],'30','2026-10-30');
+ const html=render([],'month','2026-10-30');
  assert.match(html,/Nenhuma movimentação neste período/);
  assert.doesNotMatch(html,/NaN|Infinity/);
 });
@@ -101,7 +105,7 @@ test('dados inválidos são descartados e a agregação preserva os registros or
   {date:'2026-10-30',kind:'invalid',amount:9900},
   {date:'30/10/2026',kind:'income',amount:9900}];
  rows.forEach(Object.freeze);Object.freeze(rows);
- const model=series(rows,'30','2026-10-30');
+ const model=series(rows,'month','2026-10-30');
  assert.equal(model.totals.income,9900);
  assert.equal(model.count,1);
  assert.equal(rows.length,6);
@@ -114,8 +118,9 @@ test('valores grandes continuam finitos e centavos são preservados',()=>{
  assert.equal(model.balance,2);
 });
 
-test('período inválido usa 30 dias e data de referência inválida exibe erro claro',()=>{
+test('período inválido usa o mês atual e data de referência inválida exibe erro claro',()=>{
  assert.equal(series([],'invalid','2026-10-30').buckets.length,30);
+ assert.equal(series([],'invalid','2026-10-30').first,'2026-10-01');
  assert.throws(()=>series([],'7','2026-02-30'),/Data de referência indisponível/);
  assert.throws(()=>series([],'7','<script>'),/Data de referência indisponível/);
 });

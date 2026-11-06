@@ -1,7 +1,7 @@
 /* Gráfico local: os recebimentos de pedidos são uma parte das entradas. */
 (function (root) {
  'use strict';
- const periods = {'7':'Últimos 7 dias','30':'Últimos 30 dias',year:'Este ano'};
+ const periods = {'7':'Últimos 7 dias',month:'Este mês',year:'Este ano'};
  const colors = {sales:'#b68a32',income:'#1686a0',expense:'#c7427e',investment:'#e3bb35'};
  const labels = {sales:'Vendas',income:'Entradas',expense:'Despesas',investment:'Investimentos'};
  const money = value => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
@@ -17,9 +17,9 @@
  function series(transactions,period,today){
   const end=parse(today);
   if(!end)throw Error('Data de referência indisponível. Atualize o sistema.');
-  if(!Object.hasOwn(periods,period))period='30';
+  if(!Object.hasOwn(periods,period))period='month';
   const monthly=period==='year',start=new Date(end),buckets=[];
-  if(monthly)start.setUTCMonth(0,1);else start.setUTCDate(start.getUTCDate()-Number(period)+1);
+  if(monthly)start.setUTCMonth(0,1);else if(period==='month')start.setUTCDate(1);else start.setUTCDate(start.getUTCDate()-Number(period)+1);
   for(const date=new Date(start);date<=end;monthly?date.setUTCMonth(date.getUTCMonth()+1):date.setUTCDate(date.getUTCDate()+1)){
    const day=iso(date),key=monthly?day.slice(0,7):day;
    buckets.push({key,label:monthly?new Intl.DateTimeFormat('pt-BR',{month:'short',timeZone:'UTC'}).format(date).replace('.',''):formatDay(day),

@@ -2,7 +2,7 @@ const paths={dashboard:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x
 function icon(name){return `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.spark}</svg>`}
 document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));
 let state;
-let dashboardPeriod='30';
+let dashboardPeriod='month';
 let financePeriod='month';
 let orderPeriod='month';
 let contentSchedule=[];
