@@ -45,18 +45,16 @@ aceitam novo recebimento.
   observações. Se o pedido possui receita vinculada, o valor e a descrição do
   mesmo lançamento são atualizados na mesma transação, preservando sua data e
   impedindo duplicação.
-- Para zerar um pedido que já possui recebimento, é necessário excluir primeiro
-  a receita vinculada. Essa confirmação evita apagar do caixa um recebimento por
-  engano.
+- O botão de exclusão pede confirmação. Se houver receita vinculada, a mensagem
+  informa isso e o pedido e sua receita são apagados juntos, na mesma transação.
 - O valor integral é considerado recebido no cadastro, conforme a regra
   solicitada. Parcelas, sinal e contas a receber não estão implementados.
 - A receita identifica número do pedido, cliente e produto. Sua data usa São
   Paulo, mesmo se o servidor estiver em UTC.
 - Cancelar ou reabrir não presume devolução ao cliente. Um reembolso efetivo
   deve ser registrado no Financeiro como despesa.
-- Não é possível excluir um pedido enquanto existir receita vinculada. Isso
-  impede que outro cliente herde o vínculo por reutilização do ID. Excluir a
-  receita é uma correção, não um estorno bancário.
+- A exclusão conjunta impede que outro cliente herde uma receita antiga por
+  reutilização do ID. Excluir a receita é uma correção, não um estorno bancário.
 - Apagar uma receita não a recria ao recarregar o site ou mudar a etapa. O
   recebimento só é recriado se o proprietário usar **Lançar receita** novamente.
 

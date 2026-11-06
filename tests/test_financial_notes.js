@@ -60,6 +60,8 @@ test('pedido existente oferece edição com os valores atuais', () => {
   }]; state.transactions = [{id: 3, date: '2026-10-31', kind: 'income', amount: 14900, order_id: 7}]`, context);
   const list = vm.runInContext('orders()', context);
   assert.ok(list.includes('data-edit-order="7"'));
+  assert.ok(list.includes('data-delete="orders" data-id="7"'));
+  assert.ok(list.includes('aria-label="Excluir pedido 7"'));
   vm.runInContext("modal('orders-edit', 7)", context);
   const html = nodes.get('#fields').innerHTML;
   assert.ok(html.includes('value="Igreja &amp; Missão"'));

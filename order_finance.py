@@ -39,6 +39,11 @@ def register_income(conn, order_id, day=None):
     return {'id': cursor.lastrowid, 'amount': order['total'], 'created': True}
 
 
-def check_delete_order(conn, order_id):
-    if conn.execute('SELECT 1 FROM transactions WHERE order_id=?', (order_id,)).fetchone():
-        raise ValueError('Este pedido tem receita no financeiro. Para corrigir, exclua primeiro o lançamento vinculado. Cancelar o pedido não estorna o recebimento.')
+def delete_order(conn, order_id):
+    """Exclui pedido e receita gerada por ele na mesma transação."""
+    if conn.execute('SELECT 1 FROM orders WHERE id=?', (order_id,)).fetchone() is None:
+        raise ValueError('Pedido não encontrado.')
+    income = conn.execute('SELECT id FROM transactions WHERE order_id=?', (order_id,)).fetchone()
+    conn.execute('DELETE FROM transactions WHERE order_id=?', (order_id,))
+    conn.execute('DELETE FROM orders WHERE id=?', (order_id,))
+    return {'income_deleted': income is not None}

@@ -227,20 +227,27 @@ class OrderFinanceTests(unittest.TestCase):
         self.assertEqual(sum(r['data']['income']['created'] for r in results), 1)
         self.assertEqual(len(self.state()['transactions']), 1)
 
-    def test_linked_order_cannot_be_deleted_and_its_id_reused_for_another_customer(self):
+    def test_linked_order_and_its_income_are_deleted_atomically(self):
+        saved = self.create()
+        self.post('delete', {'table': 'orders', 'id': saved['id']})
+        self.assertEqual(self.state()['orders'], [])
+        self.assertEqual(self.state()['transactions'], [])
+        app.initialize()
+        replacement = self.create(total=9900)
+        state = self.state()
+        self.assertEqual(len(state['transactions']), 1)
+        self.assertEqual(state['transactions'][0]['amount'], 9900)
+        self.assertEqual(state['transactions'][0]['order_id'], replacement['id'])
+
+    def test_order_deletion_rolls_back_if_linked_income_cannot_be_deleted(self):
         saved = self.create()
         before = self.state()
-        self.post('delete', {'table': 'orders', 'id': saved['id']}, 400)
+        with app.connect() as conn:
+            conn.execute('''CREATE TRIGGER reject_income_delete BEFORE DELETE ON transactions
+                WHEN OLD.order_id IS NOT NULL BEGIN SELECT RAISE(ABORT,'falha de teste'); END''')
+        self.post('delete', {'table': 'orders', 'id': saved['id']}, 500)
         self.assertEqual(self.state()['orders'], before['orders'])
         self.assertEqual(self.state()['transactions'], before['transactions'])
-        self.post('delete', {'table': 'transactions', 'id': saved['income']['id']})
-        self.assertIsNone(self.state()['orders'][0]['transaction_id'])
-        app.initialize()
-        self.assertEqual(self.state()['transactions'], [])
-        self.post('delete', {'table': 'orders', 'id': saved['id']})
-        self.create(total=9900)
-        self.assertEqual(len(self.state()['transactions']), 1)
-        self.assertEqual(self.state()['transactions'][0]['amount'], 9900)
 
     def test_legacy_schema_upgrade_preserves_every_existing_record_without_guessing_links(self):
         app.DB = Path(self.tmp.name) / 'legacy.db'

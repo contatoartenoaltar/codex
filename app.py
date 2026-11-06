@@ -416,12 +416,13 @@ class Handler(BaseHTTPRequestHandler):
                     record_id = number(d, 'id', True, True)
                     if table == 'orders':
                         c.execute('BEGIN IMMEDIATE')
-                        order_finance.check_delete_order(c, record_id)
+                        order_finance.delete_order(c, record_id)
                     if table=='posts':
                         row=c.execute('SELECT publish_status FROM posts WHERE id=?',(d.get('id'),)).fetchone()
                         if row and row[0] in ['sending','processing','review','scheduled']:
                             raise ValueError('Confira o resultado do envio antes de excluir este registro.')
-                    c.execute(f'DELETE FROM {table} WHERE id=?', (record_id,))
+                    if table != 'orders':
+                        c.execute(f'DELETE FROM {table} WHERE id=?', (record_id,))
                 else:
                     return self.send_json({'error': 'Operação não encontrada.'}, 404)
             self.send_json({'ok': True}, 201)
