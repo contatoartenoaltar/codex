@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                 social = {'configured': False, 'authorized': False, 'accounts_verified': False, 'callback_url': None, 'message': str(error)}
             result.update(products=PRODUCTS, stages=STAGES, ai_configured=bool(os.environ.get('ARTENOALTAR_AI_KEY')), meta=social)
             return self.send_json(result)
-        files = {'/': ('index.html' if self.signed_in() else 'login.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'), '/dashboard-chart.js': ('dashboard-chart.js', 'text/javascript'), '/login.js': ('login.js', 'text/javascript')}
+        files = {'/': ('index.html' if self.signed_in() else 'login.html', 'text/html; charset=utf-8'), '/style.css': ('style.css', 'text/css'), '/app.js': ('app.js', 'text/javascript'), '/dashboard-chart.js': ('dashboard-chart.js', 'text/javascript'), '/login.js': ('login.js', 'text/javascript'), '/brand-logo.png': ('brand-logo.png', 'image/png'), '/manrope.ttf': ('manrope.ttf', 'font/ttf')}
         if self.path not in files:
             return self.send_json({'error': 'Página não encontrada.'}, 404)
         name, mime = files[self.path]
