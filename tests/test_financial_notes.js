@@ -57,7 +57,7 @@ test('pedido existente oferece edição com os valores atuais', () => {
   ]; state.stages = ['Novo']; state.orders = [{
     id: 7, customer: 'Igreja & Missão', product: 'Envelopes personalizados',
     quantity: 200, total: 14900, status: 'Novo', notes: '<revisar>', transaction_id: 3
-  }]`, context);
+  }]; state.transactions = [{id: 3, date: '2026-10-31', kind: 'income', amount: 14900, order_id: 7}]`, context);
   const list = vm.runInContext('orders()', context);
   assert.ok(list.includes('data-edit-order="7"'));
   vm.runInContext("modal('orders-edit', 7)", context);
@@ -100,4 +100,40 @@ test('financeiro filtra cartões e lançamentos pelo período escolhido', () => 
   html = vm.runInContext('finance()', context);
   assert.ok(html.includes('Receita anual'));
   assert.ok(!html.includes('Ano anterior'));
+});
+
+test('pedidos calcula vendas menos despesas e exclui investimentos do lucro', () => {
+  const {context} = app();
+  vm.runInContext(`state.stages = ['Novo']; state.orders = [
+    {id: 1, customer: 'Venda antiga', product: 'Envelopes', quantity: 100, total: 1000, status: 'Novo', notes: '', transaction_id: 11},
+    {id: 2, customer: 'Venda anual', product: 'Envelopes', quantity: 100, total: 2000, status: 'Novo', notes: '', transaction_id: 12},
+    {id: 3, customer: 'Venda mensal', product: 'Envelopes', quantity: 100, total: 3000, status: 'Novo', notes: '', transaction_id: 13},
+    {id: 4, customer: 'Venda recente', product: 'Envelopes', quantity: 100, total: 4000, status: 'Novo', notes: '', transaction_id: 14},
+    {id: 5, customer: 'Pedido pendente', product: 'Envelopes', quantity: 100, total: 5000, status: 'Novo', notes: '', transaction_id: null}
+  ]; state.transactions = [
+    {id: 11, date: '2025-12-31', kind: 'income', amount: 1000, order_id: 1},
+    {id: 12, date: '2026-01-10', kind: 'income', amount: 2000, order_id: 2},
+    {id: 13, date: '2026-10-01', kind: 'income', amount: 3000, order_id: 3},
+    {id: 14, date: '2026-10-30', kind: 'income', amount: 4000, order_id: 4},
+    {id: 15, date: '2026-10-30', kind: 'income', amount: 9000, order_id: null},
+    {id: 16, date: '2026-10-30', kind: 'expense', amount: 1500, order_id: null},
+    {id: 17, date: '2026-10-30', kind: 'investment', amount: 8000, order_id: null}
+  ]`, context);
+
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,profit:r.profit,orders:r.orders.map(o=>o.id)}})())`, context)),
+    {sales: 7000, expenses: 1500, profit: 5500, orders: [3,4,5]});
+  let html = vm.runInContext('orders()', context);
+  assert.ok(html.includes('Investimentos não entram nesse cálculo'));
+  assert.ok(html.includes('Venda mensal'));
+  assert.ok(html.includes('Pedido pendente'));
+  assert.ok(!html.includes('Venda anual'));
+
+  vm.runInContext("orderPeriod = '7'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [4,5]);
+  html = vm.runInContext('orders()', context);
+  assert.ok(html.includes('Venda recente'));
+  assert.ok(!html.includes('Venda mensal'));
+
+  vm.runInContext("orderPeriod = 'year'", context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [2,3,4,5]);
 });
