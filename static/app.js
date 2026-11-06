@@ -239,3 +239,125 @@ view.addEventListener('submit',async e=>{
  data.request_id=form.dataset.requestId;button.disabled=true;message.textContent='Montando a arte…';
  try{await api('feed/compose',data);await refresh();notify('Arte e legenda salvas como rascunho. Revise a imagem e escolha a conta antes de agendar.')}catch(error){message.textContent=error.message}finally{button.disabled=false}
 });
+
+/* Apresentação: indicador das abas. Não altera seleção, foco ou dados. */
+(() => {
+  'use strict';
+
+  const start = () => {
+    const view = document.getElementById('view');
+    if (!view) return;
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let lastKey = null;
+    let indicator = null;
+    let animation = null;
+    let frame = 0;
+    let pendingMotion = false;
+
+    const cancelAnimation = () => {
+      if (animation) animation.cancel();
+      animation = null;
+    };
+
+    // Coordinates use the tabs' padding box, matching absolute CSS positioning.
+    const measure = (button, tabs) => {
+      const bounds = button.getBoundingClientRect();
+      const parent = tabs.getBoundingClientRect();
+      return {
+        left: bounds.left - parent.left - tabs.clientLeft + tabs.scrollLeft,
+        top: bounds.top - parent.top - tabs.clientTop + tabs.scrollTop,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+
+    const styles = (bounds) => ({
+      left: `${bounds.left}px`,
+      top: `${bounds.top}px`,
+      width: `${bounds.width}px`,
+      height: `${bounds.height}px`,
+    });
+
+    const update = (allowMotion) => {
+      cancelAnimation();
+      const tabs = view.querySelector('.studio-tabs');
+      const active = tabs?.querySelector('button[data-content-tab].active');
+
+      if (!tabs || !active) {
+        indicator = null;
+        return;
+      }
+
+      const key = active.getAttribute('data-content-tab');
+      const previous = lastKey === null ? null : Array.from(
+        tabs.querySelectorAll('button[data-content-tab]'),
+      ).find((button) => button.getAttribute('data-content-tab') === lastKey);
+      const target = measure(active, tabs);
+      const origin = previous ? measure(previous, tabs) : null;
+
+      indicator = tabs.querySelector('.studio-tab-indicator');
+      if (!indicator) {
+        indicator = document.createElement('span');
+        indicator.className = 'studio-tab-indicator';
+        indicator.setAttribute('aria-hidden', 'true');
+        indicator.style.pointerEvents = 'none';
+        tabs.prepend(indicator);
+      }
+
+      Object.assign(indicator.style, styles(target));
+      tabs.classList.add('has-tab-indicator');
+      indicator.style.visibility = target.width > 0 && target.height > 0
+        ? 'visible' : 'hidden';
+
+      const changed = lastKey !== null && lastKey !== key;
+      lastKey = key;
+      if (
+        allowMotion && changed && origin && target.width > 0 && target.height > 0 &&
+        origin.width > 0 && origin.height > 0 && !reducedMotion.matches &&
+        typeof indicator.animate === 'function'
+      ) {
+        animation = indicator.animate([styles(origin), styles(target)], {
+          duration: 220,
+          easing: 'cubic-bezier(.22, .8, .25, 1)',
+        });
+      }
+    };
+
+    const schedule = (allowMotion) => {
+      // A resize/reduced-motion update overrides motion in the same frame.
+      pendingMotion = frame ? pendingMotion && allowMotion : allowMotion;
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        const allow = pendingMotion;
+        frame = 0;
+        pendingMotion = false;
+        update(allow);
+      });
+    };
+
+    // Indicator changes are nested under tabs and cannot retrigger this observer.
+    const observer = new MutationObserver(() => schedule(true));
+    observer.observe(view, { childList: true });
+    window.addEventListener('resize', () => schedule(false), { passive: true });
+    if (document.fonts?.ready) document.fonts.ready.then(() => schedule(false));
+
+    const motionChanged = () => {
+      cancelAnimation();
+      schedule(false);
+    };
+    if (typeof reducedMotion.addEventListener === 'function') {
+      reducedMotion.addEventListener('change', motionChanged);
+    } else {
+      reducedMotion.addListener(motionChanged);
+    }
+
+    update(false);
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+})();

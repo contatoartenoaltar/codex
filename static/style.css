@@ -622,3 +622,211 @@ button.schedule-thumb{display:block;width:100%;padding:0;color:inherit;font:inhe
 @media(max-width:1180px){.top-results-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.result-card:nth-child(n+4){display:none}}
 @media(max-width:950px){.results-hero{grid-template-columns:1fr 190px;padding:32px}.insight-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.results-columns{grid-template-columns:1fr}.learning-grid{grid-template-columns:1fr}.learning-card p{min-height:0}}
 @media(max-width:760px){.studio-tabs{display:grid;width:100%;grid-template-columns:1fr 1fr;margin-top:-8px}.studio-tabs button{min-width:0}.results-hero{grid-template-columns:1fr;gap:20px;min-height:0;padding:28px 22px}.results-hero h2{font-size:31px}.results-hero-status{min-height:115px}.insight-periods{display:grid;grid-template-columns:repeat(3,1fr)}.insight-stats{gap:8px}.insight-stats article{min-height:112px;padding:18px 15px}.insight-stats strong{font-size:24px}.learning-section,.insight-evolution,.insight-recommendations,.top-results{padding:21px 18px}.results-heading{align-items:flex-start;flex-direction:column}.results-heading.compact{align-items:flex-start}.chart-legend{flex-wrap:wrap}.insight-chart-summary{align-items:flex-start;flex-direction:column}.insight-chart-summary>div{width:100%;justify-content:space-between}.insight-chart-summary b{display:grid}.insight-chart{gap:4px}.insight-chart-day:nth-child(even)>span{visibility:hidden}.insight-chart-values{padding-left:0}.top-results-grid{display:flex;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x proximity}.result-card{min-width:180px;scroll-snap-align:start}.result-card:nth-child(n){display:block}.sync-label{line-height:1.5}}
+
+/* Identidade do manager: camada visual, sem alterar os fluxos existentes. */
+@font-face{font-family:"Manager Manrope";src:url('/manrope.ttf') format('truetype');font-style:normal;font-weight:200 800;font-display:swap}
+.manager-page{--ink:#202124;--muted:#656862;--gold:#96630d;--gold-light:#fff2d6;--line:#e5e4df;--paper:#f8f8f5;--green:#216b4d;--sidebar:252px;font-family:"Manager Manrope",Inter,"Segoe UI",Arial,sans-serif;line-height:1.5}
+.manager-page .sidebar{padding:24px 14px 18px;background:#fff;color:var(--ink);border-right:1px solid var(--line)}
+.manager-page .sidebar::before{display:none}
+.manager-page .sidebar .brand{display:flex;justify-content:center;padding:0 10px;min-height:136px}
+.manager-page .brand-logo{display:block;width:100%;max-width:210px;height:auto;object-fit:contain}
+.manager-page .nav-label{margin:26px 14px 14px;color:#72746f;font-size:10px;letter-spacing:1.5px;line-height:1.6}
+.manager-page nav{gap:7px}
+.manager-page nav a{min-height:52px;gap:14px;padding:14px 15px;border-radius:10px;color:#393c3a;transition:background 160ms ease,color 160ms ease}
+.manager-page nav a span:not([data-icon]){font-size:13px;font-weight:600;line-height:1.4}
+.manager-page nav a [data-icon]{color:#575b56}
+.manager-page nav a:hover{background:#f4f4f0;color:#171a17}
+.manager-page nav a.active{background:var(--gold-light);color:#845708}
+.manager-page nav a.active [data-icon]{color:#9b690e}
+.manager-page nav a.active::after{left:0;right:auto;top:10px;bottom:10px;width:3px;height:auto;border-radius:3px;background:#bf8b26}
+.manager-page .sidebar-note{display:none}
+.manager-page .sidebar-bottom{margin-top:auto;padding:24px 7px 12px;border-color:var(--line);font-size:13px;font-weight:650}
+.manager-page .sidebar-bottom small{color:var(--muted);font-size:11px;font-weight:400;line-height:1.5}
+.manager-page .avatar,.manager-page .header-avatar{width:38px;height:38px;border:0;border-radius:50%;background:#eddbb9;color:#30291e;font-size:12px;font-weight:700}
+.manager-page .logout-button{min-height:42px;margin-top:6px;border-color:var(--line);border-radius:9px;color:#555a53;font-size:12px}
+.manager-page .logout-button:hover{background:#f5f5f1;color:#1b1e1a}
+.manager-page main>header{height:70px;padding:0 34px;background:var(--paper);font-size:13px}
+.manager-page .header-right{gap:12px;font-size:12px}
+.manager-page .date-dot{display:none}
+.manager-page #breadcrumb{color:var(--ink)}
+.manager-page #view{max-width:1500px;padding:30px 34px 40px}
+.manager-page .page-title{gap:22px;margin-bottom:30px}
+.manager-page h1{font-size:clamp(26px,2.3vw,34px);font-weight:800;letter-spacing:-1.1px;line-height:1.22;margin-bottom:10px}
+.manager-page h2{font-size:19px;font-weight:750;letter-spacing:-.5px}
+.manager-page h3{font-size:15px;font-weight:750}
+.manager-page .subtitle{font-size:14px;line-height:1.7}
+.manager-page .eyebrow{font-size:10px;letter-spacing:1.25px}
+.manager-page .button{min-height:44px;padding:12px 17px;border-radius:9px;font-size:12px;line-height:1.45;font-weight:750;transition:background 160ms ease,border-color 160ms ease,transform 160ms ease}
+.manager-page .page-title>.button,.manager-page .page-actions .button:first-child{background:#a46d13;border-color:#a46d13;color:#fff;box-shadow:none}
+.manager-page .page-title>.button:hover,.manager-page .page-actions .button:first-child:hover{background:#895a0c;border-color:#895a0c}
+.manager-page .button.secondary{border-color:#ddded7;color:#4b5048}
+.manager-page .button.secondary:hover{background:#f4f4ee}
+.manager-page .card{padding:25px;border-radius:14px;box-shadow:none}
+.manager-page .card-head{margin-bottom:22px}
+.manager-page .text-link{font-size:12px;color:#875b12;text-underline-offset:3px}
+.manager-page .text-link:hover{text-decoration:underline}
+.manager-page .card.business-chart-card{display:flex;flex-direction:column;gap:0;margin-bottom:28px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.manager-page .business-chart-head{margin-bottom:24px;gap:24px}
+.manager-page .business-chart-head h2{font-size:23px;font-weight:800;margin:7px 0}
+.manager-page .business-chart-head p{font-size:12px}
+.manager-page .chart-period{font-size:11px;gap:7px}
+.manager-page .chart-period select{min-height:42px;padding:10px 13px;border-radius:9px;background:#fff;font-size:12px}
+.manager-page .chart-totals{gap:0;margin-bottom:26px;padding:0}
+.manager-page .chart-total{padding:0 22px;border-color:#ddded7}
+.manager-page .chart-total:first-child{padding-left:0}
+.manager-page .chart-total:last-child{padding-right:0}
+.manager-page .chart-total>span{font-size:12px;font-weight:650;line-height:1.5}
+.manager-page .chart-total strong{margin:9px 0 5px;font-size:clamp(22px,2vw,30px);font-weight:800;letter-spacing:-.8px;line-height:1.3}
+.manager-page .chart-total small{font-size:11px;line-height:1.6}
+.manager-page .business-chart-plot{padding:20px 18px 10px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.manager-page .business-chart-canvas{height:290px;padding:16px 12px 38px 68px}
+.manager-page .chart-grid{border-top:1px solid #ecece6}
+.manager-page .chart-grid>span{font-size:11px;color:#6f746b}
+.manager-page .chart-axis{bottom:-27px;font-size:11px;color:#676d63}
+.manager-page .chart-bars{width:72%;max-width:86px;gap:3px}
+.manager-page .chart-bars>span{border-radius:4px 4px 0 0;transform-origin:center bottom;animation:manager-bars-in 700ms cubic-bezier(.2,.75,.25,1) both}
+.manager-page .chart-tooltip{min-width:220px;padding:15px 16px;border-color:#dedfd7;border-radius:11px;background:#fff;color:#272d25;box-shadow:0 6px 22px #23271d16;font-size:12px}
+.manager-page .chart-tooltip>b{color:#272d25;font-size:12px;font-weight:750}
+.manager-page .chart-empty{left:68px;right:18px;border-radius:8px;background:#fffffff2}
+.manager-page .chart-empty strong{font-size:14px}
+.manager-page .chart-empty span{font-size:12px}
+.manager-page .chart-foot{padding:18px 2px 0;border-top:0;gap:24px}
+.manager-page .chart-foot p{max-width:550px;font-size:11px}
+.manager-page .chart-result span{font-size:12px}
+.manager-page .chart-result strong{font-size:24px;font-weight:800}
+.manager-page .chart-data{margin-top:8px}
+.manager-page .chart-data summary{width:fit-content;padding:10px 2px;color:#875b12;font-size:12px}
+.manager-page .chart-data td,.manager-page .chart-data tbody th{font-size:12px}
+.manager-page .stats{gap:0;margin-bottom:30px}
+.manager-page .stat{padding:15px 22px;border:0;border-right:1px solid #ddded7;border-radius:0;background:transparent;box-shadow:none}
+.manager-page .stat:first-child{padding-left:0}
+.manager-page .stat:last-child{border-right:0}
+.manager-page .stat::before{display:none}
+.manager-page .stat-top{font-size:12px;font-weight:600;line-height:1.5}
+.manager-page .stat strong{font-size:29px;font-weight:800;margin:13px 0 8px}
+.manager-page .stat small{font-size:11px;line-height:1.65}
+.manager-page .stat-icon{padding:7px;border-radius:9px}
+.manager-page .grid-two{gap:22px}
+.manager-page .bar-label{font-size:12px}
+.manager-page .cash-note{font-size:11px}
+.manager-page .mini-row{padding:17px 0}
+.manager-page .mini-row b{font-size:13px}
+.manager-page .mini-row small{font-size:12px}
+.manager-page .badge{padding:5px 10px;border-radius:99px;font-size:10px;font-weight:650;line-height:1.6}
+.manager-page .quick{border-radius:12px;box-shadow:none}
+.manager-page .quick b{font-size:14px}
+.manager-page .quick small{font-size:12px}
+.manager-page table{font-size:13px}
+.manager-page th{padding:13px 12px;background:#fafaf7;font-size:10px;letter-spacing:.65px}
+.manager-page td{padding:17px 12px;line-height:1.65}
+.manager-page .inline-select{font-size:12px;border-radius:7px}
+.manager-page .help{font-size:12px;line-height:1.8}
+.manager-page .info{font-size:12px;line-height:1.8;border-radius:10px}
+.manager-page label{font-size:13px}
+.manager-page input,.manager-page select,.manager-page textarea{font-size:14px;border-radius:9px}
+.manager-page dialog{border-top:1px solid var(--line);border-radius:16px;padding:28px}
+.manager-page .dialog-head h2{font-size:23px}
+.manager-page .dialog-head .icon-button{flex-shrink:0}
+.manager-page .studio-schedule{border-top:1px solid var(--line)}
+.manager-page .studio-tabs{position:relative;isolation:isolate;gap:5px;margin:0 0 24px;padding:5px;border-color:#e0e0d8;border-radius:11px;background:#fff;box-shadow:none}
+.manager-page .studio-tabs button{position:relative;z-index:1;min-height:44px;min-width:140px;padding:11px 18px;font-size:13px;color:#62675d;transition:color 160ms ease,background 160ms ease}
+.manager-page .studio-tabs button.active{background:var(--gold-light);color:#845708;box-shadow:none}
+.manager-page .studio-tabs.has-tab-indicator button.active{background:transparent}
+.manager-page .studio-tab-indicator{position:absolute;z-index:0;border-radius:7px;background:var(--gold-light);pointer-events:none}
+.manager-page .schedule-filters button,.manager-page .insight-periods button{font-size:12px;min-height:40px}
+.manager-page .content-card .draft-actions .button{font-size:11px;min-height:40px}
+.manager-page .content-caption summary{font-size:11px}
+.manager-page .content-caption pre{font-family:inherit;font-size:12px}
+.manager-page .studio-hero,.manager-page .results-hero{box-shadow:none;background:#202321}
+.manager-page .studio-hero .eyebrow,.manager-page .results-hero .eyebrow{color:#efc767}
+.manager-page .studio-hero::after,.manager-page .results-hero::before,.manager-page .results-hero::after{display:none}
+.manager-page .studio-live .studio-metrics{border-radius:10px;backdrop-filter:none}
+.manager-page footer{font-size:11px;padding:0 34px 28px;color:#6f746a}
+.manager-page #view>.page-title,.manager-page #view>.studio-hero,.manager-page #view>.results-hero{animation:manager-page-in 220ms ease-out both}
+.manager-page .insight-bars>i{transform-origin:center bottom;animation:manager-bars-in 700ms cubic-bezier(.2,.75,.25,1) both}
+@keyframes manager-bars-in{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes manager-page-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-height:800px) and (min-width:761px){
+ .manager-page .sidebar{padding-top:18px}
+ .manager-page .sidebar .brand{min-height:110px}
+ .manager-page .brand-logo{max-width:175px}
+ .manager-page .nav-label{margin-top:18px;margin-bottom:10px}
+ .manager-page nav{gap:4px}
+ .manager-page nav a{min-height:45px;padding-top:11px;padding-bottom:11px}
+ .manager-page .sidebar-bottom{padding-top:18px}
+}
+@media(max-width:1180px){
+ .manager-page{--sidebar:225px}
+ .manager-page nav a{gap:11px;padding-left:12px;padding-right:12px}
+ .manager-page nav a span:not([data-icon]){font-size:12px}
+ .manager-page main>header{padding:0 27px}
+ .manager-page #view{padding:28px 27px 36px}
+ .manager-page .page-title{flex-wrap:wrap}
+ .manager-page .chart-total{padding:0 15px}
+ .manager-page .chart-total strong{font-size:23px}
+ .manager-page .stat{padding:15px}
+ .manager-page .stat strong{font-size:25px}
+}
+@media(max-width:950px){
+ .manager-page .chart-totals{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:22px}
+ .manager-page .chart-total:nth-child(3){padding-left:0;border-left:0}
+ .manager-page .stats{row-gap:20px}
+ .manager-page .stat:nth-child(even){border-right:0}
+ .manager-page .stat:nth-child(odd){padding-left:0}
+ .manager-page .grid-two{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:760px){
+ .manager-page .sidebar{width:min(290px,85vw);padding:22px 16px 16px}
+ .manager-page .sidebar .brand{min-height:120px}
+ .manager-page .brand-logo{max-width:190px}
+ .manager-page nav a{min-height:48px;font-size:13px}
+ .manager-page nav a span:not([data-icon]){font-size:13px}
+ .manager-page main>header{height:66px;padding:0 16px;background:#f8f8f5f5}
+ .manager-page .header-location{font-size:11px}
+ .manager-page #view{padding:24px 18px 32px}
+ .manager-page h1{font-size:27px;max-width:none}
+ .manager-page .page-title{gap:18px;margin-bottom:26px}
+ .manager-page .page-title .subtitle{font-size:13px}
+ .manager-page .page-actions .button{font-size:11px;padding:11px 9px}
+ .manager-page .page-title>.button{font-size:12px}
+ .manager-page .business-chart-head{gap:18px;margin-bottom:22px}
+ .manager-page .business-chart-head h2{font-size:22px}
+ .manager-page .chart-period{font-size:12px}
+ .manager-page .chart-period select{font-size:12px;min-width:150px}
+ .manager-page .chart-totals{margin-bottom:22px;gap:20px 12px}
+ .manager-page .chart-total{display:block;padding:0 0 0 12px;border-bottom:0;border-left:1px solid #ddded7}
+ .manager-page .chart-total:nth-child(odd){padding-left:0;border-left:0}
+ .manager-page .chart-total>span{font-size:11px}
+ .manager-page .chart-total strong{font-size:22px;margin:7px 0 4px}
+ .manager-page .chart-total small{padding-left:0;font-size:10px}
+ .manager-page .business-chart-plot{padding:14px 6px 6px}
+ .manager-page .business-chart-canvas{height:248px;padding-left:52px;padding-right:6px}
+ .manager-page .chart-grid>span{font-size:10px;right:calc(100% + 8px)}
+ .manager-page .chart-axis{font-size:10px}
+ .manager-page .chart-bars{width:82%;gap:1px}
+ .manager-page .chart-empty{left:52px;right:6px;padding-left:8px;padding-right:8px}
+ .manager-page .chart-empty strong{font-size:12px}
+ .manager-page .chart-empty span{font-size:11px}
+ .manager-page .chart-foot{gap:16px}
+ .manager-page .chart-result{gap:12px}
+ .manager-page .chart-result strong{font-size:22px}
+ .manager-page .card{padding:21px 18px}
+ .manager-page .stats{margin-bottom:26px}
+ .manager-page .stat{padding:8px 12px}
+ .manager-page .stat strong{font-size:24px}
+ .manager-page .stat small{font-size:10px}
+ .manager-page .stat-icon{padding:5px}
+ .manager-page .studio-tabs{display:grid;width:100%;grid-template-columns:1fr 1fr;margin-top:0}
+ .manager-page .studio-tabs button{min-width:0;padding:11px 10px;font-size:12px}
+ .manager-page .studio-live,.manager-page .results-hero{padding:24px 20px}
+ .manager-page .mini-row{align-items:flex-start}
+ .manager-page .mini-row b{font-size:12px}
+ .manager-page .mini-row small{font-size:11px}
+ .manager-page .card-head{flex-wrap:wrap}
+ .manager-page .table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
+ .manager-page th,.manager-page td{padding-left:9px;padding-right:9px}
+ .manager-page footer{padding:0 18px 24px;font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ .manager-page *,.manager-page *::before,.manager-page *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
