@@ -12,6 +12,12 @@ test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=
  assert.deepEqual(model.totals,{sales:39900,income:44900,expense:10000,investment:0});
  assert.equal(model.balance,34900);
  assert.deepEqual(model.buckets.at(-1),{...model.buckets.at(-1),sales:39900,income:44900,expense:10000,investment:0});
+ const html=render(rows,'7','2026-10-30');
+ const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
+ assert.match(cards,/Em caixa/);
+ assert.match(cards,/R\$&nbsp;349,00|R\$ 349,00/);
+ assert.match(cards,/Entradas, incluindo pedidos, menos saídas/);
+ assert.doesNotMatch(cards,/>Investimentos</);
 });
 
 test('sete dias incluem o dia de referência e preenchem dias sem movimento',()=>{
@@ -82,7 +88,7 @@ test('somente despesas mostra resultado negativo e dados vazios não geram valor
  assert.doesNotMatch(html,/NaN|Infinity/);
 });
 
-test('investimentos aparecem separados e são descontados do resultado',()=>{
+test('investimentos permanecem no gráfico e são descontados do valor em caixa',()=>{
  const rows=[
   {date:'2026-10-30',kind:'income',amount:100000},
   {date:'2026-10-30',kind:'expense',amount:20000},
@@ -94,7 +100,8 @@ test('investimentos aparecem separados e são descontados do resultado',()=>{
  assert.equal(model.buckets.at(-1).investment,35000);
  const html=render(rows,'7','2026-10-30');
  assert.match(html,/Investimentos/);
- assert.match(html,/Equipamentos e bens/);
+ assert.match(html,/Em caixa/);
+ assert.match(html,/R\$&nbsp;450,00|R\$ 450,00/);
 });
 
 test('dados inválidos são descartados e a agregação preserva os registros originais',()=>{

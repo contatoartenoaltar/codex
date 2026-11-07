@@ -32,7 +32,7 @@ Validação: `python -m unittest discover -s tests -v`.
 
 ## Recursos
 
-- Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, mês atual e ano atual, valores por data e consulta por toque ou teclado.
+- Gráfico de vendas, entradas e saídas na Visão geral, com o card Em caixa, filtros de 7 dias, mês atual e ano atual, valores por data e consulta por toque ou teclado.
 - Receitas, despesas, investimentos e saldo realizado, com edição de despesas e filtros por tipo e por mês atual, últimos 7 dias ou ano atual (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
 - Cadastro, edição e acompanhamento de pedidos; o total é lançado como receita recebida ao cadastrar, uma única vez. A aba calcula vendas, despesas e lucro por período, excluindo investimentos do lucro. Ao corrigir um pedido, sua receita vinculada é atualizada sem duplicação. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
@@ -46,6 +46,8 @@ Substitui o banner decorativo. Vendas são os recebimentos vinculados aos pedido
 entradas são todas as receitas, incluindo essas vendas; saídas reúnem despesas e
 investimentos. O resultado do período é entradas menos despesas e investimentos,
 sem somar as vendas novamente.
+O card **Em caixa** apresenta esse resultado no período selecionado. A receita
+gerada por um pedido já faz parte das entradas e, por isso, não é somada duas vezes.
 Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
 com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
 
