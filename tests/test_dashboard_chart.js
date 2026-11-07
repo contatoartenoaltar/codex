@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {series,cashBalance,render}=require('../static/dashboard-chart.js');
+const {series,cashTotals,cashBalance,render}=require('../static/dashboard-chart.js');
 
 test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=>{
  const rows=[
@@ -16,7 +16,8 @@ test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=
  const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
  assert.match(cards,/Em caixa/);
  assert.match(cards,/R\$&nbsp;349,00|R\$ 349,00/);
- assert.match(cards,/Saldo acumulado até hoje/);
+ assert.match(cards,/Saídas/);
+ assert.match(cards,/Entradas − saídas/);
  assert.doesNotMatch(cards,/>Investimentos</);
 });
 
@@ -28,12 +29,15 @@ test('em caixa usa o saldo acumulado até hoje e não muda com o filtro do gráf
   {date:'2026-10-31',kind:'expense',amount:9000}
  ];
  assert.equal(series(rows,'7','2026-10-30').balance,3000);
+ assert.deepEqual(cashTotals(rows,'2026-10-30'),
+  {sales:5000,income:15000,expense:2000,investment:0,outflow:2000,balance:13000});
  assert.equal(cashBalance(rows,'2026-10-30'),13000);
  const html=render(rows,'7','2026-10-30');
  const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
  assert.match(cards,/Em caixa/);
  assert.match(cards,/R\$&nbsp;130,00|R\$ 130,00/);
- assert.match(cards,/Saldo acumulado até hoje/);
+ assert.match(cards,/Receitas, incluindo pedidos/);
+ assert.match(cards,/Despesas \+ investimentos/);
 });
 
 test('sete dias incluem o dia de referência e preenchem dias sem movimento',()=>{
@@ -118,6 +122,9 @@ test('investimentos permanecem no gráfico e são descontados do valor em caixa'
  assert.match(html,/Investimentos/);
  assert.match(html,/Em caixa/);
  assert.match(html,/R\$&nbsp;450,00|R\$ 450,00/);
+ const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
+ assert.match(cards,/Saídas/);
+ assert.match(cards,/R\$&nbsp;550,00|R\$ 550,00/);
 });
 
 test('dados inválidos são descartados e a agregação preserva os registros originais',()=>{

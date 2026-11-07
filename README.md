@@ -50,6 +50,10 @@ O card **Em caixa** apresenta o saldo acumulado de todos os lançamentos até ho
 independentemente do período selecionado no gráfico. A receita gerada por um pedido
 já faz parte das entradas e, por isso, não é somada duas vezes. O antigo card
 inferior de saldo foi removido para existir apenas um valor oficial de caixa.
+Os quatro cards superiores usam o mesmo acumulado até hoje: **Entradas** reúne
+todas as receitas, **Saídas** reúne despesas e investimentos, e **Em caixa** é
+exatamente Entradas menos Saídas. O filtro de período altera apenas o gráfico e
+o resultado do período abaixo dele.
 Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
 com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
 
