@@ -343,6 +343,24 @@ class Handler(BaseHTTPRequestHandler):
                     if not isinstance(notes, str) or len(notes) > 3000:
                         raise ValueError('Observações inválidas (até 3000 caracteres).')
                     c.execute('INSERT INTO transactions(description,kind,amount,date,notes) VALUES(?,?,?,?,?)', (required(d, 'description'), kind, number(d, 'amount', True, True), day, notes))
+                elif self.path == '/api/transactions/update':
+                    transaction_id = number(d, 'id', True, True)
+                    day = date.fromisoformat(required(d, 'date')).isoformat()
+                    notes = d.get('notes', '')
+                    if not isinstance(notes, str) or len(notes) > 3000:
+                        raise ValueError('Observações inválidas (até 3000 caracteres).')
+                    c.execute('BEGIN IMMEDIATE')
+                    transaction = c.execute(
+                        'SELECT kind,order_id FROM transactions WHERE id=?',
+                        (transaction_id,)).fetchone()
+                    if transaction is None or transaction['kind'] != 'expense' or transaction['order_id'] is not None:
+                        raise ValueError('Despesa não encontrada.')
+                    c.execute('''UPDATE transactions SET description=?,amount=?,date=?,notes=?
+                                 WHERE id=? AND kind='expense' AND order_id IS NULL''',
+                              (required(d, 'description'), number(d, 'amount', True, True),
+                               day, notes, transaction_id))
+                    c.commit()
+                    return self.send_json({'ok': True})
                 elif self.path == '/api/inventory':
                     c.execute('INSERT INTO inventory(name,unit,quantity,minimum) VALUES(?,?,?,?)', (required(d, 'name'), required(d, 'unit', 30), number(d, 'quantity'), number(d, 'minimum')))
                 elif self.path == '/api/inventory/quantity':

@@ -98,6 +98,31 @@ class OrderFinanceTests(unittest.TestCase):
             self.assertEqual(row['amount'], 12345)
             self.assertEqual(row['description'], 'Lançamento')
 
+    def test_expense_can_be_edited_without_changing_its_kind(self):
+        self.post('transactions', {'description': 'Papel', 'kind': 'expense',
+                                   'amount': 5000, 'date': '2026-10-29',
+                                   'notes': 'Compra inicial'})
+        expense = self.state()['transactions'][0]
+        self.post('transactions/update', {'id': expense['id'], 'description': 'Papel especial',
+                                          'amount': 6500, 'date': '2026-10-30',
+                                          'notes': 'Valor corrigido'}, 200)
+        updated = self.state()['transactions'][0]
+        self.assertEqual((updated['description'], updated['kind'], updated['amount'],
+                          updated['date'], updated['notes']),
+                         ('Papel especial', 'expense', 6500, '2026-10-30', 'Valor corrigido'))
+
+    def test_expense_edit_rejects_other_kinds_and_invalid_data_without_changes(self):
+        for kind in ('income', 'investment'):
+            self.post('transactions', {'description': kind, 'kind': kind,
+                                       'amount': 1000, 'date': '2026-10-29'})
+        before = self.state()['transactions']
+        for transaction in before:
+            self.post('transactions/update', {'id': transaction['id'], 'description': 'Alterado',
+                                              'amount': 2000, 'date': '2026-10-30', 'notes': ''}, 400)
+        self.post('transactions/update', {'id': 999, 'description': 'Inexistente',
+                                          'amount': 2000, 'date': '2026-10-30', 'notes': ''}, 400)
+        self.assertEqual(self.state()['transactions'], before)
+
     def test_transaction_notes_are_optional_bounded_and_validated_before_writing(self):
         data = {'description': 'Papel', 'kind': 'expense', 'amount': 5000, 'date': '2026-10-29'}
         self.post('transactions', data)

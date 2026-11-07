@@ -33,7 +33,7 @@ Validação: `python -m unittest discover -s tests -v`.
 ## Recursos
 
 - Gráfico de vendas, entradas e saídas na Visão geral, com filtros de 7 dias, mês atual e ano atual, valores por data e consulta por toque ou teclado.
-- Receitas, despesas, investimentos e saldo realizado, com filtros por tipo e por mês atual, últimos 7 dias ou ano atual (não inclui parcelas futuras ou conciliação bancária).
+- Receitas, despesas, investimentos e saldo realizado, com edição de despesas e filtros por tipo e por mês atual, últimos 7 dias ou ano atual (não inclui parcelas futuras ou conciliação bancária).
 - Cadastro de materiais e ajuste manual de estoque; pedidos não baixam materiais automaticamente.
 - Cadastro, edição e acompanhamento de pedidos; o total é lançado como receita recebida ao cadastrar, uma única vez. A aba calcula vendas, despesas e lucro por período, excluindo investimentos do lucro. Ao corrigir um pedido, sua receita vinculada é atualizada sem duplicação. Pedidos antigos sem receita vinculada têm o botão **Lançar receita**; consulte [ORDER_FINANCE.md](ORDER_FINANCE.md).
 - Catálogo comercial com os produtos e preços fornecidos pelo proprietário.

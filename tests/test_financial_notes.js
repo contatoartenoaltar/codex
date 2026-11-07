@@ -47,6 +47,24 @@ test('financeiro mostra observações como texto seguro e mantém registros sem 
   assert.ok(html.includes('Papel'));
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(stats())', context)),
     {income: 12000, expense: 2000, investment: 0, balance: 10000, active: 0, low: 0});
+  assert.equal((html.match(/data-edit-transaction=/g) || []).length, 1);
+  assert.ok(html.includes('data-edit-transaction="2"'));
+});
+
+test('edição de despesa preenche o formulário e preserva os textos com segurança', () => {
+  const {context, nodes} = app();
+  vm.runInContext(`state.transactions = [{
+    id: 8, date: '2026-10-30', description: 'Papel & tinta', kind: 'expense', amount: 6543,
+    notes: '<corrigir> & Fornecedor'
+  }]`, context);
+  vm.runInContext("modal('transactions-edit', 8)", context);
+  const html = nodes.get('#fields').innerHTML;
+  assert.equal(nodes.get('#form-title').textContent, 'Editar despesa');
+  assert.ok(html.includes('value="Papel &amp; tinta"'));
+  assert.ok(html.includes('value="65.43"'));
+  assert.ok(html.includes('value="2026-10-30"'));
+  assert.ok(html.includes('&lt;corrigir&gt; &amp; Fornecedor'));
+  assert.ok(html.includes('continuará classificado como Despesa'));
 });
 
 test('pedido existente oferece edição com os valores atuais', () => {
