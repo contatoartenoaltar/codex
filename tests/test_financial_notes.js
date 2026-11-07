@@ -10,7 +10,7 @@ function app() {
     if (!nodes.has(selector)) nodes.set(selector, {dataset: {}, showModal() {}});
     return nodes.get(selector);
   }};
-  const DashboardChart = {render() { return '<section data-test-chart></section>'; }, bind() {}};
+  const DashboardChart = require('../static/dashboard-chart.js');
   const context = vm.createContext({document, Intl, DashboardChart});
   const source = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
   // Carrega as funções reais da interface sem iniciar rede ou eventos do site.
@@ -22,7 +22,7 @@ function app() {
 test('visão geral mantém somente o card oficial Em caixa no gráfico', () => {
   const {context} = app();
   const html = vm.runInContext('dashboard()', context);
-  assert.ok(html.includes('data-test-chart'));
+  assert.ok(html.includes('business-chart-card'));
   assert.ok(html.includes('dashboard-stats'));
   assert.ok(!html.includes('Saldo em caixa'));
 });
@@ -161,7 +161,7 @@ test('financeiro filtra lançamentos por receita, despesa e investimento sem alt
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [3]);
 });
 
-test('pedidos calcula vendas menos despesas e exclui investimentos do lucro', () => {
+test('pedidos calcula lucro acumulado como caixa mais investimentos', () => {
   const {context} = app();
   vm.runInContext(`state.stages = ['Novo']; state.orders = [
     {id: 1, customer: 'Venda antiga', product: 'Envelopes', quantity: 100, total: 1000, status: 'Novo', notes: '', transaction_id: 11},
@@ -180,19 +180,22 @@ test('pedidos calcula vendas menos despesas e exclui investimentos do lucro', ()
   ]`, context);
 
   assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,profit:r.profit,orders:r.orders.map(o=>o.id)}})())`, context)),
-    {sales: 7000, expenses: 1500, profit: 5500, orders: [3,4,5]});
+    {sales: 7000, expenses: 1500, profit: 17500, orders: [3,4,5]});
   let html = vm.runInContext('orders()', context);
-  assert.ok(html.includes('Investimentos não entram nesse cálculo'));
+  assert.ok(html.includes('Lucro acumulado'));
+  assert.ok(html.includes('Em caixa + investimentos'));
   assert.ok(html.includes('Venda mensal'));
   assert.ok(html.includes('Pedido pendente'));
   assert.ok(!html.includes('Venda anual'));
 
   vm.runInContext("orderPeriod = '7'", context);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [4,5]);
+  assert.equal(vm.runInContext('orderReport().profit', context), 17500);
   html = vm.runInContext('orders()', context);
   assert.ok(html.includes('Venda recente'));
   assert.ok(!html.includes('Venda mensal'));
 
   vm.runInContext("orderPeriod = 'year'", context);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [2,3,4,5]);
+  assert.equal(vm.runInContext('orderReport().profit', context), 17500);
 });
