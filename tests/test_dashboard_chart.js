@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {series,render}=require('../static/dashboard-chart.js');
+const {series,cashBalance,render}=require('../static/dashboard-chart.js');
 
 test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=>{
  const rows=[
@@ -16,8 +16,24 @@ test('pedido recebido integra as entradas sem somar duas vezes no resultado',()=
  const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
  assert.match(cards,/Em caixa/);
  assert.match(cards,/R\$&nbsp;349,00|R\$ 349,00/);
- assert.match(cards,/Entradas, incluindo pedidos, menos saídas/);
+ assert.match(cards,/Saldo acumulado até hoje/);
  assert.doesNotMatch(cards,/>Investimentos</);
+});
+
+test('em caixa usa o saldo acumulado até hoje e não muda com o filtro do gráfico',()=>{
+ const rows=[
+  {date:'2026-01-10',kind:'income',amount:10000},
+  {date:'2026-10-30',kind:'income',amount:5000,order_id:2},
+  {date:'2026-10-30',kind:'expense',amount:2000},
+  {date:'2026-10-31',kind:'expense',amount:9000}
+ ];
+ assert.equal(series(rows,'7','2026-10-30').balance,3000);
+ assert.equal(cashBalance(rows,'2026-10-30'),13000);
+ const html=render(rows,'7','2026-10-30');
+ const cards=html.match(/<div class="chart-totals">([\s\S]*?)<\/div><div class="business-chart-plot">/)[1];
+ assert.match(cards,/Em caixa/);
+ assert.match(cards,/R\$&nbsp;130,00|R\$ 130,00/);
+ assert.match(cards,/Saldo acumulado até hoje/);
 });
 
 test('sete dias incluem o dia de referência e preenchem dias sem movimento',()=>{

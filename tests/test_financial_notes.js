@@ -10,13 +10,22 @@ function app() {
     if (!nodes.has(selector)) nodes.set(selector, {dataset: {}, showModal() {}});
     return nodes.get(selector);
   }};
-  const context = vm.createContext({document, Intl});
+  const DashboardChart = {render() { return '<section data-test-chart></section>'; }, bind() {}};
+  const context = vm.createContext({document, Intl, DashboardChart});
   const source = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
   // Carrega as funções reais da interface sem iniciar rede ou eventos do site.
   vm.runInContext(source.slice(0, source.indexOf("\ndocument.addEventListener('click'")), context);
   vm.runInContext(`state = {business_date: '2026-10-31', transactions: [], orders: [], inventory: []}`, context);
   return {context, nodes};
 }
+
+test('visão geral mantém somente o card oficial Em caixa no gráfico', () => {
+  const {context} = app();
+  const html = vm.runInContext('dashboard()', context);
+  assert.ok(html.includes('data-test-chart'));
+  assert.ok(html.includes('dashboard-stats'));
+  assert.ok(!html.includes('Saldo em caixa'));
+});
 
 test('novo lançamento mantém os campos existentes e oferece observações opcionais', () => {
   const {context, nodes} = app();

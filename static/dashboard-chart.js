@@ -41,6 +41,16 @@
   return {period,monthly,buckets,totals,count,first,last:today,balance:totals.income-totals.expense-totals.investment};
  }
 
+ function cashBalance(transactions,today){
+  if(!parse(today))throw Error('Data de referência indisponível. Atualize o sistema.');
+  return transactions.reduce((balance,transaction)=>{
+   if(!parse(transaction.date)||transaction.date>today||
+      !['income','expense','investment'].includes(transaction.kind)||
+      !Number.isSafeInteger(transaction.amount)||transaction.amount<0)return balance;
+   return balance+(transaction.kind==='income'?transaction.amount:-transaction.amount);
+  },0);
+ }
+
  function chart(model){
   const highest=Math.max(100,...model.buckets.flatMap(b=>[b.sales,b.income,b.expense,b.investment]));
   const rough=highest/4,power=10**Math.floor(Math.log10(rough));
@@ -62,11 +72,12 @@
 
  function render(transactions,period,today){
   const model=series(transactions,period,today);
+  const cash=cashBalance(transactions,today);
   const cards=[
    {label:'Vendas',value:model.totals.sales,foot:'Recebimentos de pedidos',color:colors.sales},
    {label:'Entradas',value:model.totals.income,foot:'Todas as receitas',color:colors.income},
    {label:'Despesas',value:model.totals.expense,foot:'Despesas registradas',color:colors.expense},
-   {label:'Em caixa',value:model.balance,foot:'Entradas, incluindo pedidos, menos saídas',color:model.balance>=0?'#27835f':colors.expense}
+   {label:'Em caixa',value:cash,foot:'Saldo acumulado até hoje',color:cash>=0?'#27835f':colors.expense}
   ];
   const totalCards=cards.map(card=>`<div class="chart-total" style="--series-color:${card.color}"><span><i aria-hidden="true"></i>${card.label}</span><strong>${money(card.value)}</strong><small>${card.foot}</small></div>`).join('');
   return `<section class="card business-chart-card" aria-labelledby="business-chart-title"><div class="business-chart-head"><div><span class="eyebrow">SEU NEGÓCIO EM NÚMEROS</span><h2 id="business-chart-title">Vendas, entradas e saídas</h2><p>De ${formatDay(model.first,model.first.slice(0,4)!==model.last.slice(0,4))} a ${formatDay(model.last,true)}</p></div><label class="chart-period" for="chart-period">Período<select id="chart-period">${Object.entries(periods).map(([value,label])=>`<option value="${value}" ${model.period===value?'selected':''}>${label}</option>`).join('')}</select></label></div><div class="chart-totals">${totalCards}</div><div class="business-chart-plot">${chart(model)}${model.count?'':`<div class="chart-empty"><strong>Nenhuma movimentação neste período</strong><span>Seu gráfico aparece conforme você registra pedidos e lançamentos.</span></div>`}<div class="chart-tooltip" role="status" hidden></div></div><div class="chart-foot"><p id="chart-description">Vendas fazem parte das entradas. Despesas e investimentos são descontados do resultado.<span class="chart-keyboard-hint"> Use as setas para consultar as datas no gráfico.</span></p><div class="chart-result ${model.balance<0?'negative':''}"><span>Resultado do período</span><strong>${money(model.balance)}</strong></div></div><details class="chart-data"><summary>Ver valores por ${model.monthly?'mês':'dia'}</summary><div class="table-wrap"><table><caption class="sr-only">Valores do gráfico em reais</caption><thead><tr><th scope="col">${model.monthly?'MÊS':'DIA'}</th><th scope="col">VENDAS</th><th scope="col">ENTRADAS</th><th scope="col">DESPESAS</th><th scope="col">INVESTIMENTOS</th></tr></thead><tbody>${model.buckets.map(b=>`<tr><th scope="row">${escape(b.title)}</th><td>${money(b.sales)}</td><td>${money(b.income)}</td><td>${money(b.expense)}</td><td>${money(b.investment)}</td></tr>`).join('')}</tbody></table></div></details></section>`;
@@ -105,7 +116,7 @@
    groups[next].focus();
   });
  }
- const api={series,render,bind};
+ const api={series,cashBalance,render,bind};
  if(typeof module==='object'&&module.exports)module.exports=api;
  else root.DashboardChart=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

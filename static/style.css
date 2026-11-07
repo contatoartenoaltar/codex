@@ -160,6 +160,7 @@ h3{font-size:14px;margin:0 0 10px;font-weight:650}
 }
 @media(max-width:480px){.card-head .report-period{width:100%;margin-left:0}.card-head:has(.report-period){flex-wrap:wrap}.report-period select{min-width:145px}.report-filters{width:100%;display:grid;grid-template-columns:1fr;gap:8px;margin-left:0}.report-filters .report-period select{width:100%}}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:25px}
+.dashboard-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 .order-results{grid-template-columns:repeat(3,minmax(0,1fr))}
 .stat,.card{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 2px #25291b02}
 .stat{padding:20px;position:relative;overflow:hidden}

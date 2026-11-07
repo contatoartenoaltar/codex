@@ -46,8 +46,10 @@ Substitui o banner decorativo. Vendas são os recebimentos vinculados aos pedido
 entradas são todas as receitas, incluindo essas vendas; saídas reúnem despesas e
 investimentos. O resultado do período é entradas menos despesas e investimentos,
 sem somar as vendas novamente.
-O card **Em caixa** apresenta esse resultado no período selecionado. A receita
-gerada por um pedido já faz parte das entradas e, por isso, não é somada duas vezes.
+O card **Em caixa** apresenta o saldo acumulado de todos os lançamentos até hoje,
+independentemente do período selecionado no gráfico. A receita gerada por um pedido
+já faz parte das entradas e, por isso, não é somada duas vezes. O antigo card
+inferior de saldo foi removido para existir apenas um valor oficial de caixa.
 Lançamentos antigos sem vínculo permanecem nas entradas, sem inventar associação
 com pedidos ou data de venda. Reembolso registrado como despesa entra nas saídas.
 
