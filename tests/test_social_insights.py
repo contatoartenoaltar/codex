@@ -39,6 +39,7 @@ class SocialInsightsTests(unittest.TestCase):
             "ARTENOALTAR_STORIES_DIR": "",
             "ARTENOALTAR_PROMOTIONAL_STORIES_DIR": "",
             "ARTENOALTAR_CAROUSELS_DIR": "",
+            "ARTENOALTAR_REELS_DIR": "",
         })
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -131,6 +132,41 @@ class SocialInsightsTests(unittest.TestCase):
         with app.connect() as target:
             row = target.execute("SELECT title,format FROM social_publications").fetchone()
         self.assertEqual(tuple(row), ("Versículo · Salmos 46:1", "story"))
+
+    def test_discovers_and_collects_published_reel_from_isolated_queue(self):
+        from reels.queue import Store
+        directory = Path(self.temp.name) / "reels"
+        store = Store(directory)
+        store.initialize()
+        ident = "b" * 32
+        actual_published = self.now - insights.DAY - 120
+        with store.connect() as connection:
+            connection.execute("""INSERT INTO reels(
+                id,source_id,source_name,source_md5,source_size,filename,sha256,
+                duration,width,height,fps,publication_day,due_at,state,remote_id,
+                imported_at,published_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+                ident, "drive_video_0001", "Bastidores.mp4", "a" * 32, 100,
+                ident + ".mp4", "c" * 64, 15, 1080, 1920, 30, "2027-01-13",
+                self.now - insights.DAY - 60, "published", "ig-reel-1",
+                self.now - 2 * insights.DAY, actual_published))
+        reader = Reader()
+        with patch.dict(os.environ, {"ARTENOALTAR_REELS_DIR": str(directory)}):
+            result = insights.tick(app.connect, app.DB.parent, now=self.now, reader=reader)
+            later = insights.tick(
+                app.connect, app.DB.parent, now=self.now + 6 * insights.DAY, reader=reader)
+        self.assertEqual(result, {"status": "collected", "format": "reel",
+                                  "checkpoint": insights.DAY})
+        self.assertEqual(later, {"status": "collected", "format": "reel",
+                                 "checkpoint": 7 * insights.DAY})
+        self.assertEqual(reader.calls, [("ig-reel-1", "reel"), ("ig-reel-1", "reel")])
+        with app.connect() as connection:
+            row = connection.execute(
+                "SELECT title,format,published_at FROM social_publications WHERE source='reel'").fetchone()
+            checkpoints = connection.execute(
+                "SELECT checkpoint FROM social_metric_snapshots ORDER BY checkpoint").fetchall()
+        self.assertEqual(tuple(row), ("Bastidores", "reel", actual_published))
+        self.assertEqual([entry[0] for entry in checkpoints],
+                         [insights.DAY, 7 * insights.DAY])
 
     def test_requires_ten_sampled_publications_before_scheduling_is_ready(self):
         with app.connect() as connection:

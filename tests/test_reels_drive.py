@@ -1,0 +1,198 @@
+from contextlib import redirect_stdout
+import hashlib
+import io
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import drive_source
+from reels import drive
+
+
+def mp4(payload=b"video-data"):
+    return b"\x00\x00\x00\x18ftypisom" + payload
+
+
+def item(raw, **changes):
+    value = {
+        "id": "videoIdentifier123",
+        "name": "reel-pronto.mp4",
+        "mimeType": "video/mp4",
+        "size": str(len(raw)),
+        "md5Checksum": hashlib.md5(raw, usedforsecurity=False).hexdigest(),
+        "modifiedTime": "2026-11-08T12:00:00Z",
+        "path": ["reel-pronto.mp4"],
+    }
+    value.update(changes)
+    return value
+
+
+class Credential:
+    def __init__(self):
+        self.calls = []
+
+    def before_request(self, transport, method, url, headers):
+        self.calls.append((method, url, dict(headers)))
+        headers["Authorization"] = "Bearer private-token"
+
+
+class Response:
+    def __init__(self, raw):
+        self.stream = io.BytesIO(raw)
+
+    def read(self, size=-1):
+        return self.stream.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class Opener:
+    def __init__(self, raw):
+        self.raw = raw
+        self.requests = []
+
+    def open(self, request, timeout=0):
+        self.requests.append((request, timeout))
+        return Response(self.raw)
+
+
+class CatalogClient:
+    def __init__(self, result):
+        self.result = result
+        self.roots = []
+
+    def catalog(self, root):
+        self.roots.append(root)
+        return self.result
+
+
+class ReelDriveTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+
+    def configured(self, folder="folderIdentifier123"):
+        (self.directory / drive.CONFIG_FILE).write_text(json.dumps({
+            "provider": "google_drive", "folder_id": folder,
+        }))
+        return folder
+
+    def test_catalog_returns_only_strict_mp4_without_mutating_drive(self):
+        folder = self.configured()
+        raw = mp4()
+        source = {
+            "complete": True, "folder_id": folder, "folder_name": "Reels",
+            "checked_at": "2026-11-08T12:00:00Z",
+            "files": [item(raw), {
+                "id": "imageIdentifier12", "name": "capa.jpg", "mimeType": "image/jpeg",
+            }, {
+                "id": "shortcutIdent123", "name": "atalho",
+                "mimeType": drive_source.SHORTCUT_MIME,
+            }],
+        }
+        client = CatalogClient(source)
+        result = drive.catalog(self.directory, client)
+        self.assertEqual(client.roots, [folder])
+        self.assertEqual(result["total_videos"], 1)
+        self.assertEqual(result["skipped_non_video"], 2)
+        self.assertEqual(result["files"][0]["id"], "videoIdentifier123")
+
+    def test_catalog_rejects_incomplete_source_and_skips_invalid_video_metadata(self):
+        folder = self.configured()
+        with self.assertRaisesRegex(drive.ReelDriveError, "catálogo completo"):
+            drive.catalog(self.directory, CatalogClient({
+                "complete": False, "folder_id": folder, "files": [],
+            }))
+        raw = mp4()
+        result = drive.catalog(self.directory, CatalogClient({
+            "complete": True, "folder_id": folder,
+            "files": [item(raw, md5Checksum="")],
+        }))
+        self.assertEqual(result["total_videos"], 0)
+        self.assertEqual(result["skipped_invalid_video"], 1)
+
+    def test_download_streams_exact_mp4_atomically_and_read_only(self):
+        raw = mp4(b"x" * (drive.CHUNK_BYTES + 50))
+        metadata = item(raw)
+        original = dict(metadata)
+        credential, opener = Credential(), Opener(raw)
+        client = drive.VideoDriveClient(credential, opener=opener)
+        target = self.directory / "prepared.mp4"
+        result = client.download_video(metadata, target)
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(result["bytes"], len(raw))
+        self.assertEqual(metadata, original)
+        self.assertEqual(len(opener.requests), 1)
+        request, timeout = opener.requests[0]
+        self.assertEqual((request.method, timeout), ("GET", 25))
+        self.assertEqual(request.get_header("Authorization"), "Bearer private-token")
+        self.assertEqual(credential.calls[0][0], "GET")
+        self.assertIn("alt=media", request.full_url)
+
+    def test_download_rejects_wrong_type_size_checksum_and_non_mp4(self):
+        raw = mp4()
+        cases = [
+            (item(raw, mimeType="application/vnd.google-apps.shortcut"), raw, "somente arquivos MP4"),
+            (item(raw, size=str(len(raw) + 1)), raw, "tamanho confirmado"),
+            (item(raw, md5Checksum="0" * 32), raw, "mudou desde a consulta"),
+            (item(raw), b"not-an-mp4!", "tamanho confirmado"),
+            (item(b"not-an-mp4!"), b"not-an-mp4!", "estrutura MP4"),
+        ]
+        for index, (metadata, response, message) in enumerate(cases):
+            with self.subTest(index=index):
+                target = self.directory / f"bad-{index}.mp4"
+                client = drive.VideoDriveClient(Credential(), opener=Opener(response))
+                with self.assertRaisesRegex(drive.ReelDriveError, message):
+                    client.download_video(metadata, target)
+                self.assertFalse(target.exists())
+                self.assertEqual(list(self.directory.glob(".reel-drive-*")), [])
+
+    def test_download_refuses_existing_destination_symlink_and_oversize_before_network(self):
+        raw = mp4()
+        opener = Opener(raw)
+        client = drive.VideoDriveClient(Credential(), opener=opener)
+        existing = self.directory / "existing.mp4"
+        existing.write_bytes(b"keep")
+        with self.assertRaisesRegex(drive.ReelDriveError, "novo arquivo"):
+            client.download_video(item(raw), existing)
+        link = self.directory / "link.mp4"
+        link.symlink_to(existing)
+        with self.assertRaisesRegex(drive.ReelDriveError, "novo arquivo"):
+            client.download_video(item(raw), link)
+        with self.assertRaisesRegex(drive.ReelDriveError, "limite seguro"):
+            client.download_video(item(raw, size=str(drive.MAX_VIDEO_BYTES + 1)),
+                                  self.directory / "large.mp4")
+        self.assertEqual(opener.requests, [])
+
+    def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
+        output = io.StringIO()
+        with patch("reels.drive.configure", return_value="reels@example.test") as configure, \
+                redirect_stdout(output):
+            drive.main([
+                "configure", "--directory", str(self.directory),
+                "--folder", "folderIdentifier123",
+            ])
+        configure.assert_called_once_with(self.directory, "folderIdentifier123")
+        self.assertEqual(json.loads(output.getvalue())["publishing_enabled"], False)
+
+        output = io.StringIO()
+        result = {
+            "complete": True, "folder_name": "Ready Reels", "total_videos": 2,
+            "skipped_non_video": 1, "skipped_invalid_video": 0,
+        }
+        with patch("reels.drive.catalog", return_value=result) as catalog, redirect_stdout(output):
+            drive.main(["status", "--directory", str(self.directory)])
+        catalog.assert_called_once_with(self.directory)
+        self.assertEqual(json.loads(output.getvalue())["total_videos"], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

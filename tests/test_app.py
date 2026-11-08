@@ -63,7 +63,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(results['snapshots'], 0)
         self.assertEqual(results['measured_publications'], [])
         self.assertFalse(results['ready_for_scheduling'])
-        self.assertEqual(set(results['decisions']), {'feed', 'story', 'carousel'})
+        self.assertEqual(set(results['decisions']), {'feed', 'story', 'carousel', 'reel'})
 
     def test_inventory_and_order_workflow(self):
         self.post('inventory', {'name':'Papel','unit':'folhas','quantity':500,'minimum':100})

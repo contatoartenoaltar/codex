@@ -12,6 +12,7 @@ from stories.queue import APPLICATION_ID as VERSE_APPLICATION_ID
 from promotional_stories.queue import APPLICATION_ID as PROMOTIONAL_APPLICATION_ID
 from carousel_posts.queue import APPLICATION_ID as CAROUSEL_APPLICATION_ID
 from carousel_posts.composer import item as carousel_item
+from reels.queue import APPLICATION_ID as REELS_APPLICATION_ID
 
 
 ACTIVE_STATES = ("queued", "staged", "processing", "sending")
@@ -33,6 +34,12 @@ SOURCES = {
         "database": "carousel-queue.sqlite3",
         "application_id": CAROUSEL_APPLICATION_ID,
         "source": "Carrossel automático",
+    },
+    "reel": {
+        "environment": "ARTENOALTAR_REELS_DIR",
+        "database": "reels-queue.sqlite3",
+        "application_id": REELS_APPLICATION_ID,
+        "source": "Reel automático",
     },
 }
 NAME = re.compile(r"[a-f0-9]{32}\.jpg")
@@ -94,6 +101,18 @@ def agenda(*, now=None):
         try:
             config, directory, media, connection = _connect(kind)
             try:
+                if kind == "reel":
+                    rows = connection.execute("""SELECT id,source_name,due_at,state FROM reels
+                        WHERE state IN ('queued','processing') AND due_at>=?
+                        ORDER BY due_at LIMIT 60""", (cutoff,)).fetchall()
+                    for row in rows:
+                        title = Path(row["source_name"]).stem.strip()[:160] or "Reel automático"
+                        items.append({
+                            "id": f"reel-{row['id']}", "kind": "reel", "product": title,
+                            "channel": "Instagram Reel", "source": config["source"],
+                            "due_at": row["due_at"], "state": row["state"],
+                        })
+                    continue
                 if kind == "carousel":
                     rows = connection.execute(
                         "SELECT c.id,c.faq_id,c.due_at,c.state,s.filename "
@@ -150,6 +169,24 @@ def agenda(*, now=None):
     return sorted(items, key=lambda item: (item["due_at"], item["id"]))[:50]
 
 
+def reel_status():
+    """Expose only safe queue health counters to the authenticated Studio."""
+    empty = {"configured": False, "enabled": False, "review": 0, "invalid_files": 0}
+    try:
+        _, directory, _, connection = _connect("reel")
+        connection.close()
+        from reels.queue import Store, policy_status
+        status = policy_status(Store(directory))
+        return {
+            "configured": True,
+            "enabled": bool(status["enabled"]),
+            "review": int(status["counts"].get("review", 0)),
+            "invalid_files": int(status.get("invalid_files", 0)),
+        }
+    except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+        return empty
+
+
 def image(kind, name):
     """Lê uma miniatura somente quando seu nome ainda pertence à fila informada."""
     if kind == "carousel":
@@ -200,6 +237,11 @@ def cancel(item_id, expected_due_at, *, confirmed=False):
     if not separator or kind not in SOURCES or not re.fullmatch(r"[a-f0-9]{32}", slot_id):
         raise ValueError("Agendamento automático inválido.")
     config, _, database, _ = _directory(kind)
+    if kind == "reel":
+        from reels.queue import Store, cancel as cancel_reel
+        directory = database.parent
+        cancel_reel(Store(directory), slot_id, expected_due_at=expected_due_at)
+        return {"id": item_id, "cancelled": True}
     connection = sqlite3.connect(database, timeout=30)
     connection.row_factory = sqlite3.Row
     try:

@@ -241,6 +241,7 @@ class Handler(BaseHTTPRequestHandler):
                 result['feed_automation']=feed_autonomy.status(c, DB.parent)
                 result['insights_collection']=social_insights.status(c)
             result['automated_content']=content_schedule.agenda()
+            result['reels_automation']=content_schedule.reel_status()
             try:
                 social = meta.status(DB.parent)
             except ValueError as error:

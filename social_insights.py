@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from pathlib import Path
 import sqlite3
 import time
 from datetime import datetime
@@ -18,9 +19,11 @@ DAY = 24 * 60 * 60
 WINDOWS = {
     "feed": (DAY, 7 * DAY),
     "carousel": (DAY, 7 * DAY),
+    "reel": (DAY, 7 * DAY),
     "story": (2 * 60 * 60, 12 * 60 * 60, 23 * 60 * 60),
 }
-ANALYSIS_CHECKPOINT = {"feed": DAY, "carousel": DAY, "story": 12 * 60 * 60}
+ANALYSIS_CHECKPOINT = {"feed": DAY, "carousel": DAY, "reel": DAY,
+                       "story": 12 * 60 * 60}
 MIN_COMPARABLE = 10
 ZONE = ZoneInfo("America/Sao_Paulo")
 
@@ -111,11 +114,16 @@ def discover(connect, *, now=None):
                       published_at=row["due_at"], now=now,
                       image_url=f"/media/{row['image_name']}" if row["image_name"] else "")
 
-    for kind in ("verse", "promotional", "carousel"):
+    for kind in ("verse", "promotional", "carousel", "reel"):
         try:
             _, _, media, connection = content_schedule._connect(kind)
             try:
-                if kind == "carousel":
+                if kind == "reel":
+                    rows = connection.execute("""SELECT id,source_name,due_at,published_at,remote_id
+                        FROM reels WHERE state='published' AND remote_id!=''
+                        AND COALESCE(published_at,due_at)>=?""",
+                        (oldest,)).fetchall()
+                elif kind == "carousel":
                     rows = connection.execute("""SELECT id,faq_id,due_at,remote_id
                         FROM carousels WHERE state='published' AND remote_id!='' AND due_at>=?""",
                         (oldest,)).fetchall()
@@ -135,14 +143,19 @@ def discover(connect, *, now=None):
                                 title = "Versículo diário"
                         elif kind == "promotional":
                             title = row["model_name"]
+                        elif kind == "reel":
+                            title = Path(row["source_name"]).stem or "Reel automático"
                         else:
                             title = row["faq_id"]
                         _register(target, ident=f"{kind}:{row['id']}", source=kind,
                                   source_id=row["id"], remote_id=row["remote_id"],
-                                  format_="carousel" if kind == "carousel" else "story",
-                                  title=title, published_at=row["due_at"], now=now,
+                                  format_=kind if kind in ("carousel", "reel") else "story",
+                                  title=title,
+                                  published_at=(row["published_at"] if kind == "reel" and
+                                                type(row["published_at"]) is int else row["due_at"]),
+                                  now=now,
                                   image_url=(f"/api/content-media/carousel/{row['id']}-01.jpg"
-                                             if kind == "carousel" else
+                                             if kind == "carousel" else "" if kind == "reel" else
                                              f"/api/content-media/{kind}/{row['filename']}"))
             finally:
                 connection.close()
@@ -284,7 +297,7 @@ def analyze(conn, *, now=None):
     rows = conn.execute("""SELECT p.id,p.source,p.format,p.published_at,s.*
         FROM social_publications p JOIN social_metric_snapshots s ON s.publication_id=p.id
         WHERE s.checkpoint=CASE p.format
-            WHEN 'feed' THEN 86400 WHEN 'carousel' THEN 86400 ELSE 43200 END""").fetchall()
+            WHEN 'story' THEN 43200 ELSE 86400 END""").fetchall()
     decisions = {}
     for format_ in WINDOWS:
         # O versículo diário é editorial e tem horário fixo (07:30). Seus
