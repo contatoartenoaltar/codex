@@ -1,6 +1,8 @@
 """Importação e agendamento autônomos de um Reel pronto por dia."""
 from __future__ import annotations
 
+import argparse
+import json
 from pathlib import Path
 import tempfile
 import time
@@ -11,7 +13,8 @@ import social_schedule
 from . import captions
 from . import drive
 from . import validator
-from .queue import ReelError, cleanup_media, schedule, suggest_due, import_video
+from .queue import (ReelError, _validate_media, cleanup_media, import_video,
+                    schedule, suggest_due)
 
 
 MAX_CANDIDATES_PER_RUN = 2
@@ -29,6 +32,33 @@ def _client(directory):
     except drive_source.DriveError as error:
         raise ReelError(str(error)) from None
     return drive.VideoDriveClient(credential)
+
+
+def preflight(drive_directory, *, client=None, media_validator=validator.inspect):
+    """Validate one real Drive MP4 without importing, scheduling or publishing it."""
+    drive_directory = Path(drive_directory)
+    client = client or _client(drive_directory)
+    source = drive.catalog(drive_directory, client)
+    if not source["files"]:
+        if source.get("skipped_invalid_video"):
+            raise ReelError("A pasta possui MP4 incompatível com os limites de Reels.")
+        raise ReelError("A pasta de Reels ainda não possui um vídeo MP4.")
+    item = source["files"][0]
+    with tempfile.TemporaryDirectory(
+            dir=drive_directory, prefix=".reel-preflight-") as temporary:
+        downloaded = Path(temporary) / "source.mp4"
+        client.download_video(item, downloaded)
+        duration, width, height, fps = _validate_media(media_validator(downloaded))
+    return {
+        "status": "ready",
+        "file_name": item["name"],
+        "bytes": item["size"],
+        "duration_seconds": round(duration, 3),
+        "width": width,
+        "height": height,
+        "fps": round(fps, 3),
+        "publishing_enabled": False,
+    }
 
 
 def _selected_time(schedule_directory):
@@ -105,3 +135,22 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
                     (source_id,source_md5,error,seen_at) VALUES(?,?,?,?)""",
                     (item["id"], item["md5Checksum"], str(error)[:300], int(time.time())))
     return {"status": "review"}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Validate a finished Reel from Drive without scheduling or publishing it.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    command = commands.add_parser(
+        "preflight", help="Download and validate the first accepted MP4, then delete the copy.")
+    command.add_argument("--drive-directory", required=True, type=Path)
+    arguments = parser.parse_args(argv)
+    try:
+        result = preflight(arguments.drive_directory)
+    except (OSError, ValueError) as error:
+        raise SystemExit("ERROR: " + str(error)) from None
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

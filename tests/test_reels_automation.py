@@ -56,6 +56,21 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(automation.run(self.store, self.drive, client=client, now=self.now),
                          {"status": "disabled"})
 
+    def test_preflight_validates_real_bytes_without_importing_or_scheduling(self):
+        raw = mp4(b"preflight")
+        source = item("drive_video_0001", raw)
+
+        result = automation.preflight(
+            self.drive, client=Client([source]), media_validator=self.metadata)
+
+        self.assertEqual(result, {
+            "status": "ready", "file_name": "drive_video_0001.mp4",
+            "bytes": len(raw), "duration_seconds": 12.0, "width": 1080,
+            "height": 1920, "fps": 30.0, "publishing_enabled": False,
+        })
+        self.assertEqual(self.store.agenda(), [])
+        self.assertEqual(list(self.drive.glob(".reel-preflight-*")), [])
+
     def test_imports_schedules_one_and_does_not_duplicate(self):
         enable(self.store, "123456", confirmed=True)
         raw = mp4()

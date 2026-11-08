@@ -72,12 +72,15 @@ python3.12 -m reels.drive configure \
   --folder DRIVE_FOLDER_ID_OR_URL
 
 python3.12 -m reels.drive status --directory "$DRIVE_DIR"
+python3.12 -m reels.automation preflight --drive-directory "$DRIVE_DIR"
 python3.12 -m reels.queue status --directory "$REELS_DIR"
 ```
 
 O primeiro resultado informa o e-mail da conta de serviço e confirma
 `"publishing_enabled": false`. O status do Drive precisa indicar catálogo
-completo. Arquivos inválidos são ignorados e contados; não bloqueiam outros MP4.
+completo. O preflight baixa e valida um MP4 real, remove a cópia temporária e
+também confirma `"publishing_enabled": false`. Arquivos inválidos são ignorados
+e contados; não bloqueiam outros MP4.
 
 ## 4. Adicionar o wrapper WSGI sem ativar publicações
 
