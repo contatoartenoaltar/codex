@@ -180,13 +180,13 @@ def _validate_media(metadata):
         fps = float(metadata["fps"])
     except (KeyError, TypeError, ValueError, OverflowError):
         raise ReelError("O vídeo não possui metadados compatíveis.") from None
-    if metadata.get("video_codec") != "h264" or metadata.get("audio_codec") != "aac":
-        raise ReelError("Use MP4 com vídeo H.264 e áudio AAC.")
+    if metadata.get("video_codec") not in ("h264", "hevc") or metadata.get("audio_codec") != "aac":
+        raise ReelError("Use MP4 ou MOV com vídeo H.264/HEVC e áudio AAC.")
     if metadata.get("has_audio") is not True:
         raise ReelError("O Reel precisa conter a música já incorporada.")
     if not MIN_DURATION <= duration <= MAX_DURATION:
         raise ReelError("O Reel precisa ter entre 3 e 90 segundos.")
-    if not (720 <= width <= 1080 and 1280 <= height <= 1920 and 0.54 <= width / height <= 0.59):
+    if not (540 <= width <= 2160 and 960 <= height <= 3840 and 0.54 <= width / height <= 0.59):
         raise ReelError(
             f"O vídeo foi identificado como {width} × {height}. "
             "Use vídeo vertical 9:16, preferencialmente 1080 × 1920.")

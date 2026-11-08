@@ -120,6 +120,18 @@ class ReelsQueueTests(unittest.TestCase):
         self.assertTrue(row["filename"].endswith(".mov"))
         self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
 
+    def test_import_accepts_vertical_hevc_export_from_edits(self):
+        item, path, raw = self.source()
+        edits = metadata(path) | {
+            "video_codec": "hevc", "width": 1440, "height": 2560,
+            "duration": 5.633333, "fps": 30,
+        }
+        result = import_video(
+            self.store, item, path, validator=lambda _: edits, now=self.now)
+        row = self.store.agenda()[0]
+        self.assertEqual(row["id"], result["id"])
+        self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
+
     def test_rejects_wrong_type_integrity_and_incompatible_media(self):
         item, path, _ = self.source(mimeType="video/quicktime")
         with self.assertRaises(ReelError):

@@ -95,7 +95,8 @@ def _sample_entry(data, stbl, handler):
     entries = list(_boxes(data, payload + 8, end))
     if declared != len(entries) or not entries:
         raise VideoValidationError("O MP4 não informou o formato das faixas.")
-    accepted = ({b"avc1", b"avc3"} if handler == b"vide" else {b"mp4a"})
+    accepted = ({b"avc1", b"avc3", b"hvc1", b"hev1"}
+                if handler == b"vide" else {b"mp4a"})
     entry = next((value for value in entries if value[1] in accepted), entries[0])
     return entry
 
@@ -166,7 +167,9 @@ def _track(data, box):
     fps = samples * timescale / ticks if ticks else 0
     if media_duration <= 0:
         raise VideoValidationError("O MP4 não informou duração válida.")
-    return {"kind": "video", "codec": "h264" if entry_type in (b"avc1", b"avc3") else "other",
+    codec = ("h264" if entry_type in (b"avc1", b"avc3") else
+             "hevc" if entry_type in (b"hvc1", b"hev1") else "other")
+    return {"kind": "video", "codec": codec,
             "width": width, "height": height, "fps": fps}
 
 

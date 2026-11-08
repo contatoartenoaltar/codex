@@ -61,7 +61,7 @@ tela, comandos compartilhados ou mensagens.
 
 Crie uma pasta dedicada no Drive e compartilhe-a como **Leitor** com a mesma
 conta de serviço já usada pela aplicação. Coloque ali somente MP4 ou MOV
-verticais finalizados: H.264, áudio AAC, entre 3 e 90 segundos, até 1 GB
+verticais finalizados: H.264 ou HEVC, áudio AAC, entre 3 e 90 segundos, até 1 GB
 (1.000.000.000 bytes), de preferência 1080 × 1920. O sistema não remove nem
 altera arquivos no Drive.
 

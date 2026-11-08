@@ -110,6 +110,17 @@ class ReelsValidatorTests(unittest.TestCase):
             rotated = inspect(self.video)
         self.assertEqual((rotated["width"], rotated["height"]), (1080, 1920))
 
+        hevc = box(b"hvc1", b"\0" * 24 + (1440).to_bytes(2, "big") +
+                   (2560).to_bytes(2, "big"))
+        video = track(b"vide", 30000, 555000, hevc, stts)
+        self.video.write_bytes(ftyp + box(b"moov", mvhd + video + audio))
+        with patch("reels.validator.shutil.which", return_value=None):
+            high_resolution = inspect(self.video)
+        self.assertEqual(
+            (high_resolution["video_codec"], high_resolution["width"],
+             high_resolution["height"]),
+            ("hevc", 1440, 2560))
+
     def test_fallback_rejects_malformed_or_audio_free_mp4(self):
         malformed = b"\0\0\0\x18ftypisom" + b"\0\0\0\x08moov"
         self.video.write_bytes(malformed)
