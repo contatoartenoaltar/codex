@@ -79,6 +79,17 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(result["file_name"], "drive_video_0002.mov")
         self.assertFalse(result["publishing_enabled"])
         self.assertEqual(self.store.agenda(), [])
+        self.assertEqual(list(self.drive.glob(".reel-preflight-*")), [])
+
+    def test_preflight_removes_file_when_validation_fails(self):
+        raw = mp4(b"invalid")
+        source = item("drive_video_0003", raw)
+        with self.assertRaisesRegex(ValueError, "invalid metadata"):
+            automation.preflight(
+                self.drive, client=Client([source]),
+                media_validator=lambda _: (_ for _ in ()).throw(
+                    ValueError("invalid metadata")))
+        self.assertEqual(list(self.drive.glob(".reel-preflight-*")), [])
 
     def test_imports_schedules_one_and_does_not_duplicate(self):
         enable(self.store, "123456", confirmed=True)

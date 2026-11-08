@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import secrets
 import tempfile
 import time
 
@@ -44,11 +45,13 @@ def preflight(drive_directory, *, client=None, media_validator=validator.inspect
             raise ReelError("A pasta possui vídeo incompatível com os limites de Reels.")
         raise ReelError("A pasta de Reels ainda não possui um vídeo MP4 ou MOV.")
     item = source["files"][0]
-    with tempfile.TemporaryDirectory(
-            dir=drive_directory, prefix=".reel-preflight-") as temporary:
-        downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
+    downloaded = drive_directory / (
+        ".reel-preflight-" + secrets.token_hex(16) + Path(item["name"]).suffix.lower())
+    try:
         client.download_video(item, downloaded)
         duration, width, height, fps = _validate_media(media_validator(downloaded))
+    finally:
+        downloaded.unlink(missing_ok=True)
     return {
         "status": "ready",
         "file_name": item["name"],
