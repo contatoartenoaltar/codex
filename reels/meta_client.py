@@ -158,7 +158,7 @@ class MetaClient:
         if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.fragment or
                 parsed.query or parsed.port not in (None, 443) or
                 (parsed.hostname or "").lower() != urllib.parse.urlsplit(self.media_origin).hostname or
-                not re.fullmatch(r"/reels-media/[a-f0-9]{64}\.mp4", parsed.path)):
+                not re.fullmatch(r"/reels-media/[a-f0-9]{64}\.(?:mp4|mov)", parsed.path)):
             raise ValueError("URL temporária do Reel inválida.")
         return value
 

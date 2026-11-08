@@ -1,4 +1,4 @@
-"""Leitura isolada de MP4 prontos para Reels em uma pasta do Google Drive."""
+"""Leitura isolada de vídeos prontos para Reels em uma pasta do Google Drive."""
 from __future__ import annotations
 
 import argparse
@@ -15,9 +15,9 @@ import urllib.request
 import drive_source
 
 
-VIDEO_MIME = "video/mp4"
+VIDEO_MIMES = {"video/mp4": ".mp4", "video/quicktime": ".mov"}
 CONFIG_FILE = "reels-drive-source.json"
-MAX_VIDEO_BYTES = 50 * 1024 * 1024
+MAX_VIDEO_BYTES = 1_000_000_000
 CHUNK_BYTES = 1024 * 1024
 
 
@@ -32,11 +32,14 @@ def _video(item, *, limit=MAX_VIDEO_BYTES):
         ident = drive_source.identifier(item.get("id"))
     except drive_source.DriveError:
         raise ReelDriveError("Identificador de vídeo inválido no catálogo do Drive.") from None
-    if item.get("mimeType") != VIDEO_MIME:
-        raise ReelDriveError("A pasta de Reels aceita somente arquivos MP4.")
+    mime = item.get("mimeType")
+    if mime not in VIDEO_MIMES:
+        raise ReelDriveError("A pasta de Reels aceita somente arquivos MP4 ou MOV.")
     name = item.get("name")
     if not isinstance(name, str) or not name.strip() or len(name) > 255:
         raise ReelDriveError("Nome de vídeo inválido no catálogo do Drive.")
+    if Path(name).suffix.lower() != VIDEO_MIMES[mime]:
+        raise ReelDriveError("A extensão do vídeo não corresponde ao formato informado pelo Drive.")
     try:
         size = int(item.get("size"))
     except (TypeError, ValueError):
@@ -50,7 +53,7 @@ def _video(item, *, limit=MAX_VIDEO_BYTES):
     if (not isinstance(path, list) or not path or
             any(not isinstance(part, str) or not part for part in path)):
         raise ReelDriveError("Caminho de vídeo inválido no catálogo do Drive.")
-    return {"id": ident, "name": name, "mimeType": VIDEO_MIME, "size": size,
+    return {"id": ident, "name": name, "mimeType": mime, "size": size,
             "md5Checksum": checksum, "path": list(path),
             **({"modifiedTime": item["modifiedTime"]}
                if isinstance(item.get("modifiedTime"), str) else {})}
@@ -72,7 +75,7 @@ def configure(directory, source):
 
 
 def catalog(directory, client=None):
-    """Retorna somente MP4 completos, sem baixar ou modificar arquivos do Drive."""
+    """Retorna somente MP4/MOV completos, sem baixar ou modificar arquivos do Drive."""
     directory = Path(directory)
     try:
         config = drive_source.read_json(directory / CONFIG_FILE)
@@ -87,7 +90,7 @@ def catalog(directory, client=None):
     videos = []
     invalid_videos = 0
     for item in source["files"]:
-        if isinstance(item, dict) and item.get("mimeType") == VIDEO_MIME:
+        if isinstance(item, dict) and item.get("mimeType") in VIDEO_MIMES:
             try:
                 videos.append(_video(item))
             except ReelDriveError:
@@ -102,7 +105,7 @@ def catalog(directory, client=None):
 
 
 class VideoDriveClient(drive_source.DriveClient):
-    """Cliente de download limitado a um MP4 conhecido do catálogo."""
+    """Cliente de download limitado a um vídeo conhecido do catálogo."""
 
     def download_video(self, item, destination, *, limit=MAX_VIDEO_BYTES):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_VIDEO_BYTES:
@@ -116,8 +119,9 @@ class VideoDriveClient(drive_source.DriveClient):
 
         params = urllib.parse.urlencode({"alt": "media", "supportsAllDrives": "true"})
         url = f"{drive_source.API}/{metadata['id']}?{params}"
-        headers = {"Accept": VIDEO_MIME}
-        descriptor, temporary = tempfile.mkstemp(dir=parent, prefix=".reel-drive-", suffix=".mp4")
+        headers = {"Accept": metadata["mimeType"]}
+        descriptor, temporary = tempfile.mkstemp(
+            dir=parent, prefix=".reel-drive-", suffix=VIDEO_MIMES[metadata["mimeType"]])
         written = 0
         digest = hashlib.md5(usedforsecurity=False)
         head = b""

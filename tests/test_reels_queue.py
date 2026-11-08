@@ -108,6 +108,18 @@ class ReelsQueueTests(unittest.TestCase):
         self.assertEqual(repeated, {"id": ident, "created": False})
         self.assertEqual(len(self.store.agenda()), 1)
 
+    def test_import_preserves_edits_mov_and_its_extension(self):
+        raw = fake_mp4(b"licensed-edits-audio")
+        item, path, _ = self.source(raw)
+        mov_path = path.with_suffix(".mov")
+        path.replace(mov_path)
+        item |= {"name": "Reel pronto.mov", "mimeType": "video/quicktime"}
+        result = import_video(self.store, item, mov_path, validator=metadata, now=self.now)
+        row = self.store.agenda()[0]
+        self.assertEqual(row["id"], result["id"])
+        self.assertTrue(row["filename"].endswith(".mov"))
+        self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
+
     def test_rejects_wrong_type_integrity_and_incompatible_media(self):
         item, path, _ = self.source(mimeType="video/quicktime")
         with self.assertRaises(ReelError):

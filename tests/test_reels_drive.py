@@ -104,6 +104,21 @@ class ReelDriveTests(unittest.TestCase):
         self.assertEqual(result["skipped_non_video"], 2)
         self.assertEqual(result["files"][0]["id"], "videoIdentifier123")
 
+    def test_catalog_and_download_accept_edits_mov_without_conversion(self):
+        folder = self.configured()
+        raw = mp4(b"quicktime-video")
+        metadata = item(raw, name="reel-edits.mov", mimeType="video/quicktime",
+                        path=["reel-edits.mov"])
+        result = drive.catalog(self.directory, CatalogClient({
+            "complete": True, "folder_id": folder, "files": [metadata],
+        }))
+        self.assertEqual(result["files"][0]["mimeType"], "video/quicktime")
+        credential, opener = Credential(), Opener(raw)
+        target = self.directory / "prepared.mov"
+        drive.VideoDriveClient(credential, opener=opener).download_video(metadata, target)
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(credential.calls[0][2]["Accept"], "video/quicktime")
+
     def test_catalog_rejects_incomplete_source_and_skips_invalid_video_metadata(self):
         folder = self.configured()
         with self.assertRaisesRegex(drive.ReelDriveError, "catálogo completo"):
@@ -140,7 +155,8 @@ class ReelDriveTests(unittest.TestCase):
     def test_download_rejects_wrong_type_size_checksum_and_non_mp4(self):
         raw = mp4()
         cases = [
-            (item(raw, mimeType="application/vnd.google-apps.shortcut"), raw, "somente arquivos MP4"),
+            (item(raw, mimeType="application/vnd.google-apps.shortcut"), raw,
+             "somente arquivos MP4 ou MOV"),
             (item(raw, size=str(len(raw) + 1)), raw, "tamanho confirmado"),
             (item(raw, md5Checksum="0" * 32), raw, "mudou desde a consulta"),
             (item(raw), b"not-an-mp4!", "tamanho confirmado"),

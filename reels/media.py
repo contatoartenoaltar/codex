@@ -1,4 +1,4 @@
-"""Temporary, capability-based MP4 delivery for Instagram processing.
+"""Temporary, capability-based video delivery for Instagram processing.
 
 This module has no knowledge of the Reels queue schema.  The queue supplies a
 resolver that maps an opaque token to a short-lived :class:`MediaGrant`.  Raw
@@ -19,8 +19,8 @@ from typing import Callable, Iterable
 
 PATH_PREFIX = "/reels-media/"
 TOKEN = re.compile(r"[A-Za-z0-9_-]{43,128}")
-FILENAME = re.compile(r"(?:[a-f0-9]{32}|[a-f0-9]{64})\.mp4")
-MAX_VIDEO = 50 * 1024 * 1024
+FILENAME = re.compile(r"(?:[a-f0-9]{32}|[a-f0-9]{64})\.(?:mp4|mov)")
+MAX_VIDEO = 1_000_000_000
 CHUNK = 256 * 1024
 
 
@@ -42,10 +42,12 @@ def issue_token() -> str:
     return secrets.token_hex(32)
 
 
-def url_path(token: str) -> str:
+def url_path(token: str, extension: str = ".mp4") -> str:
     if not isinstance(token, str) or not TOKEN.fullmatch(token):
         raise ValueError("Token temporário de vídeo inválido.")
-    return PATH_PREFIX + token + ".mp4"
+    if extension not in (".mp4", ".mov"):
+        raise ValueError("Formato temporário de vídeo inválido.")
+    return PATH_PREFIX + token + extension
 
 
 def _response(start_response, status: int, body: bytes = b"", headers=()) -> list[bytes]:
@@ -113,7 +115,7 @@ class _FileBody:
 
 def serve(environ: dict, start_response, directory: Path, resolver: Resolver,
           *, now: int | None = None) -> Iterable[bytes]:
-    """Serve one granted MP4 with HEAD and single-range GET support.
+    """Serve one granted video with HEAD and single-range GET support.
 
     Unknown, expired, revoked and malformed capabilities all return the same
     404 response so callers cannot use this endpoint to enumerate queue data.
@@ -127,10 +129,12 @@ def serve(environ: dict, start_response, directory: Path, resolver: Resolver,
     if method not in ("GET", "HEAD"):
         return _response(start_response, 405, b"Method not allowed", (("Allow", "GET, HEAD"),))
     path = environ.get("PATH_INFO", "")
-    match = re.fullmatch(re.escape(PATH_PREFIX) + r"([A-Za-z0-9_-]{43,128})\.mp4", path)
+    match = re.fullmatch(
+        re.escape(PATH_PREFIX) + r"([A-Za-z0-9_-]{43,128})(\.(?:mp4|mov))", path)
     if not match:
         return _response(start_response, 404, b"Not found")
     token = match.group(1)
+    extension = match.group(2)
     try:
         grant = resolver(token)
     except Exception:
@@ -138,7 +142,8 @@ def serve(environ: dict, start_response, directory: Path, resolver: Resolver,
     current = int(time.time()) if now is None else now
     if (not isinstance(grant, MediaGrant) or grant.revoked or
             type(grant.expires_at) is not int or grant.expires_at <= current or
-            not isinstance(grant.filename, str) or not FILENAME.fullmatch(grant.filename)):
+            not isinstance(grant.filename, str) or not FILENAME.fullmatch(grant.filename) or
+            Path(grant.filename).suffix != extension):
         return _response(start_response, 404, b"Not found")
 
     directory = Path(directory)
@@ -172,7 +177,7 @@ def serve(environ: dict, start_response, directory: Path, resolver: Resolver,
     length = end - start + 1
     status = 206 if selected is not None else 200
     headers = [
-        ("Content-Type", "video/mp4"),
+        ("Content-Type", "video/quicktime" if extension == ".mov" else "video/mp4"),
         ("Content-Length", str(length)),
         ("Accept-Ranges", "bytes"),
         ("Cache-Control", "no-store, max-age=0"),

@@ -10,7 +10,7 @@ import subprocess
 
 
 MAX_PROBE_OUTPUT = 256 * 1024
-MAX_VIDEO_BYTES = 50 * 1024 * 1024
+MAX_VIDEO_BYTES = 1_000_000_000
 
 
 class VideoValidationError(ValueError):

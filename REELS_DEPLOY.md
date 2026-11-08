@@ -1,6 +1,6 @@
 # Reels automáticos — implantação isolada
 
-O fluxo recebe vídeos MP4 já finalizados no Edits, com música licenciada já
+O fluxo recebe vídeos MP4 ou MOV já finalizados no Edits, com música licenciada já
 incorporada, copia o arquivo sem recodificar, publica um Reel por dia e também o
 exibe no Feed. Ele usa banco, chave HTTP, pasta de mídia e job próprios. A fila
 nasce **desativada** e não modifica as filas de Feed, Stories ou Carrosséis.
@@ -60,9 +60,10 @@ tela, comandos compartilhados ou mensagens.
 ## 3. Configurar a pasta de vídeos do Drive
 
 Crie uma pasta dedicada no Drive e compartilhe-a como **Leitor** com a mesma
-conta de serviço já usada pela aplicação. Coloque ali somente MP4 verticais
-finalizados: H.264, áudio AAC, entre 3 e 90 segundos, até 50 MiB, de preferência
-1080 × 1920. O sistema não remove nem altera arquivos no Drive.
+conta de serviço já usada pela aplicação. Coloque ali somente MP4 ou MOV
+verticais finalizados: H.264, áudio AAC, entre 3 e 90 segundos, até 1 GB
+(1.000.000.000 bytes), de preferência 1080 × 1920. O sistema não remove nem
+altera arquivos no Drive.
 
 Depois de obter o ID ou link da pasta:
 
@@ -78,9 +79,9 @@ python3.12 -m reels.queue status --directory "$REELS_DIR"
 
 O primeiro resultado informa o e-mail da conta de serviço e confirma
 `"publishing_enabled": false`. O status do Drive precisa indicar catálogo
-completo. O preflight baixa e valida um MP4 real, remove a cópia temporária e
+completo. O preflight baixa e valida um MP4/MOV real, remove a cópia temporária e
 também confirma `"publishing_enabled": false`. Arquivos inválidos são ignorados
-e contados; não bloqueiam outros MP4.
+e contados; não bloqueiam outros vídeos válidos.
 
 ## 4. Adicionar o wrapper WSGI sem ativar publicações
 
@@ -135,7 +136,7 @@ nem edite o job de Feed, Stories ou Carrosséis.
 ## 6. Ativação futura supervisionada
 
 Esta etapa não faz parte da preparação. Só deve ser executada após conferir um
-MP4 real, a conta `@arte.no.altar`, a resposta `disabled`, o WSGI e o job novo.
+MP4/MOV real, a conta `@arte.no.altar`, a resposta `disabled`, o WSGI e o job novo.
 O texto de confirmação é intencionalmente específico:
 
 ```bash
@@ -153,7 +154,7 @@ de Insights somente a publicações futuras. Um item já agendado não muda de h
 O primeiro Reel deve ser conferido no Instagram. Uma resposta final incerta vai
 para revisão e não é publicada novamente às cegas.
 
-A cópia privada do MP4 é removida depois de uma publicação confirmada ou de um
+A cópia privada do vídeo é removida depois de uma publicação confirmada ou de um
 cancelamento; o arquivo original permanece no Drive e o recibo fica no banco.
 Se o status mostrar `review` ou `invalid_files` maior que zero, a Agenda Visual
 exibe o aviso e não prepara outro Reel enquanto houver uma publicação incerta.
@@ -175,6 +176,6 @@ banco e os recibos da fila para diagnóstico; não restaure o banco comercial.
 ## Limites desta entrega
 
 Os testes usam Drive e Meta simulados. Eles validam isolamento, integridade do
-MP4, o leitor interno sem `ffprobe`, autorização, concorrência, publicação única
+MP4/MOV, o leitor interno sem `ffprobe`, autorização, concorrência, publicação única
 e falha fechada, mas não provam que a Meta aceitará o primeiro vídeo real.
 Nenhum Reel real é publicado durante a preparação.

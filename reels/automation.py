@@ -35,18 +35,18 @@ def _client(directory):
 
 
 def preflight(drive_directory, *, client=None, media_validator=validator.inspect):
-    """Validate one real Drive MP4 without importing, scheduling or publishing it."""
+    """Validate one real Drive video without importing, scheduling or publishing it."""
     drive_directory = Path(drive_directory)
     client = client or _client(drive_directory)
     source = drive.catalog(drive_directory, client)
     if not source["files"]:
         if source.get("skipped_invalid_video"):
-            raise ReelError("A pasta possui MP4 incompatível com os limites de Reels.")
-        raise ReelError("A pasta de Reels ainda não possui um vídeo MP4.")
+            raise ReelError("A pasta possui vídeo incompatível com os limites de Reels.")
+        raise ReelError("A pasta de Reels ainda não possui um vídeo MP4 ou MOV.")
     item = source["files"][0]
     with tempfile.TemporaryDirectory(
             dir=drive_directory, prefix=".reel-preflight-") as temporary:
-        downloaded = Path(temporary) / "source.mp4"
+        downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
         client.download_video(item, downloaded)
         duration, width, height, fps = _validate_media(media_validator(downloaded))
     return {
@@ -118,7 +118,7 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
     for item in candidates[:MAX_CANDIDATES_PER_RUN]:
         try:
             with tempfile.TemporaryDirectory(dir=store.directory, prefix=".reel-import-") as temporary:
-                downloaded = Path(temporary) / "source.mp4"
+                downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
                 client.download_video(item, downloaded)
                 receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
             with store.connect() as connection:
@@ -142,7 +142,7 @@ def main(argv=None):
         description="Validate a finished Reel from Drive without scheduling or publishing it.")
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser(
-        "preflight", help="Download and validate the first accepted MP4, then delete the copy.")
+        "preflight", help="Download and validate the first accepted MP4/MOV, then delete the copy.")
     command.add_argument("--drive-directory", required=True, type=Path)
     arguments = parser.parse_args(argv)
     try:

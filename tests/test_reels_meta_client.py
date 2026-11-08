@@ -86,6 +86,13 @@ class ReelsMetaClientTests(unittest.TestCase):
         proof = hmac.new(SETTINGS["app_secret"].encode(), TOKEN.encode(), hashlib.sha256).hexdigest()
         self.assertEqual(fields["appsecret_proof"], [proof])
 
+    def test_accepts_temporary_mov_url_from_same_origin(self):
+        mov = ORIGIN + "/reels-media/" + "b" * 64 + ".mov"
+        client, opener = self.client([{"id": "801"}])
+        self.assertEqual(client.create_container(mov, "Reel do Edits"), {"id": "801"})
+        fields = urllib.parse.parse_qs(opener.requests[0][0].data.decode())
+        self.assertEqual(fields["video_url"], [mov])
+
     def test_rejects_unapproved_video_urls_caption_and_feed_configuration_before_network(self):
         client, opener = self.client([])
         bad_urls = [

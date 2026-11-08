@@ -48,6 +48,19 @@ class ReelsMediaTests(unittest.TestCase):
         self.assertEqual(head["body"], b"")
         self.assertEqual(head["headers"]["Content-Length"], str(len(self.payload)))
 
+    def test_mov_is_served_as_quicktime_and_extension_must_match_grant(self):
+        mov = "b" * 32 + ".mov"
+        (self.directory / "media" / mov).write_bytes(self.payload)
+        result = self.call(
+            {"PATH_INFO": url_path(self.token, ".mov")},
+            resolver=lambda _: MediaGrant(mov, expires_at=2000))
+        self.assertTrue(result["status"].startswith("200"))
+        self.assertEqual(result["headers"]["Content-Type"], "video/quicktime")
+        mismatch = self.call(
+            {"PATH_INFO": url_path(self.token, ".mov")},
+            resolver=lambda _: self.grant)
+        self.assertTrue(mismatch["status"].startswith("404"))
+
     def test_single_ranges_and_suffix_are_supported(self):
         for value, expected, header in [
             ("bytes=4-11", self.payload[4:12], f"bytes 4-11/{len(self.payload)}"),
@@ -76,6 +89,9 @@ class ReelsMediaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             url_path("../" + "a" * 48)
         self.assertTrue(url_path(self.token).endswith(".mp4"))
+        self.assertTrue(url_path(self.token, ".mov").endswith(".mov"))
+        with self.assertRaises(ValueError):
+            url_path(self.token, ".avi")
 
     def test_unknown_expired_revoked_and_malformed_grants_are_indistinguishable(self):
         cases = [

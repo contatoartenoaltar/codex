@@ -26,10 +26,10 @@ class Client:
         Path(destination).write_bytes(self.raw[item["id"]])
 
 
-def item(ident, raw):
-    return {"id": ident, "name": ident + ".mp4", "mimeType": "video/mp4",
+def item(ident, raw, *, suffix=".mp4", mime="video/mp4"):
+    return {"id": ident, "name": ident + suffix, "mimeType": mime,
             "size": str(len(raw)), "md5Checksum": hashlib.md5(raw, usedforsecurity=False).hexdigest(),
-            "path": [ident + ".mp4"], "raw": raw}
+            "path": [ident + suffix], "raw": raw}
 
 
 class ReelsAutomationTests(unittest.TestCase):
@@ -70,6 +70,15 @@ class ReelsAutomationTests(unittest.TestCase):
         })
         self.assertEqual(self.store.agenda(), [])
         self.assertEqual(list(self.drive.glob(".reel-preflight-*")), [])
+
+    def test_preflight_accepts_edits_mov_without_importing(self):
+        raw = mp4(b"edits-mov")
+        source = item("drive_video_0002", raw, suffix=".mov", mime="video/quicktime")
+        result = automation.preflight(
+            self.drive, client=Client([source]), media_validator=self.metadata)
+        self.assertEqual(result["file_name"], "drive_video_0002.mov")
+        self.assertFalse(result["publishing_enabled"])
+        self.assertEqual(self.store.agenda(), [])
 
     def test_imports_schedules_one_and_does_not_duplicate(self):
         enable(self.store, "123456", confirmed=True)

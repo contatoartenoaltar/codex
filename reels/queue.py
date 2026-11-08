@@ -34,7 +34,7 @@ LEASE_SECONDS = 10 * 60
 # Nome curto mantido para os executores HTTP isolados.
 LEASE = LEASE_SECONDS
 MEDIA_GRANT_SECONDS = 6 * 60 * 60
-MAX_VIDEO_BYTES = 50 * 1024 * 1024
+MAX_VIDEO_BYTES = 1_000_000_000
 MIN_DURATION = 3.0
 MAX_DURATION = 90.0
 CONFIGURE_CONFIRMATION = "CONFIGURE-REELS-DISABLED"
@@ -153,8 +153,12 @@ def _source_item(item):
         raise ReelError("O vídeo não possui identificador válido no Drive.")
     if not isinstance(name, str) or not name.strip() or len(name) > 240:
         raise ReelError("O vídeo não possui nome válido.")
-    if mime != "video/mp4":
-        raise ReelError("A pasta de Reels aceita somente vídeos MP4.")
+    video_mimes = {"video/mp4": ".mp4", "video/quicktime": ".mov"}
+    if mime not in video_mimes:
+        raise ReelError("A pasta de Reels aceita somente vídeos MP4 ou MOV.")
+    suffix = Path(name).suffix.lower()
+    if suffix != video_mimes[mime]:
+        raise ReelError("A extensão do vídeo não corresponde ao formato informado pelo Drive.")
     if not isinstance(checksum, str) or not re.fullmatch(r"[a-fA-F0-9]{32}", checksum):
         raise ReelError("O Drive não informou a integridade do vídeo.")
     try:
@@ -163,7 +167,7 @@ def _source_item(item):
         raise ReelError("O Drive não informou o tamanho do vídeo.") from None
     if not 1 <= size <= MAX_VIDEO_BYTES:
         raise ReelError("O vídeo excede o limite seguro da fila.")
-    return source_id, name.strip(), checksum.lower(), size
+    return source_id, name.strip(), checksum.lower(), size, suffix
 
 
 def _validate_media(metadata):
@@ -201,7 +205,7 @@ def _file_hashes(path):
 
 def import_video(store, item, source, *, validator, now=None):
     """Importa uma cópia byte a byte; nunca altera áudio, imagem ou metadados."""
-    source_id, source_name, expected_md5, expected_size = _source_item(item)
+    source_id, source_name, expected_md5, expected_size, suffix = _source_item(item)
     source = Path(source)
     if source.is_symlink() or not source.is_file() or source.stat().st_size != expected_size:
         raise ReelError("O vídeo recebido não corresponde ao arquivo informado pelo Drive.")
@@ -222,9 +226,9 @@ def import_video(store, item, source, *, validator, now=None):
                 raise ReelError("Um arquivo já importado foi substituído no Drive.")
             return {"id": known["id"], "created": False}
     ident = secrets.token_hex(16)
-    target = store.media / f"{ident}.mp4"
+    target = store.media / f"{ident}{suffix}"
     descriptor, temporary_name = tempfile.mkstemp(
-        dir=store.media, prefix=".reel-", suffix=".mp4")
+        dir=store.media, prefix=".reel-", suffix=suffix)
     try:
         with os.fdopen(descriptor, "wb") as destination, source.open("rb") as origin:
             shutil.copyfileobj(origin, destination, length=1024 * 1024)
@@ -387,7 +391,7 @@ def cancel(store, reel_id, *, expected_due_at=None):
 
 def _remove_media_copy(store, filename):
     """Remove only the verified private copy; the Drive original is untouched."""
-    if not isinstance(filename, str) or not re.fullmatch(r"[a-f0-9]{32}\.mp4", filename):
+    if not isinstance(filename, str) or not re.fullmatch(r"[a-f0-9]{32}\.(?:mp4|mov)", filename):
         return False
     target = store.media / filename
     try:
@@ -572,7 +576,7 @@ def tick(store, client, *, now=None):
         if not row["container"]:
             client.verify_account(row_account(store))
             token = issue_media_grant(store, ident, claim, now=current)
-            video_url = client.media_origin + url_path(token)
+            video_url = client.media_origin + url_path(token, Path(row["filename"]).suffix)
             container = client.create_container(
                 video_url, row["caption"], share_to_feed=True)["id"]
             _save_container(store, ident, claim, container)
