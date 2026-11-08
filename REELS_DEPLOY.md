@@ -154,6 +154,11 @@ de Insights somente a publicações futuras. Um item já agendado não muda de h
 O primeiro Reel deve ser conferido no Instagram. Uma resposta final incerta vai
 para revisão e não é publicada novamente às cegas.
 
+Os próximos Reels usam diretamente a mesma legenda padrão oficial do Feed em
+`design_assets/feed/caption.txt`. Para aplicar essa legenda a um Reel ainda na
+fila sem mudar seu horário, use `python3.12 -m reels.automation
+apply-feed-caption --reels-directory "$REELS_DIR"`.
+
 A cópia privada do vídeo é removida depois de uma publicação confirmada ou de um
 cancelamento; o arquivo original permanece no Drive e o recibo fica no banco.
 Se o status mostrar `review` ou `invalid_files` maior que zero, a Agenda Visual

@@ -7,6 +7,7 @@ import unittest
 
 from reels import automation
 from reels.queue import Store, ZONE, cancel, configure, enable, policy_status
+import feed_composer
 import social_schedule
 
 
@@ -100,9 +101,27 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(result["status"], "queued")
         row = self.store.agenda()[0]
         self.assertEqual(row["state"], "queued")
-        self.assertTrue(row["caption"])
+        self.assertEqual(row["caption"], feed_composer.standard_caption())
         self.assertEqual(automation.run(self.store, self.drive, client=Client([source]),
                                         media_validator=self.metadata, now=self.now)["status"], "idle")
+
+    def test_feed_caption_can_update_existing_untouched_queued_reel_without_rescheduling(self):
+        enable(self.store, "123456", confirmed=True)
+        source = item("drive_video_0001", mp4())
+        automation.run(self.store, self.drive, client=Client([source]),
+                       media_validator=self.metadata, now=self.now)
+        before = self.store.agenda()[0]
+        with self.store.connect() as connection:
+            connection.execute("UPDATE reels SET caption='Legenda antiga' WHERE id=?", (before["id"],))
+
+        result = automation.apply_feed_caption(self.store)
+
+        after = self.store.agenda()[0]
+        self.assertEqual(result, {
+            "updated": 1, "caption_length": len(feed_composer.standard_caption())})
+        self.assertEqual(after["caption"], feed_composer.standard_caption())
+        self.assertEqual(after["due_at"], before["due_at"])
+        self.assertEqual(after["state"], "queued")
 
     def test_bad_video_is_remembered_and_next_run_uses_next_valid_video(self):
         enable(self.store, "123456", confirmed=True)

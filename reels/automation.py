@@ -9,12 +9,12 @@ import tempfile
 import time
 
 import drive_source
+import feed_composer
 import social_schedule
 
-from . import captions
 from . import drive
 from . import validator
-from .queue import (ReelError, _validate_media, cleanup_media, import_video,
+from .queue import (ReelError, Store, _validate_media, cleanup_media, import_video,
                     schedule, suggest_due)
 
 
@@ -76,9 +76,19 @@ def _selected_time(schedule_directory):
 def _queue(store, reel_id, source_id, *, schedule_directory, now):
     adaptive_time = _selected_time(schedule_directory)
     due = suggest_due(store, now=now, adaptive_time=adaptive_time)
-    schedule(store, reel_id, due, captions.choose(source_id), confirmed=True,
+    schedule(store, reel_id, due, feed_composer.standard_caption(), confirmed=True,
              now=now, adaptive_time=adaptive_time)
     return due
+
+
+def apply_feed_caption(store):
+    """Apply the official Feed caption only to untouched queued Reels."""
+    caption = feed_composer.standard_caption()
+    with store.connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        changed = connection.execute("""UPDATE reels SET caption=?
+            WHERE state='queued' AND claim='' AND container='' AND remote_id=''""", (caption,))
+    return {"updated": changed.rowcount, "caption_length": len(caption)}
 
 
 def run(store, drive_directory, *, client=None, media_validator=validator.inspect, now=None,
@@ -147,9 +157,15 @@ def main(argv=None):
     command = commands.add_parser(
         "preflight", help="Download and validate the first accepted MP4/MOV, then delete the copy.")
     command.add_argument("--drive-directory", required=True, type=Path)
+    caption_command = commands.add_parser(
+        "apply-feed-caption", help="Use the official Feed caption on untouched queued Reels.")
+    caption_command.add_argument("--reels-directory", required=True, type=Path)
     arguments = parser.parse_args(argv)
     try:
-        result = preflight(arguments.drive_directory)
+        if arguments.command == "preflight":
+            result = preflight(arguments.drive_directory)
+        else:
+            result = apply_feed_caption(Store(arguments.reels_directory))
     except (OSError, ValueError) as error:
         raise SystemExit("ERROR: " + str(error)) from None
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
