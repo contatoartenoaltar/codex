@@ -52,6 +52,14 @@ class Response:
         return False
 
 
+class RangeResponse(Response):
+    status = 206
+
+    def __init__(self, raw, content_range):
+        super().__init__(raw)
+        self.headers = {"Content-Range": content_range}
+
+
 class Opener:
     def __init__(self, raw):
         self.raw = raw
@@ -201,6 +209,37 @@ class ReelDriveTests(unittest.TestCase):
             client.download_video(item(raw), target)
         self.assertFalse(target.exists())
         self.assertEqual(list(self.directory.glob(".reel-drive-*")), [])
+
+    def test_large_download_uses_verified_ranges_and_retries_only_failed_range(self):
+        raw = mp4(b"ranged-video-data")
+        metadata = item(raw)
+
+        class RangedOpener:
+            def __init__(self):
+                self.requests = []
+                self.failed = False
+
+            def open(inner, request, timeout=0):
+                inner.requests.append((request, timeout))
+                value = request.get_header("Range")
+                start, end = (int(part) for part in value.removeprefix("bytes=").split("-"))
+                if start > 0 and not inner.failed:
+                    inner.failed = True
+                    raise TimeoutError("temporary private detail")
+                return RangeResponse(raw[start:end + 1], f"bytes {start}-{end}/{len(raw)}")
+
+        opener = RangedOpener()
+        target = self.directory / "ranged.mp4"
+        with patch("reels.drive.RANGE_DOWNLOAD_THRESHOLD", 1), \
+                patch("reels.drive.RANGE_BYTES", 8):
+            result = drive.VideoDriveClient(Credential(), opener=opener).download_video(
+                metadata, target)
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(result["bytes"], len(raw))
+        ranges = [request.get_header("Range") for request, _ in opener.requests]
+        self.assertEqual(ranges[:3], ["bytes=0-7", "bytes=8-15", "bytes=8-15"])
+        self.assertTrue(all(timeout == drive.DOWNLOAD_TIMEOUT_SECONDS
+                            for _, timeout in opener.requests))
 
     def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
         output = io.StringIO()

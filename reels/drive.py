@@ -20,6 +20,9 @@ CONFIG_FILE = "reels-drive-source.json"
 MAX_VIDEO_BYTES = 1_000_000_000
 CHUNK_BYTES = 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 180
+RANGE_DOWNLOAD_THRESHOLD = 64 * 1024 * 1024
+RANGE_BYTES = 8 * 1024 * 1024
+RANGE_RETRIES = 5
 
 
 class ReelDriveError(ValueError):
@@ -108,6 +111,53 @@ def catalog(directory, client=None):
 class VideoDriveClient(drive_source.DriveClient):
     """Cliente de download limitado a um vídeo conhecido do catálogo."""
 
+    def _range(self, metadata, stream, digest, head):
+        written = 0
+        while written < metadata["size"]:
+            end = min(written + RANGE_BYTES, metadata["size"]) - 1
+            expected = end - written + 1
+            failure = None
+            for _ in range(RANGE_RETRIES):
+                headers = {
+                    "Accept": metadata["mimeType"],
+                    "Range": f"bytes={written}-{end}",
+                }
+                params = urllib.parse.urlencode({"alt": "media", "supportsAllDrives": "true"})
+                url = f"{drive_source.API}/{metadata['id']}?{params}"
+                try:
+                    self.credential.before_request(self.transport, "GET", url, headers)
+                    request = urllib.request.Request(url, headers=headers, method="GET")
+                    with self.opener.open(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+                        status = getattr(response, "status", None)
+                        content_range = response.headers.get("Content-Range", "")
+                        if status != 206 or content_range != (
+                                f"bytes {written}-{end}/{metadata['size']}"):
+                            raise ReelDriveError(
+                                "O Drive não confirmou a retomada segura do vídeo.")
+                        payload = response.read(expected + 1)
+                    if len(payload) != expected:
+                        raise TimeoutError("incomplete range")
+                    stream.write(payload)
+                    digest.update(payload)
+                    if len(head) < 12:
+                        head += payload[:12 - len(head)]
+                    written += expected
+                    failure = None
+                    break
+                except urllib.error.HTTPError as error:
+                    if error.code in (401, 403, 404):
+                        raise ReelDriveError(
+                            "Acesso ao vídeo não confirmado. Confira o compartilhamento da pasta como Leitor.") from None
+                    failure = error
+                except ReelDriveError:
+                    raise
+                except (OSError, TimeoutError, urllib.error.URLError) as error:
+                    failure = error
+            if failure is not None:
+                raise ReelDriveError(
+                    "O download do vídeo foi interrompido repetidamente pelo Drive.") from None
+        return written, head
+
     def download_video(self, item, destination, *, limit=MAX_VIDEO_BYTES):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_VIDEO_BYTES:
             raise ReelDriveError("Limite de download de vídeo inválido.")
@@ -127,6 +177,21 @@ class VideoDriveClient(drive_source.DriveClient):
         digest = hashlib.md5(usedforsecurity=False)
         head = b""
         try:
+            if metadata["size"] > RANGE_DOWNLOAD_THRESHOLD:
+                with os.fdopen(descriptor, "wb") as stream:
+                    descriptor = -1
+                    written, head = self._range(metadata, stream, digest, head)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                if len(head) < 12 or head[4:8] != b"ftyp":
+                    raise ReelDriveError("O arquivo recebido não contém uma estrutura MP4 válida.")
+                if digest.hexdigest() != metadata["md5Checksum"]:
+                    raise ReelDriveError(
+                        "O vídeo mudou desde a consulta. Atualize o catálogo antes de tentar novamente.")
+                os.chmod(temporary, 0o600)
+                os.replace(temporary, destination)
+                return {"path": str(destination), "bytes": written,
+                        "md5": metadata["md5Checksum"], "drive_id": metadata["id"]}
             self.credential.before_request(self.transport, "GET", url, headers)
             request = urllib.request.Request(url, headers=headers, method="GET")
             try:
