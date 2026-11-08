@@ -133,6 +133,12 @@ class ReelsQueueTests(unittest.TestCase):
             import_video(self.store, item, path, validator=lambda _: invalid, now=self.now)
         self.assertEqual(self.store.agenda(), [])
 
+    def test_incompatible_dimensions_are_reported_for_export_diagnosis(self):
+        item, path, _ = self.source()
+        landscape = metadata(path) | {"width": 1920, "height": 1080}
+        with self.assertRaisesRegex(ReelError, "1920 × 1080"):
+            import_video(self.store, item, path, validator=lambda _: landscape, now=self.now)
+
     def test_rejects_replaced_drive_file_with_same_identity(self):
         _, item, _, _ = self.imported()
         replacement = fake_mp4(b"different")

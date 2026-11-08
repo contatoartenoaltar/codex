@@ -187,7 +187,9 @@ def _validate_media(metadata):
     if not MIN_DURATION <= duration <= MAX_DURATION:
         raise ReelError("O Reel precisa ter entre 3 e 90 segundos.")
     if not (720 <= width <= 1080 and 1280 <= height <= 1920 and 0.54 <= width / height <= 0.59):
-        raise ReelError("Use vídeo vertical 9:16, preferencialmente 1080 × 1920.")
+        raise ReelError(
+            f"O vídeo foi identificado como {width} × {height}. "
+            "Use vídeo vertical 9:16, preferencialmente 1080 × 1920.")
     if not 23 <= fps <= 60:
         raise ReelError("A taxa de quadros do vídeo não é compatível.")
     return duration, width, height, fps
