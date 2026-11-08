@@ -19,6 +19,7 @@ VIDEO_MIMES = {"video/mp4": ".mp4", "video/quicktime": ".mov"}
 CONFIG_FILE = "reels-drive-source.json"
 MAX_VIDEO_BYTES = 1_000_000_000
 CHUNK_BYTES = 1024 * 1024
+DOWNLOAD_TIMEOUT_SECONDS = 180
 
 
 class ReelDriveError(ValueError):
@@ -129,7 +130,7 @@ class VideoDriveClient(drive_source.DriveClient):
             self.credential.before_request(self.transport, "GET", url, headers)
             request = urllib.request.Request(url, headers=headers, method="GET")
             try:
-                response = self.opener.open(request, timeout=25)
+                response = self.opener.open(request, timeout=DOWNLOAD_TIMEOUT_SECONDS)
             except urllib.error.HTTPError as error:
                 if error.code in (401, 403, 404):
                     raise ReelDriveError(
@@ -163,6 +164,9 @@ class VideoDriveClient(drive_source.DriveClient):
                     "md5": metadata["md5Checksum"], "drive_id": metadata["id"]}
         except ReelDriveError:
             raise
+        except (TimeoutError, urllib.error.URLError):
+            raise ReelDriveError(
+                "O download do vídeo excedeu o tempo de espera. Tente novamente mais tarde.") from None
         except Exception:
             raise ReelDriveError(
                 "Não foi possível baixar o vídeo do Drive. O arquivo de origem foi preservado.") from None

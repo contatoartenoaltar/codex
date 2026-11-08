@@ -147,7 +147,7 @@ class ReelDriveTests(unittest.TestCase):
         self.assertEqual(metadata, original)
         self.assertEqual(len(opener.requests), 1)
         request, timeout = opener.requests[0]
-        self.assertEqual((request.method, timeout), ("GET", 25))
+        self.assertEqual((request.method, timeout), ("GET", drive.DOWNLOAD_TIMEOUT_SECONDS))
         self.assertEqual(request.get_header("Authorization"), "Bearer private-token")
         self.assertEqual(credential.calls[0][0], "GET")
         self.assertIn("alt=media", request.full_url)
@@ -187,6 +187,20 @@ class ReelDriveTests(unittest.TestCase):
             client.download_video(item(raw, size=str(drive.MAX_VIDEO_BYTES + 1)),
                                   self.directory / "large.mp4")
         self.assertEqual(opener.requests, [])
+
+    def test_download_reports_network_timeout_without_leaving_partial_file(self):
+        raw = mp4()
+
+        class TimeoutOpener:
+            def open(self, request, timeout=0):
+                raise TimeoutError("private network detail")
+
+        target = self.directory / "timeout.mp4"
+        client = drive.VideoDriveClient(Credential(), opener=TimeoutOpener())
+        with self.assertRaisesRegex(drive.ReelDriveError, "tempo de espera"):
+            client.download_video(item(raw), target)
+        self.assertFalse(target.exists())
+        self.assertEqual(list(self.directory.glob(".reel-drive-*")), [])
 
     def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
         output = io.StringIO()
