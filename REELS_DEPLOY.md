@@ -173,6 +173,10 @@ consulte o Instagram antes de repetir qualquer item em processamento ou revisão
 Para remover o wrapper, restaure o import WSGI anterior e faça Reload. Preserve o
 banco e os recibos da fila para diagnóstico; não restaure o banco comercial.
 
+Se a chave do job for exibida ou compartilhada, mantenha o job desligado, rode
+`python3.12 -m reels.http rotate --directory "$REELS_DIR"` e substitua somente o
+valor do cabeçalho `Authorization` pelo novo conteúdo de `reels-trigger.key`.
+
 ## Limites desta entrega
 
 Os testes usam Drive e Meta simulados. Eles validam isolamento, integridade do

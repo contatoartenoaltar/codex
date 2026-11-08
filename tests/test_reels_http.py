@@ -88,6 +88,31 @@ class ReelsHTTPTests(unittest.TestCase):
         })
         self.assertNotIn((directory / http.KEY_FILE).read_text(), output.getvalue())
 
+    def test_rotate_invalidates_exposed_key_without_changing_queue_policy(self):
+        old_key = self.key
+        self.enable_live()
+        http.rotate(self.directory)
+        new_key = (self.directory / http.KEY_FILE).read_text()
+        self.assertNotEqual(new_key, old_key)
+        self.assertEqual(self.call()[0], 401)
+        self.environment["HTTP_AUTHORIZATION"] = "Bearer " + new_key
+        with patch("reels.http.tick", return_value={"status": "idle"}):
+            self.assertEqual(self.call(), (200, {"status": "idle"}))
+        with self.store.connect() as connection:
+            policy = connection.execute(
+                "SELECT enabled,mode,account_id FROM policy WHERE id=1").fetchone()
+        self.assertEqual(tuple(policy), (1, "live", "123456"))
+        self.assertEqual((self.directory / http.KEY_FILE).stat().st_mode & 0o777, 0o600)
+
+    def test_rotate_cli_does_not_print_new_key(self):
+        old_key = self.key
+        output = io.StringIO()
+        with redirect_stdout(output):
+            http.main(["rotate", "--directory", str(self.directory)])
+        new_key = (self.directory / http.KEY_FILE).read_text()
+        self.assertNotEqual(new_key, old_key)
+        self.assertNotIn(new_key, output.getvalue())
+
     def test_live_calls_are_throttled_and_release_the_lease(self):
         self.enable_live()
         with patch("reels.http.tick", return_value={"status": "idle"}) as runner:

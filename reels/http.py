@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import tempfile
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -70,6 +71,34 @@ def configure(directory: Path, origin: str) -> None:
         for path in created:
             path.unlink(missing_ok=True)
         raise
+
+
+def _replace_private(path: Path, content: bytes) -> None:
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".reels-key-")
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            descriptor = -1
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        Path(temporary).unlink(missing_ok=True)
+
+
+def rotate(directory: Path) -> None:
+    """Replace only the private trigger credential, preserving queue policy and origin."""
+    directory = Path(directory)
+    config = read_config(directory)
+    key = secrets.token_urlsafe(48)
+    _replace_private(directory / KEY_FILE, key.encode())
+    _replace_private(directory / CONFIG_FILE, json.dumps({
+        "origin": config["origin"],
+        "key_hash": hashlib.sha256(key.encode()).hexdigest(),
+    }).encode())
 
 
 def read_config(directory: Path) -> dict:
@@ -164,10 +193,17 @@ def main(argv=None) -> None:
     status_command = commands.add_parser(
         "status", help="Validate trigger configuration without exposing its key.")
     status_command.add_argument("--directory", required=True, type=Path)
+    rotate_command = commands.add_parser(
+        "rotate", help="Replace an exposed trigger key without changing publishing policy.")
+    rotate_command.add_argument("--directory", required=True, type=Path)
     arguments = parser.parse_args(argv)
     if arguments.command == "configure":
         configure(arguments.directory, arguments.origin)
         print("Private Reels trigger configured. Publishing remains disabled.")
+        return
+    if arguments.command == "rotate":
+        rotate(arguments.directory)
+        print("Private Reels trigger key rotated. Copy the new key into the existing job.")
         return
     config = read_config(arguments.directory)
     policy = policy_status(Store(arguments.directory))
