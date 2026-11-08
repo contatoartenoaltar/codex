@@ -11,7 +11,7 @@ import unittest
 
 from reels import queue as queue_module
 from reels.queue import (APPLICATION_ID, INITIAL_TIMES, ReelError, Store, ZONE,
-                         cancel, claim_due, cleanup_media, configure, enable, finish, import_video,
+                         cancel, claim_due, cleanup_media, configure, enable, expedite_test, finish, import_video,
                          issue_media_grant, pause, resolve_media_grant, schedule,
                          suggest_due, tick)
 from reels.meta_client import PublishUncertainError
@@ -183,11 +183,35 @@ class ReelsQueueTests(unittest.TestCase):
         adaptive = suggest_due(self.store, now=self.now, adaptive_time=(14, 30))
         schedule(self.store, second, adaptive, "Segundo", confirmed=True, now=self.now,
                  adaptive_time=(14, 30))
-
         rows = {row["id"]: row for row in self.store.agenda()}
         self.assertEqual(datetime.fromtimestamp(rows[first]["due_at"], ZONE), initial)
         self.assertEqual((adaptive.hour, adaptive.minute), (14, 30))
         self.assertNotEqual(initial.date(), adaptive.date())
+
+    def test_supervised_live_test_expedites_only_todays_single_queued_reel(self):
+        self.configured()
+        enable(self.store, "17841436823298466", confirmed=True)
+        ident, _, _, _ = self.imported()
+        due = datetime(2026, 11, 9, 11, 0, tzinfo=ZONE)
+        schedule(self.store, ident, due, "Teste real", confirmed=True, now=self.now)
+        current = datetime(2026, 11, 9, 9, 30, tzinfo=ZONE)
+        result = expedite_test(self.store, confirmed=True, now=current)
+        self.assertEqual(result, {"status": "queued", "due_at": int(current.timestamp())})
+        row = self.store.agenda()[0]
+        self.assertEqual(row["due_at"], int(current.timestamp()))
+        self.assertEqual(row["publication_day"], "2026-11-09")
+        with self.store.connect() as connection:
+            event = connection.execute(
+                "SELECT action FROM policy_events ORDER BY id DESC LIMIT 1").fetchone()[0]
+        self.assertEqual(event, "expedite_test")
+
+    def test_supervised_live_test_fails_closed_without_confirmation_or_one_item(self):
+        self.configured()
+        enable(self.store, "17841436823298466", confirmed=True)
+        with self.assertRaises(ReelError):
+            expedite_test(self.store, now=self.now)
+        with self.assertRaises(ReelError):
+            expedite_test(self.store, confirmed=True, now=self.now)
 
     def test_adaptive_time_is_strict_and_cannot_approve_another_time(self):
         ident, _, _, _ = self.imported()

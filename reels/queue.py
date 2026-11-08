@@ -39,6 +39,7 @@ MIN_DURATION = 3.0
 MAX_DURATION = 90.0
 CONFIGURE_CONFIRMATION = "CONFIGURE-REELS-DISABLED"
 ENABLE_CONFIRMATION = "ENABLE-ONE-REEL-PER-DAY"
+PUBLISH_TEST_CONFIRMATION = "PUBLISH-QUEUED-REEL-NOW"
 
 
 SCHEMA = (
@@ -391,6 +392,37 @@ def cancel(store, reel_id, *, expected_due_at=None):
     _remove_media_copy(store, filename)
 
 
+def expedite_test(store, *, confirmed=False, now=None):
+    """Make today's single queued Reel due now for one supervised live test."""
+    if confirmed is not True:
+        raise ReelError("Confirme a publicação real imediata do Reel agendado.")
+    current = local_now(now)
+    current_stamp = stamp(current)
+    with store.connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        policy = connection.execute("SELECT * FROM policy WHERE id=1").fetchone()
+        if not policy or not policy["enabled"] or not policy["account_id"]:
+            raise ReelError("Ative e configure a fila antes do teste real.")
+        rows = connection.execute(
+            "SELECT id,publication_day,due_at FROM reels WHERE state='queued'").fetchall()
+        if len(rows) != 1:
+            raise ReelError("O teste real exige exatamente um Reel agendado.")
+        row = rows[0]
+        if row["publication_day"] != current.date().isoformat():
+            raise ReelError("O teste real só antecipa o Reel agendado para hoje.")
+        if connection.execute(
+                "SELECT 1 FROM reels WHERE state='published' AND publication_day=? LIMIT 1",
+                (current.date().isoformat(),)).fetchone():
+            raise ReelError("Já existe um Reel publicado hoje.")
+        connection.execute(
+            "UPDATE reels SET due_at=?,error='' WHERE id=? AND state='queued'",
+            (current_stamp, row["id"]))
+        connection.execute(
+            "INSERT INTO policy_events(action,account_id,created_at) VALUES(?,?,?)",
+            ("expedite_test", policy["account_id"], current_stamp))
+    return {"status": "queued", "due_at": current_stamp}
+
+
 def _remove_media_copy(store, filename):
     """Remove only the verified private copy; the Drive original is untouched."""
     if not isinstance(filename, str) or not re.fullmatch(r"[a-f0-9]{32}\.(?:mp4|mov)", filename):
@@ -625,6 +657,12 @@ def main(argv=None):
     enable_command.add_argument("--confirm", required=True,
                                 metavar=ENABLE_CONFIRMATION)
 
+    test_command = commands.add_parser(
+        "publish-test-now", help="Make today's one queued Reel due now for a supervised test.")
+    test_command.add_argument("--directory", required=True, type=Path)
+    test_command.add_argument("--confirm", required=True,
+                              metavar=PUBLISH_TEST_CONFIRMATION)
+
     arguments = parser.parse_args(argv)
     store = Store(arguments.directory)
     if arguments.command == "initialize":
@@ -646,6 +684,12 @@ def main(argv=None):
     if arguments.command == "pause":
         pause(store)
         print("Reels publishing paused.")
+        return
+    if arguments.command == "publish-test-now":
+        if arguments.confirm != PUBLISH_TEST_CONFIRMATION:
+            parser.error(f"--confirm must be exactly {PUBLISH_TEST_CONFIRMATION}")
+        result = expedite_test(store, confirmed=True)
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return
     print(json.dumps(policy_status(store), ensure_ascii=False, sort_keys=True))
 
