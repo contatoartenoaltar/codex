@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from reels import captions
 from reels.validator import VideoValidationError, inspect
@@ -55,6 +56,46 @@ class ReelsValidatorTests(unittest.TestCase):
         link.symlink_to(self.video)
         with self.assertRaises(VideoValidationError):
             inspect(link, executable="/probe", runner=lambda *args, **kwargs: Result())
+
+    def test_reads_standard_mp4_without_ffprobe(self):
+        def box(kind, payload):
+            return (len(payload) + 8).to_bytes(4, "big") + kind + payload
+
+        def media_header(timescale, duration):
+            return b"\0" * 12 + timescale.to_bytes(4, "big") + duration.to_bytes(4, "big")
+
+        def track(handler, timescale, duration, sample_entry, timing=b""):
+            hdlr = box(b"hdlr", b"\0" * 8 + handler)
+            mdhd = box(b"mdhd", media_header(timescale, duration))
+            stsd = box(b"stsd", b"\0" * 4 + (1).to_bytes(4, "big") + sample_entry)
+            stbl = box(b"stbl", stsd + timing)
+            return box(b"trak", box(b"mdia", mdhd + hdlr + box(b"minf", stbl)))
+
+        ftyp = box(b"ftyp", b"isom\0\0\0\0isom")
+        mvhd = box(b"mvhd", media_header(1000, 18500))
+        avc1 = box(b"avc1", b"\0" * 24 + (1080).to_bytes(2, "big") +
+                   (1920).to_bytes(2, "big"))
+        stts = box(b"stts", b"\0" * 4 + (1).to_bytes(4, "big") +
+                   (555).to_bytes(4, "big") + (1000).to_bytes(4, "big"))
+        video = track(b"vide", 30000, 555000, avc1, stts)
+        audio = track(b"soun", 48000, 888000, box(b"mp4a", b"\0" * 8))
+        self.video.write_bytes(ftyp + box(b"moov", mvhd + video + audio))
+        before = self.video.read_bytes()
+
+        with patch("reels.validator.shutil.which", return_value=None):
+            metadata = inspect(self.video)
+
+        self.assertEqual(metadata, {"duration": 18.5, "width": 1080, "height": 1920,
+                                   "fps": 30.0, "video_codec": "h264",
+                                   "audio_codec": "aac", "has_audio": True})
+        self.assertEqual(self.video.read_bytes(), before)
+
+    def test_fallback_rejects_malformed_or_audio_free_mp4(self):
+        malformed = b"\0\0\0\x18ftypisom" + b"\0\0\0\x08moov"
+        self.video.write_bytes(malformed)
+        with patch("reels.validator.shutil.which", return_value=None), \
+                self.assertRaises(VideoValidationError):
+            inspect(self.video)
 
     def test_caption_rotation_uses_only_approved_catalog(self):
         first = captions.choose("drive-video-123")

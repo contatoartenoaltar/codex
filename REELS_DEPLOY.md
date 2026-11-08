@@ -24,13 +24,13 @@ python3.12 -m unittest \
   tests.test_reels_http \
   tests.test_reels_validator \
   tests.test_reels_automation -q
-command -v ffprobe
-ffprobe -version | head -n 1
+command -v ffprobe || true
 ```
 
-O servidor precisa localizar `ffprobe`. Ele apenas lê os metadados do MP4; não
-altera vídeo nem áudio. Se o comando não existir ou os testes falharem, pare aqui.
-Não ative a fila e não altere os jobs que já publicam Feed, Stories e Carrosséis.
+Quando `ffprobe` estiver disponível, ele lê os metadados sem alterar vídeo ou
+áudio. Quando não estiver, o módulo usa o leitor MP4 interno, também somente
+leitura e sem dependências adicionais. Se os testes falharem, pare aqui. Não
+ative a fila nem altere os jobs que já publicam Feed, Stories e Carrosséis.
 
 ## 2. Preparar os diretórios privados
 
@@ -172,6 +172,6 @@ banco e os recibos da fila para diagnóstico; não restaure o banco comercial.
 ## Limites desta entrega
 
 Os testes usam Drive e Meta simulados. Eles validam isolamento, integridade do
-MP4, autorização, concorrência, publicação única e falha fechada, mas não provam
-que o plano atual do PythonAnywhere oferece `ffprobe` nem que a Meta aceitará o
-primeiro vídeo real. Nenhum Reel real é publicado durante a preparação.
+MP4, o leitor interno sem `ffprobe`, autorização, concorrência, publicação única
+e falha fechada, mas não provam que a Meta aceitará o primeiro vídeo real.
+Nenhum Reel real é publicado durante a preparação.
