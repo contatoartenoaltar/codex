@@ -23,6 +23,12 @@ def _integer(data, offset, size):
     return int.from_bytes(data[offset:offset + size], "big")
 
 
+def _signed_integer(data, offset, size):
+    if offset < 0 or size != 4 or offset + size > len(data):
+        raise VideoValidationError("O MP4 possui metadados incompletos.")
+    return int.from_bytes(data[offset:offset + size], "big", signed=True)
+
+
 def _boxes(data, start, end):
     """Yield bounded ISO-BMFF boxes without decoding media payloads."""
     position = start
@@ -94,6 +100,27 @@ def _sample_entry(data, stbl, handler):
     return entry
 
 
+def _swaps_dimensions(data, trak_payload, trak_end):
+    """Return whether the track matrix rotates the encoded frame by 90/270 degrees."""
+    values = _children(data, trak_payload, trak_end, b"tkhd")
+    if not values:
+        return False
+    if len(values) != 1:
+        raise VideoValidationError("O MP4 informou orientação inválida.")
+    _, _, payload, end = values[0]
+    if payload + 4 > end:
+        raise VideoValidationError("O MP4 informou orientação incompleta.")
+    version = data[payload]
+    matrix_at = payload + (40 if version == 0 else 52 if version == 1 else -1)
+    if matrix_at < payload or matrix_at + 36 > end:
+        raise VideoValidationError("O MP4 informou orientação incompleta.")
+    a = _signed_integer(data, matrix_at, 4)
+    b = _signed_integer(data, matrix_at + 4, 4)
+    c = _signed_integer(data, matrix_at + 12, 4)
+    d = _signed_integer(data, matrix_at + 16, 4)
+    return abs(b) > abs(a) and abs(c) > abs(d)
+
+
 def _track(data, box):
     _, _, trak_payload, trak_end = box
     mdia = _one(data, trak_payload, trak_end, b"mdia")
@@ -118,6 +145,8 @@ def _track(data, box):
         raise VideoValidationError("O MP4 não informou as dimensões do vídeo.")
     width = _integer(data, entry_start + 32, 2)
     height = _integer(data, entry_start + 34, 2)
+    if _swaps_dimensions(data, trak_payload, trak_end):
+        width, height = height, width
     _, _, stbl_payload, stbl_end = stbl
     stts = _one(data, stbl_payload, stbl_end, b"stts")
     _, _, timing_payload, timing_end = stts

@@ -64,12 +64,12 @@ class ReelsValidatorTests(unittest.TestCase):
         def media_header(timescale, duration):
             return b"\0" * 12 + timescale.to_bytes(4, "big") + duration.to_bytes(4, "big")
 
-        def track(handler, timescale, duration, sample_entry, timing=b""):
+        def track(handler, timescale, duration, sample_entry, timing=b"", tkhd=b""):
             hdlr = box(b"hdlr", b"\0" * 8 + handler)
             mdhd = box(b"mdhd", media_header(timescale, duration))
             stsd = box(b"stsd", b"\0" * 4 + (1).to_bytes(4, "big") + sample_entry)
             stbl = box(b"stbl", stsd + timing)
-            return box(b"trak", box(b"mdia", mdhd + hdlr + box(b"minf", stbl)))
+            return box(b"trak", tkhd + box(b"mdia", mdhd + hdlr + box(b"minf", stbl)))
 
         ftyp = box(b"ftyp", b"isom\0\0\0\0isom")
         mvhd = box(b"mvhd", media_header(1000, 18500))
@@ -89,6 +89,26 @@ class ReelsValidatorTests(unittest.TestCase):
                                    "fps": 30.0, "video_codec": "h264",
                                    "audio_codec": "aac", "has_audio": True})
         self.assertEqual(self.video.read_bytes(), before)
+
+        rotate_90 = (
+            (0).to_bytes(4, "big", signed=True) +
+            (65536).to_bytes(4, "big", signed=True) +
+            (0).to_bytes(4, "big", signed=True) +
+            (-65536).to_bytes(4, "big", signed=True) +
+            (0).to_bytes(4, "big", signed=True) +
+            (0).to_bytes(4, "big", signed=True) +
+            (0).to_bytes(4, "big", signed=True) +
+            (0).to_bytes(4, "big", signed=True) +
+            (1 << 30).to_bytes(4, "big", signed=True)
+        )
+        tkhd = box(b"tkhd", b"\0" * 40 + rotate_90 + b"\0" * 8)
+        landscape = box(b"avc1", b"\0" * 24 + (1920).to_bytes(2, "big") +
+                        (1080).to_bytes(2, "big"))
+        video = track(b"vide", 30000, 555000, landscape, stts, tkhd)
+        self.video.write_bytes(ftyp + box(b"moov", mvhd + video + audio))
+        with patch("reels.validator.shutil.which", return_value=None):
+            rotated = inspect(self.video)
+        self.assertEqual((rotated["width"], rotated["height"]), (1080, 1920))
 
     def test_fallback_rejects_malformed_or_audio_free_mp4(self):
         malformed = b"\0\0\0\x18ftypisom" + b"\0\0\0\x08moov"
