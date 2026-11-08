@@ -281,13 +281,17 @@ def _score(row):
 def analyze(conn, *, now=None):
     """Escolhe horários somente quando há amostra e alternativas comparáveis."""
     now = int(time.time() if now is None else now)
-    rows = conn.execute("""SELECT p.id,p.format,p.published_at,s.*
+    rows = conn.execute("""SELECT p.id,p.source,p.format,p.published_at,s.*
         FROM social_publications p JOIN social_metric_snapshots s ON s.publication_id=p.id
         WHERE s.checkpoint=CASE p.format
             WHEN 'feed' THEN 86400 WHEN 'carousel' THEN 86400 ELSE 43200 END""").fetchall()
     decisions = {}
     for format_ in WINDOWS:
-        values = [row for row in rows if row["format"] == format_]
+        # O versículo diário é editorial e tem horário fixo (07:30). Seus
+        # resultados continuam visíveis no Estúdio, mas não devem orientar
+        # a decisão automática de horário dos Stories promocionais.
+        values = [row for row in rows if row["format"] == format_ and
+                  not (format_ == "story" and row["source"] == "verse")]
         by_hour = {}
         for row in values:
             hour = datetime.fromtimestamp(row["published_at"], ZONE).hour

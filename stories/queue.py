@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 import secrets
 import sqlite3
-import social_schedule
 from zoneinfo import ZoneInfo
 
 from . import preview
@@ -137,9 +136,9 @@ def prepare_batch(store, *, now=None):
     if (store.directory / 'media').is_symlink() or not preview.layout_approved(preview.assets()):
         raise ValueError('Use o armazenamento local e o layout aprovado antes de preparar o lote.')
     created = []
-    meta_directory = os.environ.get('ARTENOALTAR_STORIES_META_DIR', '')
-    selected_hour, selected_minute = social_schedule.selected(
-        meta_directory, 'story', (7, 30)) if meta_directory else (7, 30)
+    # O versículo diário tem um compromisso editorial fixo. Ele não participa
+    # da otimização de horário aplicada a conteúdos promocionais.
+    selected_hour, selected_minute = (7, 30)
     try:
         with store.connect() as conn:
             conn.execute('BEGIN IMMEDIATE')

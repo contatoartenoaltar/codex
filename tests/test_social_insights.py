@@ -168,6 +168,19 @@ class SocialInsightsTests(unittest.TestCase):
         self.assertEqual(decision["selected_hour"], 18)
         self.assertEqual(tuple(stored), ("selected", 18, 10))
 
+    def test_daily_verse_does_not_train_story_timing(self):
+        with app.connect() as connection:
+            for index in range(10):
+                insights._register(connection, ident=f"verse:{index}", source="verse",
+                    source_id=str(index), remote_id=f"verse-{index}", format_="story",
+                    title="Versículo diário", published_at=self.now - insights.DAY, now=self.now)
+                connection.execute("""INSERT INTO social_metric_snapshots
+                    (publication_id,checkpoint,collected_at,reach) VALUES(?,?,?,?)""",
+                    (f"verse:{index}", 12 * 60 * 60, self.now, 100))
+            decision = insights.analyze(connection, now=self.now)["story"]
+        self.assertEqual(decision["state"], "learning")
+        self.assertEqual(decision["sample_size"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
