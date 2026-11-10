@@ -206,7 +206,7 @@ test('financeiro filtra lançamentos por receita, despesa e investimento sem alt
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [3]);
 });
 
-test('pedidos calcula lucro acumulado como caixa mais investimentos', () => {
+test('pedidos calcula lucro acumulado como caixa, investimentos e valores a receber', () => {
   const {context} = app();
   vm.runInContext(`state.stages = ['Novo']; state.orders = [
     {id: 1, customer: 'Venda antiga', product: 'Envelopes', quantity: 100, total: 1000, status: 'Novo', notes: '', transaction_id: 11},
@@ -224,25 +224,41 @@ test('pedidos calcula lucro acumulado como caixa mais investimentos', () => {
     {id: 17, date: '2026-10-30', kind: 'investment', amount: 8000, order_id: null}
   ]`, context);
 
-  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,profit:r.profit,orders:r.orders.map(o=>o.id)}})())`, context)),
-    {sales: 7000, expenses: 1500, profit: 17500, orders: [3,4,5]});
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {sales:r.sales,expenses:r.expenses,receivable:r.receivable,profit:r.profit,orders:r.orders.map(o=>o.id)}})())`, context)),
+    {sales: 7000, expenses: 1500, receivable: 5000, profit: 22500, orders: [3,4,5]});
   let html = vm.runInContext('orders()', context);
   assert.ok(html.includes('Lucro acumulado'));
-  assert.ok(html.includes('Em caixa + investimentos'));
+  assert.ok(html.includes('Caixa + investimentos + a receber'));
   assert.ok(html.includes('Venda mensal'));
   assert.ok(html.includes('Pedido pendente'));
   assert.ok(!html.includes('Venda anual'));
 
   vm.runInContext("orderPeriod = '7'", context);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [4,5]);
-  assert.equal(vm.runInContext('orderReport().profit', context), 17500);
+  assert.equal(vm.runInContext('orderReport().profit', context), 22500);
   html = vm.runInContext('orders()', context);
   assert.ok(html.includes('Venda recente'));
   assert.ok(!html.includes('Venda mensal'));
 
   vm.runInContext("orderPeriod = 'year'", context);
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [2,3,4,5]);
-  assert.equal(vm.runInContext('orderReport().profit', context), 17500);
+  assert.equal(vm.runInContext('orderReport().profit', context), 22500);
+});
+
+test('receita parcial adiciona o pedido completo ao lucro e somente o recebido ao caixa', () => {
+  const {context} = app();
+  vm.runInContext(`state.stages = ['Novo']; state.orders = [{
+    id: 8, customer: 'Venda parcelada', product: 'Envelopes', quantity: 1000,
+    total: 39900, status: 'Novo', notes: '', transaction_id: 21,
+    received_amount: 10000, remaining_amount: 29900, payment_count: 1
+  }]; state.transactions = [
+    {id: 21, date: '2026-10-31', kind: 'income', amount: 10000, order_id: 8},
+    {id: 22, date: '2026-10-31', kind: 'expense', amount: 2000, order_id: null}
+  ]`, context);
+  const result = JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();
+    return {cash:r.cash,receivable:r.receivable,profit:r.profit}})())`, context));
+  assert.deepEqual(result, {cash: 8000, receivable: 29900, profit: 37900});
+  assert.equal(vm.runInContext('stats().balance', context), 8000);
 });
 
 test('resultados separa visualizações reais de Feed, Stories e Reels', () => {
