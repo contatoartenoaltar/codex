@@ -117,18 +117,29 @@ class ReelsAutomationTests(unittest.TestCase):
         (legacy / "source.mp4").write_bytes(b"old-large-video")
         stale = self.store.directory / ".reel-import-stale.mp4"
         stale.write_bytes(b"stale")
+        drive_temporary = self.store.directory / ".reel-drive-stale.mp4"
+        drive_temporary.write_bytes(b"abandoned-download")
+        preflight_legacy = self.store.directory / ".reel-preflight-legacy"
+        preflight_legacy.mkdir()
+        (preflight_legacy / "source.mp4").write_bytes(b"old-preflight")
         recent = self.store.directory / ".reel-analysis-recent.mp4"
         recent.write_bytes(b"active")
         now = 2_000_000_000
         os.utime(stale, (now - automation.STALE_STAGING_SECONDS - 1,) * 2)
+        os.utime(drive_temporary, (now - automation.STALE_STAGING_SECONDS - 1,) * 2)
         os.utime(recent, (now,) * 2)
 
         removed = automation.cleanup_staging(self.store, now=now)
 
-        self.assertEqual(removed, 2)
+        self.assertEqual(removed, 4)
         self.assertFalse(legacy.exists())
         self.assertFalse(stale.exists())
+        self.assertFalse(drive_temporary.exists())
+        self.assertFalse(preflight_legacy.exists())
         self.assertTrue(recent.exists())
+
+        self.assertEqual(automation.cleanup_staging(self.store, now=now, force=True), 1)
+        self.assertFalse(recent.exists())
 
     def test_manual_analysis_reports_safe_error_and_remembers_file_name(self):
         source = item("drive_video_0004", mp4(b"manual-bad"))

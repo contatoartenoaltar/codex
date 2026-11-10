@@ -20,6 +20,7 @@ from .queue import (ReelError, Store, _public_import_error, _validate_media, cle
 
 MAX_CANDIDATES_PER_RUN = 2
 STALE_STAGING_SECONDS = 30 * 60
+STAGING_PREFIXES = (".reel-analysis-", ".reel-import-", ".reel-preflight-", ".reel-drive-")
 
 
 def _initialize(connection):
@@ -79,18 +80,17 @@ def _discard_staging(path):
         pass
 
 
-def cleanup_staging(store, *, now=None):
+def cleanup_staging(store, *, now=None, force=False):
     """Remove legacy temporary directories and abandoned staging files safely."""
     current = time.time() if now is None else float(now)
     removed = 0
     for entry in store.directory.iterdir():
         if entry == store.media or entry.is_symlink():
             continue
-        legacy_directory = (entry.is_dir() and
-                            entry.name.startswith((".reel-analysis-", ".reel-import-")))
+        legacy_directory = entry.is_dir() and entry.name.startswith(STAGING_PREFIXES)
         stale_file = (entry.is_file() and
-                      entry.name.startswith((".reel-analysis-", ".reel-import-")) and
-                      entry.stat().st_mtime <= current - STALE_STAGING_SECONDS)
+                      entry.name.startswith(STAGING_PREFIXES) and
+                      (force or entry.stat().st_mtime <= current - STALE_STAGING_SECONDS))
         if not legacy_directory and not stale_file:
             continue
         try:
@@ -100,7 +100,7 @@ def cleanup_staging(store, *, now=None):
             pass
     for entry in store.media.iterdir():
         if (entry.is_file() and not entry.is_symlink() and entry.name.startswith(".reel-") and
-                entry.stat().st_mtime <= current - STALE_STAGING_SECONDS):
+                (force or entry.stat().st_mtime <= current - STALE_STAGING_SECONDS)):
             try:
                 entry.unlink()
                 removed += 1
@@ -277,12 +277,21 @@ def main(argv=None):
     caption_command = commands.add_parser(
         "apply-feed-caption", help="Use the official Feed caption on untouched queued Reels.")
     caption_command.add_argument("--reels-directory", required=True, type=Path)
+    cleanup_command = commands.add_parser(
+        "cleanup-staging", help="Remove only abandoned private Reels temporary files.")
+    cleanup_command.add_argument("--reels-directory", required=True, type=Path)
+    cleanup_command.add_argument("--confirm", required=True)
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == "preflight":
             result = preflight(arguments.drive_directory)
-        else:
+        elif arguments.command == "apply-feed-caption":
             result = apply_feed_caption(Store(arguments.reels_directory))
+        else:
+            if arguments.confirm != "CLEANUP-REELS-TEMPORARY-FILES":
+                raise ReelError("Confirme a limpeza exclusiva dos temporários de Reels.")
+            result = {"removed": cleanup_staging(
+                Store(arguments.reels_directory), force=True)}
     except (OSError, ValueError) as error:
         raise SystemExit("ERROR: " + str(error)) from None
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
