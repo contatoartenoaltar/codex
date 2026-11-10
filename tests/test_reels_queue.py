@@ -1,5 +1,6 @@
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
+import errno
 import hashlib
 import io
 import json
@@ -8,6 +9,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from reels import queue as queue_module
 from reels.queue import (APPLICATION_ID, INITIAL_TIMES, ReelError, Store, ZONE,
@@ -150,6 +152,15 @@ class ReelsQueueTests(unittest.TestCase):
         landscape = metadata(path) | {"width": 1920, "height": 1080}
         with self.assertRaisesRegex(ReelError, "1920 × 1080"):
             import_video(self.store, item, path, validator=lambda _: landscape, now=self.now)
+
+    def test_busy_fsync_does_not_reject_hash_verified_media_copy(self):
+        item, path, raw = self.source()
+        with patch("reels.queue.os.fsync", side_effect=OSError(errno.EBUSY, "busy")):
+            result = import_video(self.store, item, path, validator=metadata, now=self.now)
+
+        row = self.store.agenda()[0]
+        self.assertEqual(row["id"], result["id"])
+        self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
 
     def test_known_validator_errors_are_safe_for_studio_diagnosis(self):
         self.assertEqual(

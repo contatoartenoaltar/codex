@@ -1,4 +1,5 @@
 from contextlib import redirect_stdout
+import errno
 import hashlib
 import io
 import json
@@ -264,6 +265,16 @@ class ReelDriveTests(unittest.TestCase):
         self.assertEqual(result["bytes"], len(raw))
         self.assertIsNotNone(opener.requests[0].get_header("Range"))
         self.assertIsNone(opener.requests[-1].get_header("Range"))
+
+    def test_busy_fsync_does_not_reject_integrity_checked_download(self):
+        raw = mp4(b"pythonanywhere-busy-fsync")
+        target = self.directory / "busy-fsync.mp4"
+        with patch("reels.drive.os.fsync", side_effect=OSError(errno.EBUSY, "busy")):
+            result = drive.VideoDriveClient(
+                Credential(), opener=Opener(raw)).download_video(item(raw), target)
+
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(result["md5"], hashlib.md5(raw, usedforsecurity=False).hexdigest())
 
     def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
         output = io.StringIO()

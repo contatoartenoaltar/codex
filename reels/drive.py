@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -27,6 +28,15 @@ RANGE_RETRIES = 5
 
 class ReelDriveError(ValueError):
     """Erro seguro da origem de vídeos, sem incluir credenciais ou respostas brutas."""
+
+
+def _flush_download(stream):
+    stream.flush()
+    try:
+        os.fsync(stream.fileno())
+    except OSError as error:
+        if error.errno != errno.EBUSY:
+            raise
 
 
 def _video(item, *, limit=MAX_VIDEO_BYTES):
@@ -182,8 +192,7 @@ class VideoDriveClient(drive_source.DriveClient):
                     with os.fdopen(descriptor, "wb") as stream:
                         descriptor = -1
                         written, head = self._range(metadata, stream, digest, head)
-                        stream.flush()
-                        os.fsync(stream.fileno())
+                        _flush_download(stream)
                     if len(head) < 12 or head[4:8] != b"ftyp":
                         raise ReelDriveError("O arquivo recebido não contém uma estrutura MP4 válida.")
                     if digest.hexdigest() != metadata["md5Checksum"]:
@@ -224,8 +233,7 @@ class VideoDriveClient(drive_source.DriveClient):
                         head += chunk[:12 - len(head)]
                     digest.update(chunk)
                     stream.write(chunk)
-                stream.flush()
-                os.fsync(stream.fileno())
+                _flush_download(stream)
             if written != metadata["size"]:
                 raise ReelDriveError("O vídeo recebido não corresponde ao tamanho confirmado no catálogo.")
             if len(head) < 12 or head[4:8] != b"ftyp":

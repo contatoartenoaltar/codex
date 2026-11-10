@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
+import errno
 import hashlib
 import json
 import os
@@ -206,6 +207,15 @@ def _file_hashes(path):
     return md5.hexdigest(), sha256.hexdigest()
 
 
+def _flush_media(stream):
+    stream.flush()
+    try:
+        os.fsync(stream.fileno())
+    except OSError as error:
+        if error.errno != errno.EBUSY:
+            raise
+
+
 def import_video(store, item, source, *, validator, now=None):
     """Importa uma cópia byte a byte; nunca altera áudio, imagem ou metadados."""
     source_id, source_name, expected_md5, expected_size, suffix = _source_item(item)
@@ -235,8 +245,7 @@ def import_video(store, item, source, *, validator, now=None):
     try:
         with os.fdopen(descriptor, "wb") as destination, source.open("rb") as origin:
             shutil.copyfileobj(origin, destination, length=1024 * 1024)
-            destination.flush()
-            os.fsync(destination.fileno())
+            _flush_media(destination)
         temporary = Path(temporary_name)
         copied_md5, copied_sha256 = _file_hashes(temporary)
         if copied_md5 != expected_md5 or copied_sha256 != sha256:
