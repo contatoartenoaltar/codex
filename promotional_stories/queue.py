@@ -26,7 +26,7 @@ MAX_LATENESS = 1800
 LEASE = 600
 PREPARE_AHEAD = 300
 MEDIA_LIMIT = 500 * 1024 * 1024
-RETENTION_DAYS = 30
+RETENTION_DAYS = 2
 
 
 def local_now(now=None):
@@ -698,7 +698,7 @@ def main():
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("action", choices=[
         "prepare", "agenda", "configure-live", "queue", "reject", "enable-live", "pause",
-        "enable-daily", "run-daily", "disable-daily"])
+        "enable-daily", "run-daily", "disable-daily", "cleanup-media"])
     args = parser.parse_args()
     store = Store(args.directory)
     store.initialize()
@@ -725,6 +725,9 @@ def main():
         action_result = run_daily(store)
     elif args.action == "disable-daily":
         disable_daily(store)
+    elif args.action == "cleanup-media":
+        print(json.dumps({"removed": cleanup_media(store)}, ensure_ascii=False))
+        return
     with store.connect() as conn:
         policy = dict(conn.execute("SELECT * FROM policy WHERE id=1").fetchone())
     with store.connect() as conn:

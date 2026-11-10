@@ -335,8 +335,9 @@ class PromotionalQueueTests(unittest.TestCase):
         rows = self.store.agenda()
         with self.store.connect() as conn:
             conn.execute("UPDATE slots SET state='published',due_at=? WHERE id=?",
-                         (int((self.now-timedelta(days=31)).timestamp()), rows[0]["id"]))
-            conn.execute("UPDATE slots SET state='published' WHERE id=?", (rows[1]["id"],))
+                         (int((self.now-timedelta(days=3)).timestamp()), rows[0]["id"]))
+            conn.execute("UPDATE slots SET state='published',due_at=? WHERE id=?",
+                         (int((self.now-timedelta(days=1)).timestamp()), rows[1]["id"]))
         old_image = self.directory / "media" / rows[0]["filename"]
         fresh_image = self.directory / "media" / rows[1]["filename"]
         self.assertEqual(cleanup_media(self.store, now=self.now), 2)
