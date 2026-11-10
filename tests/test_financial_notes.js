@@ -99,6 +99,23 @@ test('pedido ainda sem recebimento permite escolher receita parcial', () => {
   assert.ok(html.includes('Valor recebido (se parcial)'));
 });
 
+test('pedido parcelado permite excluir qualquer recebimento registrado', () => {
+  const {context} = app();
+  vm.runInContext(`state.transactions = [
+    {id:31,date:'2026-10-31',kind:'income',amount:10000,order_id:12,
+     description:'Pedido #0012 — Receita parcial'},
+    {id:30,date:'2026-10-20',kind:'income',amount:29900,order_id:12,
+     description:'Pedido #0012 — Receita parcial'}
+  ]`, context);
+  const html = vm.runInContext(`orderIncome({id:12,total:39900,status:'Novo',
+    transaction_id:31,received_amount:39900,remaining_amount:0,payment_count:2})`, context);
+  assert.ok(html.includes('Recebido integralmente'));
+  assert.ok(html.includes('Ver recebimentos'));
+  assert.ok(html.includes('data-delete-partial="31"'));
+  assert.ok(html.includes('data-delete-partial="30"'));
+  assert.equal((html.match(/title="Excluir recebimento"/g)||[]).length, 2);
+});
+
 test('financeiro mostra observações como texto seguro e mantém registros sem observações', () => {
   const {context} = app();
   vm.runInContext(`state.transactions = [

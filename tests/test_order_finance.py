@@ -115,6 +115,14 @@ class OrderFinanceTests(unittest.TestCase):
                           final['orders'][0]['remaining_amount'],
                           final['orders'][0]['payment_count']), (39900, 0, 3))
 
+        wrong_payment = next(row for row in final['transactions'] if row['amount'] == 14900)
+        self.post('delete', {'table': 'transactions', 'id': wrong_payment['id']})
+        corrected = self.state()
+        self.assertEqual(len(corrected['transactions']), 2)
+        self.assertEqual((corrected['orders'][0]['received_amount'],
+                          corrected['orders'][0]['remaining_amount'],
+                          corrected['orders'][0]['payment_count']), (25000, 14900, 2))
+
     def test_order_can_start_pending_and_receive_full_balance_later(self):
         saved = self.post('orders', {
             'customer': 'Igreja Pendente', 'product': 'envelopes',
