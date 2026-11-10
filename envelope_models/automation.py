@@ -7,6 +7,7 @@ para a subpasta de revisão do tema no Google Drive.
 from __future__ import annotations
 
 import argparse
+import base64
 from contextlib import contextmanager
 from datetime import datetime
 import hashlib
@@ -14,8 +15,11 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import sqlite3
+import urllib.error
+import urllib.parse
 import urllib.request
 from zoneinfo import ZoneInfo
 
@@ -29,22 +33,19 @@ DATABASE = "envelope-models.sqlite3"
 CONFIG = "envelope-models.json"
 APPLICATION_ID = 0x4141454D
 OUTPUT_SIZE = (1492, 1054)
+API = "https://api.openai.com/v1/images/edits"
 UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files"
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 ENABLE_CONFIRMATION = "ENABLE-FIVE-ENVELOPE-MODELS-PER-DAY"
 MAX_REFERENCE_BYTES = 20 * 1024 * 1024
+MAX_GENERATED_BYTES = 25 * 1024 * 1024
 
 THEMES = {
-    "dizimos": {"title": "Dízimos", "phrase": "Deus ama quem dá com alegria",
-                "citation": "2 CORÍNTIOS 9:7"},
-    "ofertas": {"title": "Ofertas", "phrase": "Plantando hoje, colhemos amanhã",
-                "citation": "2 CORÍNTIOS 9:6"},
-    "primicias": {"title": "Primícias", "phrase": "Honra ao Senhor com os teus bens",
-                  "citation": "PROVÉRBIOS 3:9"},
-    "santa-ceia": {"title": "Santa Ceia", "phrase": "Fazei isto em memória de mim",
-                   "citation": "1 CORÍNTIOS 11:24"},
-    "missoes": {"title": "Missões", "phrase": "Ide por todo o mundo e pregai o evangelho",
-                "citation": "MARCOS 16:15"},
+    "dizimos": {"title": "Dízimos"},
+    "ofertas": {"title": "Ofertas"},
+    "primicias": {"title": "Primícias"},
+    "santa-ceia": {"title": "Santa Ceia"},
+    "missoes": {"title": "Missões"},
 }
 
 SCHEMA = (
@@ -148,6 +149,8 @@ def configure(directory, source_folder, output_folders):
 def enable(store, confirmation):
     if confirmation != ENABLE_CONFIRMATION:
         raise EnvelopeError("Confirmação de ativação inválida.")
+    if not os.environ.get("ARTENOALTAR_IMAGE_AI_KEY"):
+        raise EnvelopeError("Cadastre a chave específica da geração de imagens antes de ativar.")
     _read_config(store.directory)
     with store.connect() as connection:
         connection.execute("UPDATE policy SET enabled=1 WHERE id=1")
@@ -187,90 +190,65 @@ def choose_reference(connection, catalog, theme):
     return candidates[0]
 
 
-def _palette(reference):
-    """Extrai cores da referência sem copiar sua composição ou seus elementos."""
-    try:
-        with Image.open(io.BytesIO(reference)) as source:
-            sample = source.convert("RGB").resize((96, 68), Image.Resampling.LANCZOS)
-            colors = sample.quantize(colors=6).convert("RGB").getcolors(96 * 68)
-    except (OSError, ValueError):
-        raise EnvelopeError("A referência selecionada não é uma imagem válida.") from None
-    ordered = [color for _, color in sorted(colors or [], reverse=True)]
-    if len(ordered) < 3:
-        return [(245, 238, 219), (176, 124, 48), (44, 71, 53)]
-    return ordered
+def _multipart(fields, files, boundary=None):
+    boundary = boundary or "----ArteNoAltar" + secrets.token_hex(16)
+    body = bytearray()
+    for name, value in fields.items():
+        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode())
+    for name, filename, mime, data in files:
+        safe = re.sub(r"[^A-Za-z0-9._-]", "_", filename)
+        body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{safe}\"\r\nContent-Type: {mime}\r\n\r\n".encode())
+        body.extend(data)
+        body.extend(b"\r\n")
+    body.extend(f"--{boundary}--\r\n".encode())
+    return bytes(body), f"multipart/form-data; boundary={boundary}"
 
 
-def _mix(first, second, amount):
-    return tuple(round(a * (1 - amount) + b * amount) for a, b in zip(first, second))
+def _prompt(theme):
+    title = THEMES[theme]["title"]
+    return (
+        "Crie a base visual de um novo envelope cristão brasileiro para o tema " + title + ". "
+        "Use a imagem anexada somente como referência de qualidade, equilíbrio, riqueza visual e acabamento. "
+        "Crie uma composição original, horizontal, elegante, própria para impressão, com imagens religiosas ou "
+        "simbólicas coerentes com o tema. Varie cores e estilo sem copiar elementos específicos. Reserve uma área "
+        "limpa e de alto contraste no terço esquerdo ou central para o título que será inserido depois. "
+        "Não desenhe letras, palavras, números, logotipos, QR codes, marcas d'água, moldura de produto, mockup, "
+        "envelope fotografado, mãos ou cenário externo. Entregue somente a arte plana frontal, preenchendo toda a imagem."
+    )
 
 
-def _symbol(draw, theme, color):
-    """Símbolos vetoriais simples e originais, adequados a impressão."""
-    width = 15
-    if theme == "santa-ceia":
-        draw.ellipse((1100, 280, 1370, 420), outline=color, width=width)
-        draw.arc((1100, 335, 1370, 690), 0, 180, fill=color, width=width)
-        draw.line((1235, 690, 1235, 800), fill=color, width=width)
-        draw.line((1135, 800, 1335, 800), fill=color, width=width)
-    elif theme == "missoes":
-        draw.ellipse((1060, 220, 1400, 560), outline=color, width=width)
-        draw.arc((1135, 220, 1325, 560), 85, 275, fill=color, width=width)
-        draw.arc((1135, 220, 1325, 560), 265, 95, fill=color, width=width)
-        draw.arc((1060, 315, 1400, 465), 0, 360, fill=color, width=width)
-        draw.line((1230, 575, 1230, 815), fill=color, width=width)
-        draw.line((1140, 650, 1320, 650), fill=color, width=width)
-    elif theme == "primicias":
-        draw.line((1230, 235, 1230, 820), fill=color, width=width)
-        for y in range(290, 730, 75):
-            draw.arc((1080, y - 45, 1235, y + 75), 260, 75, fill=color, width=width)
-            draw.arc((1225, y - 45, 1380, y + 75), 105, 280, fill=color, width=width)
-    elif theme == "ofertas":
-        draw.arc((1050, 420, 1235, 785), 250, 80, fill=color, width=width)
-        draw.arc((1225, 420, 1410, 785), 100, 290, fill=color, width=width)
-        draw.line((1230, 745, 1230, 350), fill=color, width=width)
-        draw.ellipse((1060, 255, 1235, 410), outline=color, width=width)
-        draw.ellipse((1225, 210, 1410, 390), outline=color, width=width)
-    else:
-        draw.ellipse((1080, 315, 1380, 780), outline=color, width=width)
-        draw.arc((1040, 220, 1240, 520), 300, 90, fill=color, width=width)
-        draw.arc((1220, 220, 1420, 520), 90, 240, fill=color, width=width)
-        draw.line((1230, 255, 1230, 650), fill=color, width=width)
-        draw.line((1160, 355, 1300, 355), fill=color, width=width)
+class ImageClient:
+    def __init__(self, key, opener=None, model=None):
+        if not isinstance(key, str) or not key.strip():
+            raise EnvelopeError("A geração de imagens ainda não foi configurada.")
+        self.key = key.strip()
+        self.model = model or os.environ.get("ARTENOALTAR_IMAGE_AI_MODEL", "gpt-image-1.5")
+        self.opener = opener or urllib.request.build_opener(drive_source.NoRedirect())
 
-
-class LocalDesignGenerator:
-    """Geração procedural sem API, assinatura, conta ou cobrança por imagem."""
     def generate(self, theme, reference, mime):
-        if mime not in ("image/png", "image/jpeg"):
-            raise EnvelopeError("A referência precisa ser PNG ou JPEG.")
-        colors = _palette(reference)
-        seed = int(hashlib.sha256(theme.encode() + reference[:4096]).hexdigest()[:8], 16)
-        primary = colors[seed % len(colors)]
-        secondary = colors[(seed // 7 + 1) % len(colors)]
-        light = _mix(primary, (255, 253, 246), .78)
-        dark = _mix(secondary, (20, 25, 24), .42)
-        gradient = Image.new("RGB", (1, 1024), light)
-        gradient.putdata([_mix(light, secondary, y / 1023 * .34) for y in range(1024)])
-        image = gradient.resize((1536, 1024))
-        draw = ImageDraw.Draw(image, "RGBA")
-        # Curvas e formas variam deterministicamente conforme tema e referência.
-        shift = 40 + seed % 180
-        draw.ellipse((850 - shift, -260, 1740 - shift, 620), fill=(*dark, 38))
-        draw.ellipse((940 + shift // 3, 430, 1670 + shift // 3, 1160), fill=(*primary, 48))
-        draw.polygon(((0, 850), (650, 770 + shift // 5), (1040, 1024), (0, 1024)),
-                     fill=(*dark, 215))
-        draw.polygon(((0, 920), (720, 850 + shift // 7), (920, 1024), (0, 1024)),
-                     fill=(*secondary, 210))
-        _symbol(draw, theme, (*dark, 195))
-        for x in range(55, 900, 95):
-            draw.ellipse((x, 70, x + 6, 76), fill=(*dark, 90))
-        output = io.BytesIO()
-        image.save(output, format="PNG", optimize=True)
-        return output.getvalue()
+        body, content_type = _multipart({
+            "model": self.model, "prompt": _prompt(theme), "size": "1536x1024",
+            "quality": "high", "output_format": "png",
+        }, [("image[]", "reference.png" if mime == "image/png" else "reference.jpg", mime, reference)])
+        request = urllib.request.Request(API, data=body, method="POST", headers={
+            "Authorization": f"Bearer {self.key}", "Content-Type": content_type,
+            "Accept": "application/json",
+        })
+        try:
+            with self.opener.open(request, timeout=180) as response:
+                raw = response.read(MAX_GENERATED_BYTES * 2)
+            payload = json.loads(raw)
+            encoded = payload["data"][0]["b64_json"]
+            result = base64.b64decode(encoded, validate=True)
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, KeyError,
+                ValueError, TypeError, json.JSONDecodeError):
+            raise EnvelopeError("A IA não conseguiu criar a base visual deste modelo.") from None
+        if len(result) > MAX_GENERATED_BYTES:
+            raise EnvelopeError("A imagem criada excedeu o limite seguro.")
+        return result
 
 
-def compose_title(raw, title, theme=None):
+def compose_title(raw, title):
     try:
         with Image.open(io.BytesIO(raw)) as source:
             source.verify()
@@ -280,35 +258,22 @@ def compose_title(raw, title, theme=None):
         raise EnvelopeError("A IA não retornou uma imagem PNG válida.") from None
     if ImageStat.Stat(image.resize((32, 32))).stddev[0] < 8:
         raise EnvelopeError("A base visual criada não possui detalhes suficientes.")
-    assets = Path(__file__).parents[1] / "design_assets/fonts"
-    title_font = ImageFont.truetype(str(assets / "cormorantgaramond.ttf"), 174)
-    label_font = ImageFont.truetype(str(assets / "manrope.ttf"), 27)
-    phrase_font = ImageFont.truetype(str(assets / "cormorantgaramond.ttf"), 46)
-    citation_font = ImageFont.truetype(str(assets / "manrope.ttf"), 21)
-    x, y = 88, 315
-    details = THEMES.get(theme, {})
-    phrase = details.get("phrase", "")
-    citation = details.get("citation", "")
-    # Painel em degradê preserva a riqueza do fundo e garante leitura para impressão.
+    font_path = Path(__file__).parents[1] / "design_assets/fonts/cormorantgaramond.ttf"
+    font = ImageFont.truetype(str(font_path), 142)
+    draw = ImageDraw.Draw(image)
+    box = draw.textbbox((0, 0), title, font=font, stroke_width=2)
+    width, height = box[2] - box[0], box[3] - box[1]
+    x, y = 92, (OUTPUT_SIZE[1] - height) // 2
+    # Sombra e placa translúcida clara tornam o título legível sem depender do fundo criado.
     overlay = Image.new("RGBA", OUTPUT_SIZE, (0, 0, 0, 0))
-    strip = Image.new("RGBA", (940, OUTPUT_SIZE[1]), (255, 252, 244, 0))
-    mask = Image.new("L", (940, 1))
-    mask.putdata([max(0, 218 - round(position / 939 * 218)) for position in range(940)])
-    strip.putalpha(mask.resize(strip.size))
-    overlay.alpha_composite(strip, (0, 0))
+    odraw = ImageDraw.Draw(overlay)
+    odraw.rounded_rectangle((45, y - 65, min(x + width + 55, 950), y + height + 65),
+                            radius=34, fill=(255, 252, 244, 205))
     image = Image.alpha_composite(image.convert("RGBA"), overlay)
     draw = ImageDraw.Draw(image)
-    draw.text((x, y - 66), "ENVELOPE PARA", font=label_font, fill=(67, 66, 61, 230))
-    draw.text((x + 4, y + 7), title, font=title_font, fill=(0, 0, 0, 82), stroke_width=1)
-    draw.text((x, y), title, font=title_font, fill=(117, 72, 21, 255), stroke_width=1,
+    draw.text((x + 3, y + 5), title, font=font, fill=(0, 0, 0, 90), stroke_width=1)
+    draw.text((x, y), title, font=font, fill=(117, 72, 21, 255), stroke_width=1,
               stroke_fill=(255, 246, 220, 255))
-    title_box = draw.textbbox((x, y), title, font=title_font)
-    line_y = title_box[3] + 24
-    draw.rounded_rectangle((x, line_y, x + 125, line_y + 6), 3, fill=(178, 126, 47, 255))
-    if phrase:
-        draw.text((x, line_y + 28), phrase, font=phrase_font, fill=(42, 48, 43, 245))
-    if citation:
-        draw.text((x, line_y + 91), citation, font=citation_font, fill=(86, 84, 76, 235))
     output = io.BytesIO()
     image.convert("RGB").save(output, format="PNG", optimize=True)
     return output.getvalue()
@@ -361,7 +326,7 @@ def run(store, *, source_client=None, image_client=None, output_client=None, now
         if policy is None or not policy["enabled"]:
             return {"status": "disabled", "created": 0, "day": day}
     source_client = source_client or drive_source.DriveClient(drive_source.credentials(store.directory))
-    image_client = image_client or LocalDesignGenerator()
+    image_client = image_client or ImageClient(os.environ.get("ARTENOALTAR_IMAGE_AI_KEY", ""))
     output_client = output_client or DriveOutputClient(writable_credentials(store.directory))
     catalog = source_client.catalog(config["source_folder"])
     created, skipped = [], []
@@ -385,7 +350,7 @@ def run(store, *, source_client=None, image_client=None, output_client=None, now
         try:
             reference_data = source_client.download_image(reference, limit=MAX_REFERENCE_BYTES)
             generated = image_client.generate(theme, reference_data, reference["mimeType"])
-            final = compose_title(generated, definition["title"], theme)
+            final = compose_title(generated, definition["title"])
             digest = hashlib.sha256(final).hexdigest()
             filename = f"{day}-{theme}-{digest[:10]}.png"
             drive_id = output_client.upload_png(config["output_folders"][theme], filename, final)

@@ -8,10 +8,9 @@ Fluxo isolado para criar **cinco candidatos por dia**, um de cada tema:
 - Santa Ceia
 - Missões
 
-Os 88 arquivos da pasta `Artes Base` são consultados como referências somente de leitura.
-O sistema extrai somente a paleta de cores e cria localmente uma composição gráfica
-original com formas e símbolos vetoriais próprios para cada tema. O título também
-é aplicado localmente, evitando texto deformado. O arquivo final mede `1492 × 1054 px`, passa por validação e é
+Os 88 arquivos da pasta `Artes Base` são consultados como referências somente de leitura. A IA
+cria uma base visual original e o sistema aplica o título localmente, evitando
+texto deformado. O arquivo final mede `1492 × 1054 px`, passa por validação e é
 salvo na subpasta de revisão do respectivo tema. Nenhum original é substituído,
 movido ou excluído.
 
@@ -33,11 +32,13 @@ pasta dos modelos aprovados como **Leitor**.
 
 ## Segurança e custo
 
-A rotina nasce desativada e não usa API de geração, assinatura ou chave paga.
-As cinco imagens são montadas pelo próprio PythonAnywhere com Pillow, já presente
-no projeto. Portanto, não existe cobrança por imagem. Os arquivos apenas ocupam
-espaço no Google Drive e usam uma pequena parte dos recursos do plano atual da
-hospedagem.
+A rotina nasce desativada. A chave de texto existente não é reutilizada: a
+geração exige o segredo `ARTENOALTAR_IMAGE_AI_KEY`. O modelo padrão é
+`gpt-image-1.5`, configurável em `ARTENOALTAR_IMAGE_AI_MODEL`.
+
+Cinco imagens por dia equivalem a aproximadamente 150 gerações por mês. O plano
+ChatGPT Plus não inclui essas chamadas do servidor. Conferir o preço vigente da
+API e aprovar o orçamento antes de cadastrar a chave e ativar a rotina.
 
 ## Configuração na hospedagem
 
@@ -57,7 +58,7 @@ python3.12 -m envelope_models.automation status
 ```
 
 Esse comando configura tudo em modo desativado. A ativação será feita somente
-depois da aprovação do primeiro lote visual:
+depois da aprovação do primeiro lote e do custo da API:
 
 ```bash
 python3.12 -m envelope_models.automation enable \
