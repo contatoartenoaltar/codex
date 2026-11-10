@@ -132,6 +132,21 @@ class EnvelopeModelsTests(unittest.TestCase):
                 self.assertEqual(models.choose_reference(connection, catalog, theme)["id"],
                                  "generic_reference_01")
 
+    def test_local_generator_needs_no_api_and_varies_symbols_by_theme(self):
+        generator = models.LocalDesignGenerator()
+        reference = png((75, 125, 90))
+        first = generator.generate("dizimos", reference, "image/png")
+        second = generator.generate("missoes", reference, "image/png")
+        self.assertNotEqual(hashlib.sha256(first).digest(), hashlib.sha256(second).digest())
+        for data in (first, second):
+            with Image.open(io.BytesIO(data)) as image:
+                self.assertEqual(image.size, (1536, 1024))
+                self.assertEqual(image.format, "PNG")
+
+    def test_enable_does_not_require_a_paid_api_key(self):
+        result = models.enable(self.store, models.ENABLE_CONFIRMATION)
+        self.assertTrue(result["enabled"])
+
 
 if __name__ == "__main__":
     unittest.main()
