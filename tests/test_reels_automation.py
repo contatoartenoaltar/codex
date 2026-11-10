@@ -111,6 +111,22 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(details[0]["file"], source["name"])
         self.assertEqual(self.store.agenda(), [])
 
+    def test_manual_analysis_retries_same_rejected_file_after_operational_fix(self):
+        source = item("drive_video_0006", mp4(b"retry-after-fix"))
+        failed = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=lambda path: (_ for _ in ()).throw(
+                ValueError("Não foi possível baixar o vídeo do Drive. O arquivo de origem foi preservado.")),
+            now=self.now)
+        self.assertEqual(failed["status"], "incompatible")
+
+        retried = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=self.metadata, now=self.now)
+
+        self.assertEqual(retried["status"], "eligible")
+        self.assertEqual(policy_status(self.store)["invalid_files"], 0)
+
     def test_manual_analysis_skips_files_already_checked(self):
         source = item("drive_video_0005", mp4(b"already-ready"))
         automation.analyze_next(self.store, self.drive, client=Client([source]),

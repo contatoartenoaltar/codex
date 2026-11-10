@@ -64,9 +64,9 @@ def analyze_next(store, drive_directory, *, client=None, media_validator=validat
     source = drive.catalog(drive_directory, client)
     with store.connect() as connection:
         _initialize(connection)
-        known, rejected = _catalog_state(connection, source["files"])
-    candidates = [item for item in source["files"]
-                  if item["id"] not in known and rejected.get(item["id"]) != item["md5Checksum"]]
+        known, _ = _catalog_state(connection, source["files"])
+    # A manual request deliberately retries rejected files after operational fixes.
+    candidates = [item for item in source["files"] if item["id"] not in known]
     if not candidates:
         return {"status": "up_to_date", "checked": 0}
     item = candidates[0]
