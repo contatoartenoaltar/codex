@@ -398,6 +398,10 @@ def _public_import_error(value):
             r"O vídeo foi identificado como \d{1,5} × \d{1,5}\. "
             r"Use vídeo vertical 9:16, preferencialmente 1080 × 1920\.", message):
         return message
+    if re.fullmatch(
+            r"Falha interna durante [A-Za-zÀ-ÿ ]+ \([A-Za-z][A-Za-z0-9_]*(?: errno \d+)?\)\. "
+            r"O arquivo do Drive foi preservado\.", message):
+        return message
     return ("Não foi possível validar tecnicamente este vídeo. Exporte novamente em MP4 "
             "vertical 9:16, com vídeo H.264, áudio AAC e duração entre 3 e 90 segundos.")
 

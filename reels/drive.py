@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -161,7 +162,8 @@ class VideoDriveClient(drive_source.DriveClient):
                     failure = error
                 except ReelDriveError:
                     raise
-                except (OSError, TimeoutError, urllib.error.URLError) as error:
+                except (OSError, TimeoutError, urllib.error.URLError,
+                        http.client.HTTPException) as error:
                     failure = error
             if failure is not None:
                 raise ReelDriveError(
@@ -186,9 +188,11 @@ class VideoDriveClient(drive_source.DriveClient):
         written = 0
         digest = hashlib.md5(usedforsecurity=False)
         head = b""
+        stage = "preparação"
         try:
             if metadata["size"] > RANGE_DOWNLOAD_THRESHOLD:
                 try:
+                    stage = "download em partes"
                     with os.fdopen(descriptor, "wb") as stream:
                         descriptor = -1
                         written, head = self._range(metadata, stream, digest, head)
@@ -211,6 +215,7 @@ class VideoDriveClient(drive_source.DriveClient):
                     written = 0
                     digest = hashlib.md5(usedforsecurity=False)
                     head = b""
+            stage = "autenticação do download contínuo"
             self.credential.before_request(self.transport, "GET", url, headers)
             request = urllib.request.Request(url, headers=headers, method="GET")
             try:
@@ -220,6 +225,7 @@ class VideoDriveClient(drive_source.DriveClient):
                     raise ReelDriveError(
                         "Acesso ao vídeo não confirmado. Confira o compartilhamento da pasta como Leitor.") from None
                 raise ReelDriveError("Falha temporária ao baixar o vídeo do Drive.") from None
+            stage = "transferência contínua"
             with os.fdopen(descriptor, "wb") as stream, response:
                 descriptor = -1
                 while True:
@@ -241,6 +247,7 @@ class VideoDriveClient(drive_source.DriveClient):
             if digest.hexdigest() != metadata["md5Checksum"]:
                 raise ReelDriveError(
                     "O vídeo mudou desde a consulta. Atualize o catálogo antes de tentar novamente.")
+            stage = "finalização do arquivo"
             os.chmod(temporary, 0o600)
             os.replace(temporary, destination)
             return {"path": str(destination), "bytes": written,
@@ -250,9 +257,12 @@ class VideoDriveClient(drive_source.DriveClient):
         except (TimeoutError, urllib.error.URLError):
             raise ReelDriveError(
                 "O download do vídeo excedeu o tempo de espera. Tente novamente mais tarde.") from None
-        except Exception:
+        except Exception as error:
+            detail = type(error).__name__
+            if isinstance(error, OSError) and error.errno is not None:
+                detail += f" errno {error.errno}"
             raise ReelDriveError(
-                "Não foi possível baixar o vídeo do Drive. O arquivo de origem foi preservado.") from None
+                f"Falha interna durante {stage} ({detail}). O arquivo do Drive foi preservado.") from None
         finally:
             if descriptor >= 0:
                 os.close(descriptor)

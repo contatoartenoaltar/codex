@@ -177,6 +177,9 @@ class ReelsQueueTests(unittest.TestCase):
             queue_module._public_import_error(
                 "O download do vídeo foi interrompido repetidamente pelo Drive."),
             "O download do vídeo foi interrompido repetidamente pelo Drive.")
+        diagnostic = ("Falha interna durante transferência contínua (IncompleteRead). "
+                      "O arquivo do Drive foi preservado.")
+        self.assertEqual(queue_module._public_import_error(diagnostic), diagnostic)
         self.assertNotIn(
             "/private/path",
             queue_module._public_import_error("ffprobe failed at /private/path"))

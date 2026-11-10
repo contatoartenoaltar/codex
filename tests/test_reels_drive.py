@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 import errno
 import hashlib
+import http.client
 import io
 import json
 from pathlib import Path
@@ -211,6 +212,21 @@ class ReelDriveTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertEqual(list(self.directory.glob(".reel-drive-*")), [])
 
+    def test_unexpected_download_failure_reports_safe_stage_and_exception_code(self):
+        raw = mp4()
+
+        class BrokenCredential(Credential):
+            def before_request(self, transport, method, url, headers):
+                raise RuntimeError("private credential detail")
+
+        target = self.directory / "unexpected.mp4"
+        client = drive.VideoDriveClient(BrokenCredential(), opener=Opener(raw))
+        with self.assertRaisesRegex(
+                drive.ReelDriveError,
+                r"autenticação do download contínuo \(RuntimeError\)") as failure:
+            client.download_video(item(raw), target)
+        self.assertNotIn("private credential", str(failure.exception))
+
     def test_large_download_uses_verified_ranges_and_retries_only_failed_range(self):
         raw = mp4(b"ranged-video-data")
         metadata = item(raw)
@@ -241,6 +257,35 @@ class ReelDriveTests(unittest.TestCase):
         self.assertEqual(ranges[:3], ["bytes=0-7", "bytes=8-15", "bytes=8-15"])
         self.assertTrue(all(timeout == drive.DOWNLOAD_TIMEOUT_SECONDS
                             for _, timeout in opener.requests))
+
+    def test_large_download_retries_incomplete_http_range(self):
+        raw = mp4(b"ranged-video-after-incomplete-http-read")
+        metadata = item(raw)
+
+        class IncompleteRangeOpener:
+            def __init__(self):
+                self.requests = []
+                self.failed = False
+
+            def open(inner, request, timeout=0):
+                inner.requests.append(request)
+                start, end = (int(part) for part in
+                              request.get_header("Range").removeprefix("bytes=").split("-"))
+                if not inner.failed:
+                    inner.failed = True
+                    raise http.client.IncompleteRead(b"partial", end - start + 1)
+                return RangeResponse(raw[start:end + 1], f"bytes {start}-{end}/{len(raw)}")
+
+        opener = IncompleteRangeOpener()
+        target = self.directory / "incomplete-range.mp4"
+        with patch("reels.drive.RANGE_DOWNLOAD_THRESHOLD", 1), \
+                patch("reels.drive.RANGE_BYTES", 8):
+            result = drive.VideoDriveClient(Credential(), opener=opener).download_video(
+                metadata, target)
+
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(result["bytes"], len(raw))
+        self.assertGreater(len(opener.requests), len(raw) // 8)
 
     def test_large_download_falls_back_to_verified_continuous_stream(self):
         raw = mp4(b"large-video-with-range-fallback")
