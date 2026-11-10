@@ -372,6 +372,16 @@ def _public_import_error(value):
         "O Drive não informou a integridade do vídeo.",
         "O Drive não informou o tamanho do vídeo.",
         "A cópia local do vídeo não foi confirmada.",
+        "O Drive não confirmou a retomada segura do vídeo.",
+        "Acesso ao vídeo não confirmado. Confira o compartilhamento da pasta como Leitor.",
+        "O download do vídeo foi interrompido repetidamente pelo Drive.",
+        "Falha temporária ao baixar o vídeo do Drive.",
+        "O arquivo recebido não contém uma estrutura MP4 válida.",
+        "O vídeo mudou desde a consulta. Atualize o catálogo antes de tentar novamente.",
+        "O vídeo recebido excedeu o tamanho confirmado no catálogo.",
+        "O vídeo recebido não corresponde ao tamanho confirmado no catálogo.",
+        "O download do vídeo excedeu o tempo de espera. Tente novamente mais tarde.",
+        "Não foi possível baixar o vídeo do Drive. O arquivo de origem foi preservado.",
     }
     if message in safe_messages:
         return message

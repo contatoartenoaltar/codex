@@ -158,6 +158,14 @@ class ReelsQueueTests(unittest.TestCase):
         self.assertEqual(
             queue_module._public_import_error("Não foi possível validar o MP4 no servidor."),
             "Não foi possível validar o MP4 no servidor.")
+        self.assertEqual(
+            queue_module._public_import_error(
+                "O Drive não confirmou a retomada segura do vídeo."),
+            "O Drive não confirmou a retomada segura do vídeo.")
+        self.assertEqual(
+            queue_module._public_import_error(
+                "O download do vídeo foi interrompido repetidamente pelo Drive."),
+            "O download do vídeo foi interrompido repetidamente pelo Drive.")
         self.assertNotIn(
             "/private/path",
             queue_module._public_import_error("ffprobe failed at /private/path"))
