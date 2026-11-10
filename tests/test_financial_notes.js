@@ -41,7 +41,7 @@ test('novo lançamento mantém os campos existentes e oferece observações opci
   assert.ok(html.includes('<option value="investment">Investimento</option>'));
 });
 
-test('financeiro oferece receita parcial e mostra somente pedidos com saldo', () => {
+test('financeiro informa os saldos e deixa a receita parcial dentro do pedido', () => {
   const {context, nodes} = app();
   vm.runInContext(`state.orders = [
     {id: 1, customer: 'Igreja Parcial', total: 39900, status: 'Novo',
@@ -50,10 +50,11 @@ test('financeiro oferece receita parcial e mostra somente pedidos com saldo', ()
      transaction_id: 11, received_amount: 14900, remaining_amount: 0}
   ]`, context);
   const financeHtml = vm.runInContext('finance()', context);
-  assert.ok(financeHtml.includes('data-add="partial-income"'));
+  assert.ok(!financeHtml.includes('data-add="partial-income"'));
   assert.ok(financeHtml.includes('1 pedido(s) com valor a receber'));
+  assert.ok(financeHtml.includes('diretamente no pedido correspondente'));
 
-  vm.runInContext("modal('partial-income')", context);
+  vm.runInContext("modal('partial-income', 1)", context);
   const html = nodes.get('#fields').innerHTML;
   assert.equal(nodes.get('#form-title').textContent, 'Receita parcial');
   assert.ok(html.includes('name="id"'));
@@ -82,7 +83,7 @@ test('pedido parcialmente recebido mostra o progresso e botão de nova parcela',
     transaction_id:10,received_amount:10000,remaining_amount:29900})`, context);
   assert.ok(html.includes('Recebido'));
   assert.ok(html.includes('data-partial-income="7"'));
-  assert.ok(html.includes('+ Parcela'));
+  assert.ok(html.includes('Receita parcial'));
 });
 
 test('financeiro mostra observações como texto seguro e mantém registros sem observações', () => {
