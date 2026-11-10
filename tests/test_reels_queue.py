@@ -151,6 +151,17 @@ class ReelsQueueTests(unittest.TestCase):
         with self.assertRaisesRegex(ReelError, "1920 × 1080"):
             import_video(self.store, item, path, validator=lambda _: landscape, now=self.now)
 
+    def test_known_validator_errors_are_safe_for_studio_diagnosis(self):
+        self.assertEqual(
+            queue_module._public_import_error("O MP4 não informou a taxa de quadros."),
+            "O MP4 não informou a taxa de quadros.")
+        self.assertEqual(
+            queue_module._public_import_error("Não foi possível validar o MP4 no servidor."),
+            "Não foi possível validar o MP4 no servidor.")
+        self.assertNotIn(
+            "/private/path",
+            queue_module._public_import_error("ffprobe failed at /private/path"))
+
     def test_rejects_replaced_drive_file_with_same_identity(self):
         _, item, _, _ = self.imported()
         replacement = fake_mp4(b"different")

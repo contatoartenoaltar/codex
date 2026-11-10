@@ -339,6 +339,22 @@ def _public_import_error(value):
     """Keep actionable validation errors while hiding provider and filesystem details."""
     message = str(value).strip()
     safe_messages = {
+        "O MP4 possui metadados incompletos.",
+        "O MP4 possui uma estrutura inválida.",
+        "O MP4 não informou as faixas esperadas.",
+        "O MP4 não informou duração válida.",
+        "O MP4 usa uma versão de metadados incompatível.",
+        "O MP4 não informou o formato das faixas.",
+        "O MP4 informou orientação inválida.",
+        "O MP4 informou orientação incompleta.",
+        "O MP4 não identificou uma faixa.",
+        "O MP4 não informou as dimensões do vídeo.",
+        "O MP4 não informou a taxa de quadros.",
+        "O MP4 não informou metadados de reprodução.",
+        "Não foi possível ler os metadados do MP4.",
+        "O arquivo de Reel não é um MP4 local válido.",
+        "Não foi possível validar o MP4 no servidor.",
+        "O MP4 não informou faixas válidas.",
         "Use MP4 ou MOV com vídeo H.264/HEVC e áudio AAC.",
         "O Reel precisa conter a música já incorporada.",
         "O Reel precisa ter entre 3 e 90 segundos.",
@@ -349,6 +365,13 @@ def _public_import_error(value):
         "O arquivo não possui um contêiner MP4 válido.",
         "O arquivo recebido não é um MP4 válido.",
         "O vídeo excede o limite seguro da fila.",
+        "O vídeo não possui metadados compatíveis.",
+        "O vídeo recebido não corresponde ao arquivo informado pelo Drive.",
+        "A integridade do vídeo recebido não foi confirmada.",
+        "A extensão do vídeo não corresponde ao formato informado pelo Drive.",
+        "O Drive não informou a integridade do vídeo.",
+        "O Drive não informou o tamanho do vídeo.",
+        "A cópia local do vídeo não foi confirmada.",
     }
     if message in safe_messages:
         return message
