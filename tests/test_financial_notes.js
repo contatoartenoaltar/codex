@@ -261,4 +261,7 @@ test('Estúdio detalha os vídeos de Reels incompatíveis com texto seguro', () 
   assert.ok(html.includes('&lt;video&gt;.mp4'));
   assert.ok(!html.includes('<video>.mp4'));
   assert.ok(html.includes('Após a nova verificação, ele sairá desta lista automaticamente'));
+  assert.ok(html.includes('data-analyze-reel'));
+  assert.ok(html.includes('Analisar vídeo'));
+  assert.ok(html.includes('sem publicar ou alterar o agendamento atual'));
 });

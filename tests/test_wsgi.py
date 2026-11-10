@@ -88,3 +88,14 @@ class ProductionTests(unittest.TestCase):
             {'id':1,'revision':1,'expected_due_at':1800000000},cookie)['status'],200)
         with app.connect() as c:
             self.assertEqual(c.execute('SELECT publish_status,revision FROM posts').fetchone()[:],('draft',2))
+
+    def test_manual_reel_analysis_requires_login_and_returns_result(self):
+        self.assertEqual(self.call('/api/reels/analyze','POST',{})['status'],401)
+        login=self.call('/api/login','POST',{'password':'senha-isolada-producao'})
+        cookie=login['headers']['Set-Cookie'].split(';')[0]
+        expected={"status":"eligible","checked":1,"file":"reel.mp4"}
+        with patch('content_schedule.analyze_reel',return_value=expected) as analyze:
+            response=self.call('/api/reels/analyze','POST',{},cookie)
+        self.assertEqual(response['status'],200)
+        self.assertEqual(json.loads(response['body']),expected)
+        analyze.assert_called_once_with()

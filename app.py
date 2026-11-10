@@ -322,6 +322,8 @@ class Handler(BaseHTTPRequestHandler):
                 result=content_schedule.cancel(
                     d.get('id'),d.get('expected_due_at'),confirmed=d.get('confirmed'))
                 return self.send_json(result)
+            if self.path == '/api/reels/analyze':
+                return self.send_json(content_schedule.analyze_reel())
             if self.path in ['/api/posts/publish','/api/posts/finish']:
                 result=publishing.publish(connect,DB.parent,d,finish=self.path.endswith('/finish'))
                 return self.send_json(result,202 if result['status']=='processing' else 200)

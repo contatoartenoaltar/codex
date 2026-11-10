@@ -82,6 +82,47 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(self.store.agenda(), [])
         self.assertEqual(list(self.drive.glob(".reel-preflight-*")), [])
 
+    def test_manual_analysis_marks_video_ready_without_scheduling_or_publishing(self):
+        source = item("drive_video_0003", mp4(b"manual-analysis"))
+
+        result = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=self.metadata, now=self.now)
+
+        self.assertEqual(result["status"], "eligible")
+        self.assertEqual(result["file"], source["name"])
+        row = self.store.agenda()[0]
+        self.assertEqual(row["state"], "ready")
+        self.assertIsNone(row["due_at"])
+        self.assertEqual(row["remote_id"], "")
+
+    def test_manual_analysis_reports_safe_error_and_remembers_file_name(self):
+        source = item("drive_video_0004", mp4(b"manual-bad"))
+
+        result = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=lambda path: (_ for _ in ()).throw(
+                ValueError("private /server/path detail")), now=self.now)
+
+        self.assertEqual(result["status"], "incompatible")
+        self.assertEqual(result["file"], source["name"])
+        self.assertNotIn("/server/path", result["error"])
+        details = policy_status(self.store)["invalid_file_details"]
+        self.assertEqual(details[0]["file"], source["name"])
+        self.assertEqual(self.store.agenda(), [])
+
+    def test_manual_analysis_skips_files_already_checked(self):
+        source = item("drive_video_0005", mp4(b"already-ready"))
+        automation.analyze_next(self.store, self.drive, client=Client([source]),
+                                media_validator=self.metadata, now=self.now)
+
+        result = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=lambda path: (_ for _ in ()).throw(AssertionError("validated twice")),
+            now=self.now)
+
+        self.assertEqual(result, {"status": "up_to_date", "checked": 0})
+
     def test_preflight_removes_file_when_validation_fails(self):
         raw = mp4(b"invalid")
         source = item("drive_video_0003", raw)

@@ -189,6 +189,19 @@ def reel_status():
         return empty
 
 
+def analyze_reel():
+    """Manually validate one pending Drive video without scheduling or publishing it."""
+    _, directory, _, connection = _connect("reel")
+    connection.close()
+    drive_value = os.environ.get("ARTENOALTAR_REELS_DRIVE_DIR", "")
+    drive_directory = Path(drive_value)
+    if (not drive_value or not drive_directory.is_absolute() or drive_directory.is_symlink()):
+        raise ValueError("A pasta de vídeos dos Reels não está configurada.")
+    from reels.automation import analyze_next
+    from reels.queue import Store
+    return analyze_next(Store(directory), drive_directory)
+
+
 def image(kind, name):
     """Lê uma miniatura somente quando seu nome ainda pertence à fila informada."""
     if kind == "carousel":

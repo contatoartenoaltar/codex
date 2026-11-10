@@ -14,8 +14,8 @@ import social_schedule
 
 from . import drive
 from . import validator
-from .queue import (ReelError, Store, _validate_media, cleanup_media, import_video,
-                    schedule, suggest_due)
+from .queue import (ReelError, Store, _public_import_error, _validate_media, cleanup_media,
+                    import_video, schedule, suggest_due)
 
 
 MAX_CANDIDATES_PER_RUN = 2
@@ -27,6 +27,64 @@ def _initialize(connection):
         error TEXT NOT NULL,seen_at INTEGER NOT NULL)""")
     connection.execute("""CREATE TABLE IF NOT EXISTS reel_import_error_names(
         source_id TEXT PRIMARY KEY,source_name TEXT NOT NULL)""")
+
+
+def _catalog_state(connection, files):
+    """Reconcile remembered failures with the current complete Drive catalog."""
+    known = {row["source_id"]: row["source_md5"] for row in connection.execute(
+        "SELECT source_id,source_md5 FROM reels")}
+    rejected = {row["source_id"]: row["source_md5"] for row in connection.execute(
+        "SELECT source_id,source_md5 FROM reel_import_errors")}
+    current_source_ids = {item["id"] for item in files}
+    for source_id in set(rejected) - current_source_ids:
+        connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (source_id,))
+        connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (source_id,))
+        rejected.pop(source_id, None)
+    for item in files:
+        if item["id"] in rejected:
+            connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
+                (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
+    return known, rejected
+
+
+def _remember_error(connection, item, error):
+    _initialize(connection)
+    connection.execute("""INSERT OR REPLACE INTO reel_import_errors
+        (source_id,source_md5,error,seen_at) VALUES(?,?,?,?)""",
+        (item["id"], item["md5Checksum"], str(error)[:300], int(time.time())))
+    connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
+        (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
+
+
+def analyze_next(store, drive_directory, *, client=None, media_validator=validator.inspect,
+                 now=None):
+    """Validate and preserve one pending Drive video without scheduling or publishing it."""
+    drive_directory = Path(drive_directory)
+    client = client or _client(drive_directory)
+    source = drive.catalog(drive_directory, client)
+    with store.connect() as connection:
+        _initialize(connection)
+        known, rejected = _catalog_state(connection, source["files"])
+    candidates = [item for item in source["files"]
+                  if item["id"] not in known and rejected.get(item["id"]) != item["md5Checksum"]]
+    if not candidates:
+        return {"status": "up_to_date", "checked": 0}
+    item = candidates[0]
+    try:
+        with tempfile.TemporaryDirectory(dir=store.directory, prefix=".reel-analysis-") as temporary:
+            downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
+            client.download_video(item, downloaded)
+            receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
+        with store.connect() as connection:
+            connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))
+            connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (item["id"],))
+        return {"status": "eligible", "checked": 1, "file": item["name"],
+                "reel_id": receipt["id"]}
+    except (OSError, ValueError) as error:
+        with store.connect() as connection:
+            _remember_error(connection, item, error)
+        return {"status": "incompatible", "checked": 1, "file": item["name"],
+                "error": _public_import_error(error)}
 
 
 def _client(directory):
@@ -121,19 +179,7 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
     client = client or _client(drive_directory)
     source = drive.catalog(drive_directory, client)
     with store.connect() as connection:
-        known = {row["source_id"]: row["source_md5"] for row in connection.execute(
-            "SELECT source_id,source_md5 FROM reels")}
-        rejected = {row["source_id"]: row["source_md5"] for row in connection.execute(
-            "SELECT source_id,source_md5 FROM reel_import_errors")}
-        current_source_ids = {item["id"] for item in source["files"]}
-        for source_id in set(rejected) - current_source_ids:
-            connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (source_id,))
-            connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (source_id,))
-            rejected.pop(source_id, None)
-        for item in source["files"]:
-            if item["id"] in rejected:
-                connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
-                    (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
+        known, rejected = _catalog_state(connection, source["files"])
     candidates = [item for item in source["files"]
                   if item["id"] not in known and rejected.get(item["id"]) != item["md5Checksum"]]
     if not candidates:
@@ -148,18 +194,15 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
             with store.connect() as connection:
                 connection.execute(
                     "DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))
+                connection.execute(
+                    "DELETE FROM reel_import_error_names WHERE source_id=?", (item["id"],))
             due = _queue(store, receipt["id"], item["id"],
                          schedule_directory=schedule_directory, now=now)
             return {"status": "queued", "reel_id": receipt["id"],
                     "due_at": int(due.timestamp())}
         except (OSError, ValueError) as error:
             with store.connect() as connection:
-                _initialize(connection)
-                connection.execute("""INSERT OR REPLACE INTO reel_import_errors
-                    (source_id,source_md5,error,seen_at) VALUES(?,?,?,?)""",
-                    (item["id"], item["md5Checksum"], str(error)[:300], int(time.time())))
-                connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
-                    (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
+                _remember_error(connection, item, error)
     return {"status": "review"}
 
 
