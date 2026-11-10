@@ -170,8 +170,9 @@ def agenda(*, now=None):
 
 
 def reel_status():
-    """Expose only safe queue health counters to the authenticated Studio."""
-    empty = {"configured": False, "enabled": False, "review": 0, "invalid_files": 0}
+    """Expose safe queue health and actionable validation details to the Studio."""
+    empty = {"configured": False, "enabled": False, "review": 0, "invalid_files": 0,
+             "invalid_file_details": []}
     try:
         _, directory, _, connection = _connect("reel")
         connection.close()
@@ -182,6 +183,7 @@ def reel_status():
             "enabled": bool(status["enabled"]),
             "review": int(status["counts"].get("review", 0)),
             "invalid_files": int(status.get("invalid_files", 0)),
+            "invalid_file_details": status.get("invalid_file_details", []),
         }
     except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
         return empty

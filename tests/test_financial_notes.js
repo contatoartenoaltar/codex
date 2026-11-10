@@ -242,3 +242,23 @@ test('card de formato não transforma visualização indisponível em zero', () 
   assert.ok(html.includes('Aguardando visualizações da Meta'));
   assert.ok(html.includes('<strong>—</strong>'));
 });
+
+test('Estúdio detalha os vídeos de Reels incompatíveis com texto seguro', () => {
+  const {context} = app();
+  vm.runInContext(`state = {
+    posts: [], automated_content: [], products: [], ai_configured: false,
+    meta: {accounts: [], accounts_verified: false, message: 'Configuração pendente'},
+    scheduler: {active: true},
+    reels_automation: {invalid_files: 2, invalid_file_details: [
+      {file: 'culto & louvor.mp4', error: 'Use vídeo vertical 9:16.'},
+      {file: '<video>.mp4', error: 'Use áudio AAC.'}
+    ]}
+  }`, context);
+  const html = vm.runInContext('content()', context);
+  assert.ok(html.includes('2 arquivos do Drive ignorados por incompatibilidade'));
+  assert.ok(html.includes('Ver erros encontrados'));
+  assert.ok(html.includes('culto &amp; louvor.mp4'));
+  assert.ok(html.includes('&lt;video&gt;.mp4'));
+  assert.ok(!html.includes('<video>.mp4'));
+  assert.ok(html.includes('Após a nova verificação, ele sairá desta lista automaticamente'));
+});

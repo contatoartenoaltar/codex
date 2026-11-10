@@ -139,8 +139,13 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(self.store.agenda()[0]["source_id"], good["id"])
         with self.store.connect() as connection:
             error = connection.execute("SELECT error FROM reel_import_errors").fetchone()[0]
+            source_name = connection.execute(
+                "SELECT source_name FROM reel_import_error_names").fetchone()[0]
         self.assertIn("invalid", error)
+        self.assertEqual(source_name, bad["name"])
         self.assertEqual(policy_status(self.store)["invalid_files"], 1)
+        self.assertEqual(policy_status(self.store)["invalid_file_details"][0]["file"], bad["name"])
+        self.assertNotIn("private", policy_status(self.store)["invalid_file_details"][0]["error"])
 
     def test_valid_reel_decision_changes_only_the_next_unscheduled_item(self):
         enable(self.store, "123456", confirmed=True)
@@ -227,6 +232,38 @@ class ReelsAutomationTests(unittest.TestCase):
                                 media_validator=self.metadata, now=self.now)
 
         self.assertEqual(result["status"], "queued")
+        self.assertEqual(policy_status(self.store)["invalid_files"], 0)
+
+    def test_deleted_bad_video_is_forgotten_and_replacement_may_have_another_name(self):
+        enable(self.store, "123456", confirmed=True)
+        bad = item("drive_video_0001", mp4(b"bad"))
+        self.assertEqual(automation.run(
+            self.store, self.drive, client=Client([bad]),
+            media_validator=lambda path: (_ for _ in ()).throw(ValueError("invalid")),
+            now=self.now), {"status": "review"})
+        self.assertEqual(policy_status(self.store)["invalid_files"], 1)
+
+        replacement = item("drive_video_9999", mp4(b"corrected")) | {
+            "name": "novo-video-corrigido.mp4",
+        }
+        result = automation.run(self.store, self.drive, client=Client([replacement]),
+                                media_validator=self.metadata, now=self.now)
+
+        self.assertEqual(result["status"], "queued")
+        self.assertEqual(self.store.agenda()[0]["source_name"], "novo-video-corrigido.mp4")
+        self.assertEqual(policy_status(self.store)["invalid_files"], 0)
+
+    def test_deleted_bad_video_clears_warning_even_without_replacement(self):
+        enable(self.store, "123456", confirmed=True)
+        bad = item("drive_video_0001", mp4(b"bad"))
+        automation.run(
+            self.store, self.drive, client=Client([bad]),
+            media_validator=lambda path: (_ for _ in ()).throw(ValueError("invalid")),
+            now=self.now)
+
+        self.assertEqual(automation.run(
+            self.store, self.drive, client=Client([]),
+            media_validator=self.metadata, now=self.now), {"status": "empty"})
         self.assertEqual(policy_status(self.store)["invalid_files"], 0)
 
 

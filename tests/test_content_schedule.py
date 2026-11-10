@@ -176,6 +176,12 @@ class ContentScheduleTests(unittest.TestCase):
                 ("a" * 32, "private technical detail", self.now))
         self.assertEqual(content_schedule.reel_status(), {
             "configured": True, "enabled": True, "review": 1, "invalid_files": 1,
+            "invalid_file_details": [{
+                "file": "Arquivo 1",
+                "error": ("Não foi possível validar tecnicamente este vídeo. Exporte novamente "
+                          "em MP4 vertical 9:16, com vídeo H.264, áudio AAC e duração entre 3 e "
+                          "90 segundos."),
+            }],
         })
 
 

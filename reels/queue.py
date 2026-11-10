@@ -306,6 +306,21 @@ def policy_status(store):
         invalid_files = (connection.execute(
             "SELECT COUNT(*) FROM reel_import_errors").fetchone()[0]
             if has_import_errors else 0)
+        invalid_details = []
+        if has_import_errors:
+            has_names = connection.execute("""SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='reel_import_error_names'""").fetchone()
+            name_join = ("LEFT JOIN reel_import_error_names n ON n.source_id=e.source_id"
+                         if has_names else "")
+            name_column = "n.source_name" if has_names else "NULL"
+            errors = connection.execute(f"""SELECT {name_column} AS source_name,e.error
+                FROM reel_import_errors e {name_join}
+                ORDER BY e.seen_at DESC,e.source_id LIMIT 20""").fetchall()
+            for index, row in enumerate(errors, 1):
+                invalid_details.append({
+                    "file": row["source_name"] or f"Arquivo {index}",
+                    "error": _public_import_error(row["error"]),
+                })
     if policy is None:
         raise ReelError("The Reels policy is not initialized.")
     result = {
@@ -314,9 +329,35 @@ def policy_status(store):
         "account_id": policy["account_id"],
         "counts": counts,
         "invalid_files": invalid_files,
+        "invalid_file_details": invalid_details,
         "next": dict(next_reel) if next_reel is not None else None,
     }
     return result
+
+
+def _public_import_error(value):
+    """Keep actionable validation errors while hiding provider and filesystem details."""
+    message = str(value).strip()
+    safe_messages = {
+        "Use MP4 ou MOV com vídeo H.264/HEVC e áudio AAC.",
+        "O Reel precisa conter a música já incorporada.",
+        "O Reel precisa ter entre 3 e 90 segundos.",
+        "A taxa de quadros do vídeo não é compatível.",
+        "O Reel precisa conter uma faixa de vídeo e uma de áudio.",
+        "O MP4 não passou pela validação técnica.",
+        "O MP4 não informou dimensões ou duração válidas.",
+        "O arquivo não possui um contêiner MP4 válido.",
+        "O arquivo recebido não é um MP4 válido.",
+        "O vídeo excede o limite seguro da fila.",
+    }
+    if message in safe_messages:
+        return message
+    if re.fullmatch(
+            r"O vídeo foi identificado como \d{1,5} × \d{1,5}\. "
+            r"Use vídeo vertical 9:16, preferencialmente 1080 × 1920\.", message):
+        return message
+    return ("Não foi possível validar tecnicamente este vídeo. Exporte novamente em MP4 "
+            "vertical 9:16, com vídeo H.264, áudio AAC e duração entre 3 e 90 segundos.")
 
 
 def _adaptive_time(value):

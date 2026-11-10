@@ -25,6 +25,8 @@ def _initialize(connection):
     connection.execute("""CREATE TABLE IF NOT EXISTS reel_import_errors(
         source_id TEXT PRIMARY KEY,source_md5 TEXT NOT NULL,
         error TEXT NOT NULL,seen_at INTEGER NOT NULL)""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS reel_import_error_names(
+        source_id TEXT PRIMARY KEY,source_name TEXT NOT NULL)""")
 
 
 def _client(directory):
@@ -123,6 +125,15 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
             "SELECT source_id,source_md5 FROM reels")}
         rejected = {row["source_id"]: row["source_md5"] for row in connection.execute(
             "SELECT source_id,source_md5 FROM reel_import_errors")}
+        current_source_ids = {item["id"] for item in source["files"]}
+        for source_id in set(rejected) - current_source_ids:
+            connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (source_id,))
+            connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (source_id,))
+            rejected.pop(source_id, None)
+        for item in source["files"]:
+            if item["id"] in rejected:
+                connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
+                    (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
     candidates = [item for item in source["files"]
                   if item["id"] not in known and rejected.get(item["id"]) != item["md5Checksum"]]
     if not candidates:
@@ -147,6 +158,8 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
                 connection.execute("""INSERT OR REPLACE INTO reel_import_errors
                     (source_id,source_md5,error,seen_at) VALUES(?,?,?,?)""",
                     (item["id"], item["md5Checksum"], str(error)[:300], int(time.time())))
+                connection.execute("""INSERT OR REPLACE INTO reel_import_error_names
+                    (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
     return {"status": "review"}
 
 
