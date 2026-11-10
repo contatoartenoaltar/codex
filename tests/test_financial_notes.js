@@ -265,3 +265,18 @@ test('Estúdio detalha os vídeos de Reels incompatíveis com texto seguro', () 
   assert.ok(html.includes('Analisar vídeo'));
   assert.ok(html.includes('sem publicar ou alterar o agendamento atual'));
 });
+
+test('erro operacional de Reels não manda substituir o vídeo', () => {
+  const {context} = app();
+  vm.runInContext(`state = {
+    posts: [], automated_content: [], products: [], ai_configured: false,
+    meta: {accounts: [], accounts_verified: false, message: 'Configuração pendente'},
+    scheduler: {active: true},
+    reels_automation: {configured: true, invalid_files: 1, invalid_file_details: [
+      {file: 'reel.mp4', error: 'Espaço insuficiente na hospedagem para preparar o vídeo.'}
+    ]}
+  }`, context);
+  const html = vm.runInContext('content()', context);
+  assert.ok(html.includes('O vídeo não precisa ser substituído'));
+  assert.ok(!html.includes('Corrija o vídeo e substitua o arquivo'));
+});

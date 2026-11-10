@@ -321,6 +321,17 @@ class ReelDriveTests(unittest.TestCase):
         self.assertEqual(target.read_bytes(), raw)
         self.assertEqual(result["md5"], hashlib.md5(raw, usedforsecurity=False).hexdigest())
 
+    def test_storage_quota_error_is_reported_without_blame_on_video(self):
+        raw = mp4(b"quota")
+        target = self.directory / "quota.mp4"
+        with patch("reels.drive._flush_download",
+                   side_effect=OSError(errno.EDQUOT, "private path")):
+            with self.assertRaisesRegex(
+                    drive.ReelDriveError, "Espaço insuficiente na hospedagem") as failure:
+                drive.VideoDriveClient(Credential(), opener=Opener(raw)).download_video(
+                    item(raw), target)
+        self.assertNotIn("private path", str(failure.exception))
+
     def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
         output = io.StringIO()
         with patch("reels.drive.configure", return_value="reels@example.test") as configure, \

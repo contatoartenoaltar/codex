@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import secrets
+import shutil
 import time
 
 import drive_source
@@ -18,6 +19,7 @@ from .queue import (ReelError, Store, _public_import_error, _validate_media, cle
 
 
 MAX_CANDIDATES_PER_RUN = 2
+STALE_STAGING_SECONDS = 30 * 60
 
 
 def _initialize(connection):
@@ -77,10 +79,41 @@ def _discard_staging(path):
         pass
 
 
+def cleanup_staging(store, *, now=None):
+    """Remove legacy temporary directories and abandoned staging files safely."""
+    current = time.time() if now is None else float(now)
+    removed = 0
+    for entry in store.directory.iterdir():
+        if entry == store.media or entry.is_symlink():
+            continue
+        legacy_directory = (entry.is_dir() and
+                            entry.name.startswith((".reel-analysis-", ".reel-import-")))
+        stale_file = (entry.is_file() and
+                      entry.name.startswith((".reel-analysis-", ".reel-import-")) and
+                      entry.stat().st_mtime <= current - STALE_STAGING_SECONDS)
+        if not legacy_directory and not stale_file:
+            continue
+        try:
+            shutil.rmtree(entry) if legacy_directory else entry.unlink()
+            removed += 1
+        except OSError:
+            pass
+    for entry in store.media.iterdir():
+        if (entry.is_file() and not entry.is_symlink() and entry.name.startswith(".reel-") and
+                entry.stat().st_mtime <= current - STALE_STAGING_SECONDS):
+            try:
+                entry.unlink()
+                removed += 1
+            except OSError:
+                pass
+    return removed
+
+
 def analyze_next(store, drive_directory, *, client=None, media_validator=validator.inspect,
                  now=None):
     """Validate and preserve one pending Drive video without scheduling or publishing it."""
     drive_directory = Path(drive_directory)
+    cleanup_staging(store)
     client = client or _client(drive_directory)
     source = drive.catalog(drive_directory, client)
     with store.connect() as connection:
@@ -95,7 +128,8 @@ def analyze_next(store, drive_directory, *, client=None, media_validator=validat
         store.directory, "reel-analysis", Path(item["name"]).suffix.lower())
     try:
         client.download_video(item, downloaded)
-        receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
+        receipt = import_video(store, item, downloaded, validator=media_validator, now=now,
+                               move_source=True)
         with store.connect() as connection:
             connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))
             connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (item["id"],))
@@ -184,6 +218,7 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
         if policy is None or not policy["enabled"] or not policy["account_id"]:
             return {"status": "disabled"}
     cleanup_media(store)
+    cleanup_staging(store)
     with store.connect() as connection:
         active = connection.execute("""SELECT id FROM reels
             WHERE state IN ('queued','processing') LIMIT 1""").fetchone()
@@ -213,7 +248,8 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
             store.directory, "reel-import", Path(item["name"]).suffix.lower())
         try:
             client.download_video(item, downloaded)
-            receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
+            receipt = import_video(store, item, downloaded, validator=media_validator, now=now,
+                                   move_source=True)
             with store.connect() as connection:
                 connection.execute(
                     "DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))

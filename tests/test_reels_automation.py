@@ -1,6 +1,7 @@
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -109,6 +110,25 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertEqual(self.store.agenda()[0]["state"], "ready")
         self.assertEqual(policy_status(self.store)["invalid_files"], 0)
         discard.assert_called_once()
+
+    def test_cleanup_removes_legacy_directories_and_only_stale_current_files(self):
+        legacy = self.store.directory / ".reel-analysis-legacy"
+        legacy.mkdir()
+        (legacy / "source.mp4").write_bytes(b"old-large-video")
+        stale = self.store.directory / ".reel-import-stale.mp4"
+        stale.write_bytes(b"stale")
+        recent = self.store.directory / ".reel-analysis-recent.mp4"
+        recent.write_bytes(b"active")
+        now = 2_000_000_000
+        os.utime(stale, (now - automation.STALE_STAGING_SECONDS - 1,) * 2)
+        os.utime(recent, (now,) * 2)
+
+        removed = automation.cleanup_staging(self.store, now=now)
+
+        self.assertEqual(removed, 2)
+        self.assertFalse(legacy.exists())
+        self.assertFalse(stale.exists())
+        self.assertTrue(recent.exists())
 
     def test_manual_analysis_reports_safe_error_and_remembers_file_name(self):
         source = item("drive_video_0004", mp4(b"manual-bad"))

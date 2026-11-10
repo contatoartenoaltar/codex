@@ -258,6 +258,10 @@ class VideoDriveClient(drive_source.DriveClient):
             raise ReelDriveError(
                 "O download do vídeo excedeu o tempo de espera. Tente novamente mais tarde.") from None
         except Exception as error:
+            if isinstance(error, OSError) and error.errno in (errno.EDQUOT, errno.ENOSPC):
+                raise ReelDriveError(
+                    "Espaço insuficiente na hospedagem para preparar o vídeo. "
+                    "Temporários antigos serão limpos na próxima análise.") from None
             detail = type(error).__name__
             if isinstance(error, OSError) and error.errno is not None:
                 detail += f" errno {error.errno}"

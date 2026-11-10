@@ -162,6 +162,16 @@ class ReelsQueueTests(unittest.TestCase):
         self.assertEqual(row["id"], result["id"])
         self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
 
+    def test_private_staging_file_can_be_moved_without_second_video_copy(self):
+        item, path, raw = self.source()
+        result = import_video(
+            self.store, item, path, validator=metadata, now=self.now, move_source=True)
+
+        row = self.store.agenda()[0]
+        self.assertEqual(row["id"], result["id"])
+        self.assertFalse(path.exists())
+        self.assertEqual((self.store.media / row["filename"]).read_bytes(), raw)
+
     def test_known_validator_errors_are_safe_for_studio_diagnosis(self):
         self.assertEqual(
             queue_module._public_import_error("O MP4 não informou a taxa de quadros."),

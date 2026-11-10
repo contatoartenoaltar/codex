@@ -216,8 +216,8 @@ def _flush_media(stream):
             raise
 
 
-def import_video(store, item, source, *, validator, now=None):
-    """Importa uma cópia byte a byte; nunca altera áudio, imagem ou metadados."""
+def import_video(store, item, source, *, validator, now=None, move_source=False):
+    """Import validated bytes, optionally consuming a private same-filesystem staging file."""
     source_id, source_name, expected_md5, expected_size, suffix = _source_item(item)
     source = Path(source)
     if source.is_symlink() or not source.is_file() or source.stat().st_size != expected_size:
@@ -240,6 +240,21 @@ def import_video(store, item, source, *, validator, now=None):
             return {"id": known["id"], "created": False}
     ident = secrets.token_hex(16)
     target = store.media / f"{ident}{suffix}"
+    if move_source:
+        try:
+            os.replace(source, target)
+            target.chmod(0o600)
+            with store.connect() as connection:
+                connection.execute("""INSERT INTO reels(
+                    id,source_id,source_name,source_md5,source_size,filename,sha256,
+                    duration,width,height,fps,state,imported_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (ident, source_id, source_name, expected_md5, expected_size,
+                     target.name, sha256, duration, width, height, fps, "ready", now_stamp))
+            return {"id": ident, "created": True}
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
     descriptor, temporary_name = tempfile.mkstemp(
         dir=store.media, prefix=".reel-", suffix=suffix)
     try:
@@ -391,6 +406,7 @@ def _public_import_error(value):
         "O vídeo recebido não corresponde ao tamanho confirmado no catálogo.",
         "O download do vídeo excedeu o tempo de espera. Tente novamente mais tarde.",
         "Não foi possível baixar o vídeo do Drive. O arquivo de origem foi preservado.",
+        "Espaço insuficiente na hospedagem para preparar o vídeo. Temporários antigos serão limpos na próxima análise.",
     }
     if message in safe_messages:
         return message
