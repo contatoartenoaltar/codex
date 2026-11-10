@@ -241,6 +241,30 @@ class ReelDriveTests(unittest.TestCase):
         self.assertTrue(all(timeout == drive.DOWNLOAD_TIMEOUT_SECONDS
                             for _, timeout in opener.requests))
 
+    def test_large_download_falls_back_to_verified_continuous_stream(self):
+        raw = mp4(b"large-video-with-range-fallback")
+        metadata = item(raw)
+
+        class RangeRejectedOpener:
+            def __init__(self):
+                self.requests = []
+
+            def open(inner, request, timeout=0):
+                inner.requests.append(request)
+                return Response(raw)
+
+        opener = RangeRejectedOpener()
+        target = self.directory / "range-fallback.mp4"
+        with patch("reels.drive.RANGE_DOWNLOAD_THRESHOLD", 1), \
+                patch("reels.drive.RANGE_BYTES", 8):
+            result = drive.VideoDriveClient(Credential(), opener=opener).download_video(
+                metadata, target)
+
+        self.assertEqual(target.read_bytes(), raw)
+        self.assertEqual(result["bytes"], len(raw))
+        self.assertIsNotNone(opener.requests[0].get_header("Range"))
+        self.assertIsNone(opener.requests[-1].get_header("Range"))
+
     def test_operator_cli_configures_and_checks_drive_without_enabling_publishing(self):
         output = io.StringIO()
         with patch("reels.drive.configure", return_value="reels@example.test") as configure, \

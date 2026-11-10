@@ -178,20 +178,30 @@ class VideoDriveClient(drive_source.DriveClient):
         head = b""
         try:
             if metadata["size"] > RANGE_DOWNLOAD_THRESHOLD:
-                with os.fdopen(descriptor, "wb") as stream:
-                    descriptor = -1
-                    written, head = self._range(metadata, stream, digest, head)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                if len(head) < 12 or head[4:8] != b"ftyp":
-                    raise ReelDriveError("O arquivo recebido não contém uma estrutura MP4 válida.")
-                if digest.hexdigest() != metadata["md5Checksum"]:
-                    raise ReelDriveError(
-                        "O vídeo mudou desde a consulta. Atualize o catálogo antes de tentar novamente.")
-                os.chmod(temporary, 0o600)
-                os.replace(temporary, destination)
-                return {"path": str(destination), "bytes": written,
-                        "md5": metadata["md5Checksum"], "drive_id": metadata["id"]}
+                try:
+                    with os.fdopen(descriptor, "wb") as stream:
+                        descriptor = -1
+                        written, head = self._range(metadata, stream, digest, head)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    if len(head) < 12 or head[4:8] != b"ftyp":
+                        raise ReelDriveError("O arquivo recebido não contém uma estrutura MP4 válida.")
+                    if digest.hexdigest() != metadata["md5Checksum"]:
+                        raise ReelDriveError(
+                            "O vídeo mudou desde a consulta. Atualize o catálogo antes de tentar novamente.")
+                    os.chmod(temporary, 0o600)
+                    os.replace(temporary, destination)
+                    return {"path": str(destination), "bytes": written,
+                            "md5": metadata["md5Checksum"], "drive_id": metadata["id"]}
+                except Exception:
+                    # Some Drive responses do not honor byte ranges consistently. Restart the
+                    # same verified download from zero instead of rejecting an otherwise valid video.
+                    if descriptor >= 0:
+                        os.close(descriptor)
+                    descriptor = os.open(temporary, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW)
+                    written = 0
+                    digest = hashlib.md5(usedforsecurity=False)
+                    head = b""
             self.credential.before_request(self.transport, "GET", url, headers)
             request = urllib.request.Request(url, headers=headers, method="GET")
             try:
