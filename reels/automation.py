@@ -5,7 +5,6 @@ import argparse
 import json
 from pathlib import Path
 import secrets
-import tempfile
 import time
 
 import drive_source
@@ -35,6 +34,10 @@ def _catalog_state(connection, files):
         "SELECT source_id,source_md5 FROM reels")}
     rejected = {row["source_id"]: row["source_md5"] for row in connection.execute(
         "SELECT source_id,source_md5 FROM reel_import_errors")}
+    for source_id in set(rejected) & set(known):
+        connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (source_id,))
+        connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (source_id,))
+        rejected.pop(source_id, None)
     current_source_ids = {item["id"] for item in files}
     for source_id in set(rejected) - current_source_ids:
         connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (source_id,))
@@ -56,6 +59,24 @@ def _remember_error(connection, item, error):
         (source_id,source_name) VALUES(?,?)""", (item["id"], item["name"][:240]))
 
 
+def _staging_file(directory, prefix, suffix):
+    """Return a private, unpredictable destination that does not exist yet."""
+    directory = Path(directory)
+    for _ in range(20):
+        candidate = directory / f".{prefix}-{secrets.token_hex(16)}{suffix}"
+        if not candidate.exists() and not candidate.is_symlink():
+            return candidate
+    raise ReelError("Não foi possível preparar o arquivo temporário do Reel.")
+
+
+def _discard_staging(path):
+    """Cleanup must never turn a successfully validated Reel into a rejection."""
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def analyze_next(store, drive_directory, *, client=None, media_validator=validator.inspect,
                  now=None):
     """Validate and preserve one pending Drive video without scheduling or publishing it."""
@@ -70,11 +91,11 @@ def analyze_next(store, drive_directory, *, client=None, media_validator=validat
     if not candidates:
         return {"status": "up_to_date", "checked": 0}
     item = candidates[0]
+    downloaded = _staging_file(
+        store.directory, "reel-analysis", Path(item["name"]).suffix.lower())
     try:
-        with tempfile.TemporaryDirectory(dir=store.directory, prefix=".reel-analysis-") as temporary:
-            downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
-            client.download_video(item, downloaded)
-            receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
+        client.download_video(item, downloaded)
+        receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
         with store.connect() as connection:
             connection.execute("DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))
             connection.execute("DELETE FROM reel_import_error_names WHERE source_id=?", (item["id"],))
@@ -85,6 +106,8 @@ def analyze_next(store, drive_directory, *, client=None, media_validator=validat
             _remember_error(connection, item, error)
         return {"status": "incompatible", "checked": 1, "file": item["name"],
                 "error": _public_import_error(error)}
+    finally:
+        _discard_staging(downloaded)
 
 
 def _client(directory):
@@ -186,11 +209,11 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
         return {"status": "empty"}
 
     for item in candidates[:MAX_CANDIDATES_PER_RUN]:
+        downloaded = _staging_file(
+            store.directory, "reel-import", Path(item["name"]).suffix.lower())
         try:
-            with tempfile.TemporaryDirectory(dir=store.directory, prefix=".reel-import-") as temporary:
-                downloaded = Path(temporary) / ("source" + Path(item["name"]).suffix.lower())
-                client.download_video(item, downloaded)
-                receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
+            client.download_video(item, downloaded)
+            receipt = import_video(store, item, downloaded, validator=media_validator, now=now)
             with store.connect() as connection:
                 connection.execute(
                     "DELETE FROM reel_import_errors WHERE source_id=?", (item["id"],))
@@ -203,6 +226,8 @@ def run(store, drive_directory, *, client=None, media_validator=validator.inspec
         except (OSError, ValueError) as error:
             with store.connect() as connection:
                 _remember_error(connection, item, error)
+        finally:
+            _discard_staging(downloaded)
     return {"status": "review"}
 
 

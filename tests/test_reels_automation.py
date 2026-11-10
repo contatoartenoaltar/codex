@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from reels import automation
 from reels.queue import Store, ZONE, cancel, configure, enable, policy_status
@@ -96,6 +97,19 @@ class ReelsAutomationTests(unittest.TestCase):
         self.assertIsNone(row["due_at"])
         self.assertEqual(row["remote_id"], "")
 
+    def test_temporary_cleanup_failure_does_not_reject_valid_manual_analysis(self):
+        source = item("drive_video_0007", mp4(b"cleanup-busy"))
+
+        with patch("reels.automation._discard_staging") as discard:
+            result = automation.analyze_next(
+                self.store, self.drive, client=Client([source]),
+                media_validator=self.metadata, now=self.now)
+
+        self.assertEqual(result["status"], "eligible")
+        self.assertEqual(self.store.agenda()[0]["state"], "ready")
+        self.assertEqual(policy_status(self.store)["invalid_files"], 0)
+        discard.assert_called_once()
+
     def test_manual_analysis_reports_safe_error_and_remembers_file_name(self):
         source = item("drive_video_0004", mp4(b"manual-bad"))
 
@@ -138,6 +152,23 @@ class ReelsAutomationTests(unittest.TestCase):
             now=self.now)
 
         self.assertEqual(result, {"status": "up_to_date", "checked": 0})
+
+    def test_manual_analysis_clears_stale_error_for_already_imported_file(self):
+        source = item("drive_video_0008", mp4(b"imported-before-cleanup-error"))
+        automation.analyze_next(self.store, self.drive, client=Client([source]),
+                                media_validator=self.metadata, now=self.now)
+        with self.store.connect() as connection:
+            automation._remember_error(
+                connection, source,
+                OSError(16, "Device or resource busy", ".reel-analysis-old"))
+        self.assertEqual(policy_status(self.store)["invalid_files"], 1)
+
+        result = automation.analyze_next(
+            self.store, self.drive, client=Client([source]),
+            media_validator=self.metadata, now=self.now)
+
+        self.assertEqual(result, {"status": "up_to_date", "checked": 0})
+        self.assertEqual(policy_status(self.store)["invalid_files"], 0)
 
     def test_preflight_removes_file_when_validation_fails(self):
         raw = mp4(b"invalid")
