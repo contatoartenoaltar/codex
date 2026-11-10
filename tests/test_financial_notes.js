@@ -41,6 +41,50 @@ test('novo lançamento mantém os campos existentes e oferece observações opci
   assert.ok(html.includes('<option value="investment">Investimento</option>'));
 });
 
+test('financeiro oferece receita parcial e mostra somente pedidos com saldo', () => {
+  const {context, nodes} = app();
+  vm.runInContext(`state.orders = [
+    {id: 1, customer: 'Igreja Parcial', total: 39900, status: 'Novo',
+     transaction_id: 10, received_amount: 10000, remaining_amount: 29900},
+    {id: 2, customer: 'Igreja Quitada', total: 14900, status: 'Novo',
+     transaction_id: 11, received_amount: 14900, remaining_amount: 0}
+  ]`, context);
+  const financeHtml = vm.runInContext('finance()', context);
+  assert.ok(financeHtml.includes('data-add="partial-income"'));
+  assert.ok(financeHtml.includes('1 pedido(s) com valor a receber'));
+
+  vm.runInContext("modal('partial-income')", context);
+  const html = nodes.get('#fields').innerHTML;
+  assert.equal(nodes.get('#form-title').textContent, 'Receita parcial');
+  assert.ok(html.includes('name="id"'));
+  assert.ok(html.includes('name="amount"'));
+  assert.ok(html.includes('name="date"'));
+  assert.ok(html.includes('Igreja Parcial'));
+  assert.ok(html.includes('299,00'));
+  assert.ok(!html.includes('Igreja Quitada'));
+});
+
+test('novo pedido permite recebimento integral, parcial ou pendente', () => {
+  const {context, nodes} = app();
+  vm.runInContext(`state.products = [{id:'envelopes',name:'Envelopes'}]`, context);
+  vm.runInContext("modal('orders')", context);
+  const html = nodes.get('#fields').innerHTML;
+  assert.ok(html.includes('name="receipt_mode"'));
+  assert.ok(html.includes('value="integral"'));
+  assert.ok(html.includes('value="partial"'));
+  assert.ok(html.includes('value="pending"'));
+  assert.ok(html.includes('name="received_amount"'));
+});
+
+test('pedido parcialmente recebido mostra o progresso e botão de nova parcela', () => {
+  const {context} = app();
+  const html = vm.runInContext(`orderIncome({id:7,total:39900,status:'Novo',
+    transaction_id:10,received_amount:10000,remaining_amount:29900})`, context);
+  assert.ok(html.includes('Recebido'));
+  assert.ok(html.includes('data-partial-income="7"'));
+  assert.ok(html.includes('+ Parcela'));
+});
+
 test('financeiro mostra observações como texto seguro e mantém registros sem observações', () => {
   const {context} = app();
   vm.runInContext(`state.transactions = [
@@ -96,7 +140,8 @@ test('pedido existente oferece edição com os valores atuais', () => {
   assert.ok(html.includes('value="200"'));
   assert.ok(html.includes('value="149.00"'));
   assert.ok(html.includes('&lt;revisar&gt;'));
-  assert.ok(html.includes('receita vinculada serão corrigidos junto com o pedido'));
+  assert.ok(html.includes('Já recebido'));
+  assert.ok(html.includes('descrições dos recebimentos serão atualizadas'));
 });
 
 test('financeiro filtra cartões e lançamentos pelo período escolhido', () => {

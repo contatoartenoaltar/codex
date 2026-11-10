@@ -229,9 +229,19 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/state':
             with connect() as c:
                 result = {table: [dict(r) for r in c.execute(f'SELECT * FROM {table} ORDER BY id DESC')] for table in ['transactions', 'inventory', 'orders', 'posts']}
-                income_ids = {r['order_id']: r['id'] for r in result['transactions'] if r['order_id'] is not None}
+                payments = {r['order_id']: dict(r) for r in c.execute('''
+                    SELECT order_id, COUNT(*) AS payment_count,
+                           COALESCE(SUM(amount), 0) AS received_amount,
+                           MAX(id) AS transaction_id
+                    FROM transactions
+                    WHERE order_id IS NOT NULL AND kind='income'
+                    GROUP BY order_id''')}
                 for order in result['orders']:
-                    order['transaction_id'] = income_ids.get(order['id'])
+                    payment = payments.get(order['id'], {})
+                    order['transaction_id'] = payment.get('transaction_id')
+                    order['payment_count'] = payment.get('payment_count', 0)
+                    order['received_amount'] = payment.get('received_amount', 0)
+                    order['remaining_amount'] = max(0, order['total'] - order['received_amount'])
                 result['business_date'] = order_finance.today()
                 schedules={r['post_id']:dict(r) for r in c.execute('SELECT * FROM post_schedule')}
                 for post in result['posts']:
@@ -377,7 +387,18 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError('Observações inválidas.')
                     c.execute('BEGIN IMMEDIATE')
                     cursor = c.execute('INSERT INTO orders(customer,product,quantity,total,status,notes) VALUES(?,?,?,?,?,?)', (required(d, 'customer'), p['name'], number(d, 'quantity', True, True), number(d, 'total', True), 'Novo', notes))
-                    income = order_finance.register_income(c, cursor.lastrowid)
+                    receipt_mode = d.get('receipt_mode', 'integral')
+                    if receipt_mode == 'integral':
+                        income = order_finance.register_income(c, cursor.lastrowid)
+                    elif receipt_mode == 'partial':
+                        income = order_finance.register_income(
+                            c, cursor.lastrowid, amount=number(d, 'received_amount', True, True))
+                    elif receipt_mode == 'pending':
+                        income = {'id': None, 'amount': 0, 'created': False,
+                                  'received_amount': 0,
+                                  'remaining_amount': number(d, 'total', True)}
+                    else:
+                        raise ValueError('Selecione como o pedido foi recebido.')
                     c.commit()
                     return self.send_json({'ok': True, 'id': cursor.lastrowid, 'income': income}, 201)
                 elif self.path == '/api/orders/update':
@@ -394,17 +415,31 @@ class Handler(BaseHTTPRequestHandler):
                     customer = required(d, 'customer')
                     quantity = number(d, 'quantity', True, True)
                     total = number(d, 'total', True)
-                    income = c.execute('SELECT id FROM transactions WHERE order_id=?', (order_id,)).fetchone()
-                    if income is not None and total == 0:
+                    income = order_finance.payment_summary(c, order_id)
+                    single_full_payment = (income['payment_count'] == 1 and
+                                           income['received_amount'] == order['total'])
+                    if single_full_payment and total == 0:
                         raise ValueError('Exclua primeiro a receita vinculada antes de zerar o valor do pedido.')
+                    if not single_full_payment and total < income['received_amount']:
+                        raise ValueError('O total do pedido não pode ser menor que o valor já recebido.')
                     c.execute('''UPDATE orders SET customer=?,product=?,quantity=?,total=?,notes=?
                                  WHERE id=?''', (customer, product_name, quantity, total, notes, order_id))
-                    if income is not None:
-                        c.execute('''UPDATE transactions SET description=?,amount=? WHERE id=?''',
-                                  (order_finance.income_description(order_id, customer, product_name),
-                                   total, income['id']))
+                    if income['payment_count']:
+                        description = order_finance.income_description(order_id, customer, product_name)
+                        c.execute('''UPDATE transactions
+                                     SET description=CASE
+                                         WHEN description LIKE '% — Receita parcial'
+                                         THEN ? || ' — Receita parcial' ELSE ? END
+                                     WHERE order_id=? AND kind='income' ''',
+                                  (description, description, order_id))
+                        # Mantém o comportamento anterior para pedidos recebidos
+                        # integralmente em um único lançamento.
+                        if single_full_payment:
+                            c.execute('UPDATE transactions SET amount=? WHERE id=?',
+                                      (total, income['transaction_id']))
                     c.commit()
-                    return self.send_json({'ok': True, 'income_updated': income is not None})
+                    return self.send_json({'ok': True,
+                                           'income_updated': bool(income['payment_count'])})
                 elif self.path == '/api/orders/status':
                     status = required(d, 'status')
                     if status not in STAGES:
@@ -419,6 +454,14 @@ class Handler(BaseHTTPRequestHandler):
                     day = date.fromisoformat(required(d, 'date')).isoformat()
                     c.execute('BEGIN IMMEDIATE')
                     income = order_finance.register_income(c, order_id, day)
+                    c.commit()
+                    return self.send_json({'ok': True, 'income': income}, 201)
+                elif self.path == '/api/orders/partial-income':
+                    order_id = number(d, 'id', True, True)
+                    day = date.fromisoformat(required(d, 'date')).isoformat()
+                    amount = number(d, 'amount', True, True)
+                    c.execute('BEGIN IMMEDIATE')
+                    income = order_finance.register_income(c, order_id, day, amount)
                     c.commit()
                     return self.send_json({'ok': True, 'income': income}, 201)
                 elif self.path == '/api/posts':

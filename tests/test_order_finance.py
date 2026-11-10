@@ -84,6 +84,63 @@ class OrderFinanceTests(unittest.TestCase):
         app.initialize()
         self.assertEqual(self.state()['transactions'], state['transactions'])
 
+    def test_partial_receipts_update_order_balance_without_overpayment(self):
+        saved = self.post('orders', {
+            'customer': 'Igreja Parcelada', 'product': 'envelopes',
+            'quantity': 1000, 'total': 39900, 'notes': 'Duas parcelas',
+            'receipt_mode': 'partial', 'received_amount': 10000,
+        })
+        state = self.state()
+        order = state['orders'][0]
+        self.assertEqual((order['received_amount'], order['remaining_amount'],
+                          order['payment_count']), (10000, 29900, 1))
+        self.assertEqual(state['transactions'][0]['amount'], 10000)
+        self.assertIn('Receita parcial', state['transactions'][0]['description'])
+
+        second = self.post('orders/partial-income', {
+            'id': saved['id'], 'amount': 14900, 'date': '2026-10-30'})
+        self.assertEqual(second['income']['remaining_amount'], 15000)
+        before = self.state()
+        error = self.post('orders/partial-income', {
+            'id': saved['id'], 'amount': 15001, 'date': '2026-10-30'}, 400)
+        self.assertIn('saldo restante', error['error'])
+        self.assertEqual(self.state(), before)
+
+        self.post('orders/partial-income', {
+            'id': saved['id'], 'amount': 15000, 'date': '2026-10-30'})
+        final = self.state()
+        self.assertEqual(len(final['transactions']), 3)
+        self.assertEqual(sum(row['amount'] for row in final['transactions']), 39900)
+        self.assertEqual((final['orders'][0]['received_amount'],
+                          final['orders'][0]['remaining_amount'],
+                          final['orders'][0]['payment_count']), (39900, 0, 3))
+
+    def test_order_can_start_pending_and_receive_full_balance_later(self):
+        saved = self.post('orders', {
+            'customer': 'Igreja Pendente', 'product': 'envelopes',
+            'quantity': 200, 'total': 14900, 'notes': '',
+            'receipt_mode': 'pending',
+        })
+        state = self.state()
+        self.assertEqual(state['transactions'], [])
+        self.assertEqual((state['orders'][0]['received_amount'],
+                          state['orders'][0]['remaining_amount']), (0, 14900))
+        self.post('orders/income', {'id': saved['id'], 'date': '2026-10-30'})
+        paid = self.state()
+        self.assertEqual(paid['transactions'][0]['amount'], 14900)
+        self.assertEqual(paid['orders'][0]['remaining_amount'], 0)
+
+    def test_invalid_partial_value_rolls_back_new_order(self):
+        base = {'customer': 'Igreja', 'product': 'envelopes', 'quantity': 100,
+                'total': 9900, 'receipt_mode': 'partial'}
+        for amount in (None, 0, 10000):
+            data = dict(base)
+            if amount is not None:
+                data['received_amount'] = amount
+            self.post('orders', data, 400)
+            self.assertEqual(self.state()['orders'], [])
+            self.assertEqual(self.state()['transactions'], [])
+
     def test_transaction_notes_survive_reload_without_changing_financial_values(self):
         notes = 'Fornecedor: Papel & Cia\nReferência: <nota 123> — à vista'
         for kind in ('income', 'expense'):
@@ -182,6 +239,24 @@ class OrderFinanceTests(unittest.TestCase):
         self.assertEqual(state['transactions'], [])
         self.assertEqual((state['orders'][0]['product'], state['orders'][0]['total']),
                          ('Envelopes personalizados', 19900))
+
+    def test_editing_partially_paid_order_preserves_received_values(self):
+        saved = self.post('orders', {
+            'customer': 'Cliente inicial', 'product': 'envelopes', 'quantity': 500,
+            'total': 22900, 'notes': '', 'receipt_mode': 'partial',
+            'received_amount': 5000,
+        })
+        self.post('orders/update', {
+            'id': saved['id'], 'customer': 'Cliente corrigido',
+            'product': 'calendarios', 'quantity': 500, 'total': 25000,
+            'notes': 'Atualizado',
+        }, 200)
+        state = self.state()
+        self.assertEqual(state['transactions'][0]['amount'], 5000)
+        self.assertIn('Cliente corrigido', state['transactions'][0]['description'])
+        self.assertIn('Receita parcial', state['transactions'][0]['description'])
+        self.assertEqual((state['orders'][0]['received_amount'],
+                          state['orders'][0]['remaining_amount']), (5000, 20000))
 
     def test_order_edit_is_atomic_and_validated(self):
         saved = self.create()
