@@ -86,6 +86,19 @@ test('pedido parcialmente recebido mostra o progresso e botão de nova parcela',
   assert.ok(html.includes('Receita parcial'));
 });
 
+test('pedido ainda sem recebimento permite escolher receita parcial', () => {
+  const {context, nodes} = app();
+  vm.runInContext(`state.orders = [{id:11,customer:'IEQ Contagem',total:105500,
+    status:'Novo',transaction_id:null,received_amount:0,remaining_amount:105500}]`, context);
+  vm.runInContext("modal('order-income', 11)", context);
+  const html = nodes.get('#fields').innerHTML;
+  assert.ok(html.includes('name="income_mode"'));
+  assert.ok(html.includes('value="integral"'));
+  assert.ok(html.includes('value="partial"'));
+  assert.ok(html.includes('name="amount"'));
+  assert.ok(html.includes('Valor recebido (se parcial)'));
+});
+
 test('financeiro mostra observações como texto seguro e mantém registros sem observações', () => {
   const {context} = app();
   vm.runInContext(`state.transactions = [
