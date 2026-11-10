@@ -41,11 +41,11 @@ MAX_REFERENCE_BYTES = 20 * 1024 * 1024
 MAX_GENERATED_BYTES = 25 * 1024 * 1024
 
 THEMES = {
-    "dizimos": {"title": "Dízimos", "terms": ("dízimo", "dizimo")},
-    "ofertas": {"title": "Ofertas", "terms": ("oferta",)},
-    "primicias": {"title": "Primícias", "terms": ("primícia", "primicia")},
-    "santa-ceia": {"title": "Santa Ceia", "terms": ("santa ceia", "ceia")},
-    "missoes": {"title": "Missões", "terms": ("missões", "missoes", "missão", "missao")},
+    "dizimos": {"title": "Dízimos"},
+    "ofertas": {"title": "Ofertas"},
+    "primicias": {"title": "Primícias"},
+    "santa-ceia": {"title": "Santa Ceia"},
+    "missoes": {"title": "Missões"},
 }
 
 SCHEMA = (
@@ -171,23 +171,20 @@ def status(store, now=None):
             "daily_total": len(THEMES), "counts": counts, "recent": recent}
 
 
-def _theme_files(catalog, theme):
-    terms = THEMES[theme]["terms"]
-    candidates = []
-    for item in catalog.get("files", []):
-        name = item.get("name", "").casefold()
-        if item.get("mimeType") in ("image/png", "image/jpeg") and any(term in name for term in terms):
-            candidates.append(item)
+def _reference_files(catalog):
+    candidates = [item for item in catalog.get("files", [])
+                  if item.get("mimeType") in ("image/png", "image/jpeg")]
     if not candidates:
-        raise EnvelopeError(f"Nenhuma referência aprovada encontrada para {THEMES[theme]['title']}.")
+        raise EnvelopeError("A pasta não contém referências PNG ou JPEG aprovadas.")
     return candidates
 
 
 def choose_reference(connection, catalog, theme):
-    candidates = _theme_files(catalog, theme)
+    if theme not in THEMES:
+        raise EnvelopeError("Tema de envelope inválido.")
+    candidates = _reference_files(catalog)
     usage = {row[0]: (row[1], row[2]) for row in connection.execute(
-        "SELECT reference_id,COUNT(*),MAX(created_at) FROM outputs WHERE theme=? "
-        "GROUP BY reference_id", (theme,))}
+        "SELECT reference_id,COUNT(*),MAX(created_at) FROM outputs GROUP BY reference_id")}
     # Novos modelos primeiro; depois, menor uso e uso mais antigo.
     candidates.sort(key=lambda item: (*usage.get(item["id"], (0, 0)), item["id"]))
     return candidates[0]

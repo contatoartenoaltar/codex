@@ -8,7 +8,7 @@ Fluxo isolado para criar **cinco candidatos por dia**, um de cada tema:
 - Santa Ceia
 - Missões
 
-Os modelos aprovados são consultados como referências somente de leitura. A IA
+Os 88 arquivos da pasta `Artes Base` são consultados como referências somente de leitura. A IA
 cria uma base visual original e o sistema aplica o título localmente, evitando
 texto deformado. O arquivo final mede `1492 × 1054 px`, passa por validação e é
 salvo na subpasta de revisão do respectivo tema. Nenhum original é substituído,
@@ -47,7 +47,7 @@ cd /home/artenoaltar/arte-no-altar
 git pull --ff-only origin main
 
 python3.12 -m envelope_models.automation configure \
-  --source 15oH3g1q-ZlRUNxUQsJsdiZYi9IUUat6r \
+  --source 12uLNB8R1DLOaZhRgTAJDTJswFUmkJiYG \
   --dizimos 1f_4g1VnMk7Di-mCyTjXmPrKGpMBz4qwF \
   --ofertas 1NHXi-g7cphMBgEbboN5hY8mShkhptMXG \
   --primicias 1G-NI1QBkll4dIC9lQ65v_gWMo9dKJ-9W \
@@ -72,6 +72,7 @@ python3.12 -m envelope_models.automation run
 ```
 
 O banco impede criar duas artes do mesmo tema no mesmo dia. As referências entram
-em rotação: arquivos ainda não usados têm prioridade, seguidos pelos menos usados.
+em rotação global: os cinco temas do dia usam arquivos distintos, arquivos ainda
+não usados têm prioridade e depois são escolhidos os menos usados.
 Resultados ficam com estado `review`; aprovação comercial e envio para impressão
 continuam separados desta rotina.

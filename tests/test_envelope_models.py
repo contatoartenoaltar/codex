@@ -121,6 +121,17 @@ class EnvelopeModelsTests(unittest.TestCase):
             second = models.choose_reference(connection, {"files": files}, "dizimos")
         self.assertNotEqual(first["id"], second["id"])
 
+    def test_generic_file_names_are_valid_references_for_every_theme(self):
+        data = png()
+        catalog = {"files": [{"id": "generic_reference_01", "name": "Modelo (33).png",
+                               "mimeType": "image/png",
+                               "md5Checksum": hashlib.md5(data, usedforsecurity=False).hexdigest(),
+                               "data": data}]}
+        with self.store.connect() as connection:
+            for theme in models.THEMES:
+                self.assertEqual(models.choose_reference(connection, catalog, theme)["id"],
+                                 "generic_reference_01")
+
 
 if __name__ == "__main__":
     unittest.main()
