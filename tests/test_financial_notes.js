@@ -199,3 +199,46 @@ test('pedidos calcula lucro acumulado como caixa mais investimentos', () => {
   assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(orderReport().orders.map(o=>o.id))', context)), [2,3,4,5]);
   assert.equal(vm.runInContext('orderReport().profit', context), 17500);
 });
+
+test('resultados separa visualizações reais de Feed, Stories e Reels', () => {
+  const {context} = app();
+  const items = [
+    {format: 'feed', views: 1200},
+    {format: 'feed', views: 300},
+    {format: 'feed', views: null},
+    {format: 'story', views: 480},
+    {format: 'reel', views: 2500},
+    {format: 'carousel', views: 9999}
+  ].map((item, index) => ({...item, id: String(index), title: 'Publicação',
+    published_at: 1794096000 + index, checkpoint: 86400}));
+  vm.runInContext(`insightsPeriod = 'all'; state.insights_collection = {
+    publications: 6, snapshots: 6, measured_publications: ${JSON.stringify(items)}, decisions: {}
+  }`, context);
+
+  const totals = JSON.parse(vm.runInContext(
+    `JSON.stringify(formatViewTotals(state.insights_collection.measured_publications))`, context));
+  assert.deepEqual(totals, [
+    {format: 'feed', label: 'Feed', total: 1500, measured: 2, publications: 3, available: true},
+    {format: 'story', label: 'Stories', total: 480, measured: 1, publications: 1, available: true},
+    {format: 'reel', label: 'Reels', total: 2500, measured: 1, publications: 1, available: true}
+  ]);
+  const html = vm.runInContext('resultsStudio()', context);
+  assert.ok(html.includes('VISUALIZAÇÕES POR FORMATO'));
+  const cards = vm.runInContext(
+    'formatViewCards(state.insights_collection.measured_publications)', context);
+  assert.ok(cards.includes('1.500'));
+  assert.ok(cards.includes('2.500'));
+  assert.ok(!cards.includes('9.999'));
+});
+
+test('card de formato não transforma visualização indisponível em zero', () => {
+  const {context} = app();
+  const totals = JSON.parse(vm.runInContext(
+    `JSON.stringify(formatViewTotals([{format:'feed',views:null},{format:'story'}]))`, context));
+  assert.equal(totals[0].available, false);
+  assert.equal(totals[1].available, false);
+  assert.equal(totals[2].available, false);
+  const html = vm.runInContext(`formatViewCards([{format:'feed',views:null}])`, context);
+  assert.ok(html.includes('Aguardando visualizações da Meta'));
+  assert.ok(html.includes('<strong>—</strong>'));
+});
