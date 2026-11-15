@@ -169,7 +169,21 @@ h3{font-size:14px;margin:0 0 10px;font-weight:650}
 @media(max-width:480px){.card-head .report-period{width:100%;margin-left:0}.card-head:has(.report-period){flex-wrap:wrap}.report-period select{min-width:145px}.report-filters{width:100%;display:grid;grid-template-columns:1fr;gap:8px;margin-left:0}.report-filters .report-period select{width:100%}}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:25px}
 .dashboard-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
-.order-results{grid-template-columns:repeat(3,minmax(0,1fr))}
+.order-results{grid-template-columns:repeat(4,minmax(0,1fr))}
+.order-sales-chart{margin-bottom:25px}
+.order-sales-chart .card-head{align-items:flex-start}
+.order-sales-chart .card-head h2{font-size:20px;margin:7px 0 6px}
+.order-sales-chart .card-head p{margin:0;color:var(--muted);font-size:11px}
+.order-sales-chart .card-head>strong{font-size:24px;font-variant-numeric:tabular-nums}
+.order-sales-plot{position:relative;height:270px;margin:8px 10px 8px 68px}
+.order-sales-grid{position:absolute;left:0;right:0;border-top:1px dashed #e7e8e1;pointer-events:none}
+.order-sales-grid>span{position:absolute;right:calc(100% + 10px);top:-7px;color:#7b8077;font-size:10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.order-sales-days{position:absolute;inset:0;display:grid;align-items:end}
+.order-sales-day{position:relative;height:100%;display:flex;align-items:flex-end;justify-content:center;border-radius:4px 4px 0 0}
+.order-sales-day:hover{background:#b7974310}
+.order-sales-day i{display:block;width:72%;min-width:1px;max-width:34px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#d4aa51,#a87518);transform-origin:center bottom;animation:manager-bars-in 650ms cubic-bezier(.2,.75,.25,1) both}
+.order-sales-day span{position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);font-size:10px;color:#73786f;white-space:nowrap}
+.order-sales-empty{position:absolute;z-index:1;inset:30% 0 auto;padding:18px;text-align:center;background:#fffffff2;color:var(--muted);font-size:12px}
 .stat,.card{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 2px #25291b02}
 .stat{padding:20px;position:relative;overflow:hidden}
 .stat::before{content:"";position:absolute;height:2px;left:20px;right:20px;top:0;background:#bc9846}
@@ -361,6 +375,10 @@ h1{font-size:24px;max-width:300px;letter-spacing:-.8px}
 .stat-icon .ui-icon{width:16px;height:16px}
 .stat strong{font-size:23px;margin:10px 0}
 .stat small{font-size:9px}
+.order-sales-chart .card-head>strong{font-size:21px}
+.order-sales-plot{height:225px;margin-left:52px;margin-right:2px}
+.order-sales-grid>span{right:calc(100% + 7px);font-size:9px}
+.order-sales-day span{font-size:9px}
 .card{padding:20px}
 .card-head{gap:12px;margin-bottom:20px}
 .card-head h2{font-size:14px}

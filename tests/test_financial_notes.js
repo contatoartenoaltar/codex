@@ -276,6 +276,35 @@ test('pedidos calcula lucro acumulado como caixa, investimentos e valores a rece
   assert.equal(vm.runInContext('orderReport().profit', context), 22500);
 });
 
+test('pedidos mostra vendas diárias e média de lucro pelos dias já transcorridos no mês', () => {
+  const {context} = app();
+  vm.runInContext(`state.business_date = '2026-11-15'; orderPeriod = '7'; state.stages = ['Novo'];
+    state.orders = [
+      {id:1,customer:'Primeira',product:'Envelopes',quantity:100,total:7000,status:'Novo',notes:'',transaction_id:1},
+      {id:2,customer:'Segunda',product:'Calendários',quantity:100,total:3500,status:'Novo',notes:'',transaction_id:4}
+    ];
+    state.transactions = [
+      {id:1,date:'2026-11-09',kind:'income',amount:7000,order_id:1},
+      {id:2,date:'2026-11-10',kind:'expense',amount:1400,order_id:null},
+      {id:3,date:'2026-11-11',kind:'investment',amount:5000,order_id:null},
+      {id:4,date:'2026-11-15',kind:'income',amount:3500,order_id:2}
+    ]`, context);
+  const report = JSON.parse(vm.runInContext(`JSON.stringify((()=>{const r=orderReport();return {
+    sales:r.sales,expenses:r.expenses,periodProfit:r.periodProfit,
+    monthProfit:r.monthProfit,averageDailyProfit:r.averageDailyProfit,monthElapsedDays:r.monthElapsedDays,
+    values:r.dailySales.map(day=>day.value)}})())`, context));
+  assert.deepEqual(report, {
+    sales:10500, expenses:1400, periodProfit:9100, monthProfit:9100,
+    averageDailyProfit:607, monthElapsedDays:15, values:[7000,0,0,0,0,0,3500]
+  });
+  const html = vm.runInContext('orders()', context);
+  assert.ok(html.includes('Média diária de lucro'));
+  assert.ok(html.includes('Lucro deste mês ÷ 15 dias transcorridos'));
+  assert.ok(html.includes('Vendas dia a dia'));
+  assert.ok(html.includes('09/11/2026: R$ 70,00 em vendas'));
+  assert.ok(!html.includes('R$ 50,00 em vendas'));
+});
+
 test('receita parcial adiciona o pedido completo ao lucro e somente o recebido ao caixa', () => {
   const {context} = app();
   vm.runInContext(`state.stages = ['Novo']; state.orders = [{
