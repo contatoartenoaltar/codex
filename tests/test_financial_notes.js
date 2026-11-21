@@ -187,7 +187,7 @@ test('financeiro filtra cartões e lançamentos pelo período escolhido', () => 
     {id: 7, date: '2026-10-31', description: 'Hoje', kind: 'income', amount: 6000}
   ]`, context);
 
-  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [4,5,6,7]);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [7,6,5,4]);
   let html = vm.runInContext('finance()', context);
   assert.ok(html.includes('Início do mês'));
   assert.ok(!html.includes('Mês anterior'));
@@ -195,16 +195,39 @@ test('financeiro filtra cartões e lançamentos pelo período escolhido', () => 
     {income: 9000, expense: 900, investment: 500, balance: 8100, active: 0, low: 0});
 
   vm.runInContext("financePeriod = '7'", context);
-  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [6,7]);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [7,6]);
   html = vm.runInContext('finance()', context);
   assert.ok(html.includes('Dentro de sete dias'));
   assert.ok(!html.includes('Antes de sete dias'));
 
   vm.runInContext("financePeriod = 'year'", context);
-  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [2,3,4,5,6,7]);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [7,6,5,4,3,2]);
   html = vm.runInContext('finance()', context);
   assert.ok(html.includes('Receita anual'));
   assert.ok(!html.includes('Ano anterior'));
+});
+
+test('financeiro ordena e agrupa lançamentos pela data informada', () => {
+  const {context} = app();
+  vm.runInContext(`state.transactions = [
+    {id: 30, date: '2026-10-05', description: 'Despesa lançada depois', kind: 'expense', amount: 500},
+    {id: 10, date: '2026-10-31', description: 'Primeira venda do dia', kind: 'income', amount: 1200},
+    {id: 20, date: '2026-10-31', description: 'Segunda venda do dia', kind: 'income', amount: 800}
+  ]`, context);
+
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(financeRows().map(t=>t.id))', context)), [20,10,30]);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(state.transactions.map(t=>t.id))', context)), [30,10,20]);
+
+  const html = vm.runInContext('finance()', context);
+  assert.ok(html.includes('Lançamentos por data'));
+  assert.equal((html.match(/<tbody aria-label=/g)||[]).length, 2);
+  assert.ok(html.includes('sábado, 31 de outubro de 2026'));
+  assert.ok(html.includes('2 lançamentos'));
+  const normalizedHtml = html.replaceAll('\u00a0',' ');
+  assert.ok(normalizedHtml.includes('Entradas <b>R$ 20,00</b>'));
+  assert.ok(normalizedHtml.includes('Saldo <b>R$ 20,00</b>'));
+  assert.ok(html.indexOf('Segunda venda do dia') < html.indexOf('Primeira venda do dia'));
+  assert.ok(html.indexOf('Primeira venda do dia') < html.indexOf('Despesa lançada depois'));
 });
 
 test('financeiro filtra lançamentos por receita, despesa e investimento sem alterar os totais do período', () => {
